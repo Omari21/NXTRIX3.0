@@ -1,0 +1,5 @@
+NXTRIX CRM Security Verification Results
+Score: 97/100
+Status: EXCELLENT
+
+Details:
