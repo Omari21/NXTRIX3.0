@@ -1,5 +1,6 @@
 # NXTRIX CRM Requirements
-# Production deployment requirements
+# Production deployment requirements  
+# Updated: 2025-09-29 - Added boto3 for cloud storage
 
 # Core Framework
 streamlit>=1.28.0
