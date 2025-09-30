@@ -14,6 +14,14 @@ from dotenv import load_dotenv
 import bcrypt
 import hashlib
 
+# AI Features
+try:
+    import openai
+    openai.api_key = os.getenv("OPENAI_API_KEY")
+    AI_AVAILABLE = True
+except ImportError:
+    AI_AVAILABLE = False
+
 # Load environment variables
 load_dotenv()
 
@@ -103,6 +111,68 @@ def register_user(username: str, password: str, email: str) -> bool:
         st.error(f"Registration error: {e}")
         return False
 
+# AI Functions
+def analyze_deal_with_ai(deal: Deal) -> Dict[str, Any]:
+    """Analyze deal using OpenAI"""
+    if not AI_AVAILABLE or not openai.api_key:
+        return {"score": 75, "analysis": "AI analysis not available", "recommendations": ["Manual review recommended"]}
+    
+    try:
+        prompt = f"""
+        Analyze this real estate deal:
+        
+        Property: {deal.property_address}
+        Type: {deal.deal_type}
+        Value: ${deal.property_value:,.2f}
+        Investor: {deal.investor_name}
+        Status: {deal.status}
+        Notes: {deal.notes}
+        
+        Please provide:
+        1. Deal score (1-100)
+        2. Analysis summary
+        3. 3 key recommendations
+        
+        Respond in JSON format: {{"score": number, "analysis": "text", "recommendations": ["rec1", "rec2", "rec3"]}}
+        """
+        
+        response = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=500
+        )
+        
+        import json
+        result = json.loads(response.choices[0].message.content)
+        return result
+        
+    except Exception as e:
+        return {"score": 75, "analysis": f"AI analysis error: {str(e)}", "recommendations": ["Manual review recommended"]}
+
+def generate_market_insights() -> List[str]:
+    """Generate AI-powered market insights"""
+    if not AI_AVAILABLE:
+        return ["AI insights not available - upgrade to enable AI features"]
+    
+    try:
+        prompt = """
+        Generate 5 current real estate market insights for investors in 2025.
+        Focus on trends, opportunities, and risks.
+        Keep each insight to 1-2 sentences.
+        """
+        
+        response = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=300
+        )
+        
+        insights = response.choices[0].message.content.strip().split('\n')
+        return [insight.strip('- ').strip() for insight in insights if insight.strip()]
+        
+    except Exception as e:
+        return [f"AI insights error: {str(e)}"]
+
 # Database Functions
 def get_deals() -> List[Deal]:
     """Fetch all deals from database"""
@@ -188,6 +258,14 @@ def show_dashboard():
         avg_value = df['property_value'].mean()
         st.metric("Avg Deal Value", f"${avg_value:,.0f}")
     
+    # AI Insights Section
+    if AI_AVAILABLE:
+        st.subheader("🤖 AI Market Insights")
+        with st.expander("View AI-Powered Market Analysis"):
+            insights = generate_market_insights()
+            for i, insight in enumerate(insights[:5], 1):
+                st.write(f"**{i}.** {insight}")
+    
     # Charts
     col1, col2 = st.columns(2)
     
@@ -260,6 +338,17 @@ def show_deals():
                     
                     if deal.notes:
                         st.write(f"**Notes:** {deal.notes}")
+                    
+                    # AI Analysis Section
+                    if AI_AVAILABLE:
+                        if st.button(f"🤖 AI Analysis {deal.id[:8]}", key=f"ai_{deal.id}"):
+                            with st.spinner("Analyzing deal with AI..."):
+                                ai_result = analyze_deal_with_ai(deal)
+                                st.success(f"**AI Score:** {ai_result['score']}/100")
+                                st.write(f"**Analysis:** {ai_result['analysis']}")
+                                st.write("**Recommendations:**")
+                                for rec in ai_result['recommendations']:
+                                    st.write(f"• {rec}")
                     
                     # Action buttons
                     col1, col2 = st.columns(2)
@@ -387,6 +476,63 @@ def login_page():
                     else:
                         st.error("Registration failed. Username might already exist.")
 
+def show_ai_analytics():
+    """Display AI-powered analytics page"""
+    st.title("🤖 AI-Powered Analytics")
+    
+    if not AI_AVAILABLE:
+        st.warning("AI features require OpenAI API key. Please configure your environment variables.")
+        return
+    
+    deals = get_deals()
+    if not deals:
+        st.info("No deals available for AI analysis. Add some deals first!")
+        return
+    
+    st.subheader("📊 Portfolio AI Analysis")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.write("**Market Insights**")
+        insights = generate_market_insights()
+        for insight in insights[:3]:
+            st.success(insight)
+    
+    with col2:
+        st.write("**Deal Recommendations**")
+        # Analyze a few recent deals
+        recent_deals = deals[:3]
+        for deal in recent_deals:
+            with st.expander(f"Analysis: {deal.property_address}"):
+                ai_result = analyze_deal_with_ai(deal)
+                st.write(f"**Score:** {ai_result['score']}/100")
+                st.write(f"**Analysis:** {ai_result['analysis']}")
+    
+    st.subheader("🎯 AI Investment Recommendations")
+    st.info("Based on your current portfolio, here are AI-generated investment strategies:")
+    
+    # Generate portfolio recommendations
+    try:
+        portfolio_prompt = f"""
+        Based on a real estate portfolio of {len(deals)} deals with these property types: {', '.join(set([d.deal_type for d in deals]))},
+        provide 3 strategic investment recommendations for 2025.
+        """
+        
+        response = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",
+            messages=[{"role": "user", "content": portfolio_prompt}],
+            max_tokens=300
+        )
+        
+        recommendations = response.choices[0].message.content.strip().split('\n')
+        for i, rec in enumerate(recommendations[:3], 1):
+            if rec.strip():
+                st.write(f"**{i}.** {rec.strip('- ').strip()}")
+                
+    except Exception as e:
+        st.error(f"AI recommendation error: {str(e)}")
+
 # Main App
 def main():
     """Main application"""
@@ -403,11 +549,17 @@ def main():
     st.sidebar.title(f"Welcome, {st.session_state.get('username', 'User')}")
     
     page = st.sidebar.selectbox("Navigate", 
-                               ["Dashboard", "Deals", "Investors", "Settings"])
+                               ["Dashboard", "Deals", "Investors", "AI Analytics", "Settings"])
     
     if st.sidebar.button("Logout"):
         st.session_state.authenticated = False
         st.rerun()
+    
+    # AI Status
+    if AI_AVAILABLE:
+        st.sidebar.success("🤖 AI Features: Enabled")
+    else:
+        st.sidebar.warning("🤖 AI Features: Disabled")
     
     # Display selected page
     if page == "Dashboard":
@@ -416,6 +568,8 @@ def main():
         show_deals()
     elif page == "Investors":
         show_investors()
+    elif page == "AI Analytics":
+        show_ai_analytics()
     elif page == "Settings":
         st.title("⚙️ Settings")
         st.info("Settings page coming soon!")
