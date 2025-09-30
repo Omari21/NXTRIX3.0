@@ -1,13 +1,59 @@
-# NXTRIX CRM - Streamlit Deployment
+# NXTRIX CRM - Real Estate Deal Management Platform
 
-## 🚀 Production-Ready CRM System
+🏢 **Professional Real Estate CRM built with Streamlit and Supabase**
 
-**Complete Customer Relationship Management system built with Streamlit, featuring 100% efficiency optimizations and AI-powered analytics.**
+## 🚀 Quick Start
 
-### Key Features:
-- 💼 Complete CRM functionality  
-- 🤖 AI-powered deal analytics
-- 📊 Real-time performance dashboards
+### Prerequisites
+- Python 3.8+
+- Supabase account
+
+### Installation
+
+1. **Clone the repository:**
+```bash
+git clone https://github.com/Omari21/NXTRIX3.0.git
+cd NXTRIX3.0
+```
+
+2. **Install dependencies:**
+```bash
+pip install -r requirements.txt
+```
+
+3. **Configure environment variables:**
+   - Copy `.streamlit/secrets.toml.example` to `.streamlit/secrets.toml`
+   - Add your Supabase credentials
+
+4. **Run the application:**
+```bash
+streamlit run streamlit_app.py
+```
+
+## 🎯 Core Features
+
+### 🔐 **User Authentication**
+- Secure user registration and login
+- Password hashing with bcrypt
+- Session management
+
+### 💼 **Deal Management**
+- Add, edit, view, and delete deals
+- Deal filtering and search
+- Status tracking (Active, Pending, Closed, Cancelled)
+- Property value and investor tracking
+
+### 📊 **Analytics Dashboard**
+- Total portfolio value tracking
+- Deal count metrics
+- Average deal size analysis
+- Visual charts and graphs
+
+### � **Investor Management**
+- Investor portfolio summaries
+- Deal count per investor
+- Investment value tracking
+- Contact information management
 - 🔒 Enterprise-grade security
 - ⚡ 100% efficiency optimizations
 - 🌐 Supabase cloud database integration

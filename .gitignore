@@ -1,8 +1,5 @@
 # NXTRIX CRM - Production .gitignore
 
-# Ignore old Next.js project folder (causes TypeScript errors)
-nxtrix-crm/
-
 # Streamlit secrets (contains API keys)
 .streamlit/secrets.toml
 
@@ -50,6 +47,13 @@ Thumbs.db
 # Logs
 *.log
 logs/
+
+# Backup and development files
+*_backup.py
+*_minimal.py
+test_*.py
+*.md
+!README.md
 
 # Node.js (if any remaining)
 node_modules/
