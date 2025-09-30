@@ -1,5 +1,8 @@
 # NXTRIX CRM - Production .gitignore
 
+# Ignore old Next.js project folder (causes TypeScript errors)
+nxtrix-crm/
+
 # Streamlit secrets (contains API keys)
 .streamlit/secrets.toml
 
