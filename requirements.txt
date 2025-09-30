@@ -38,6 +38,10 @@ json5>=0.9.0
 # Email Services (if using EmailJS via requests)
 # Already covered by requests
 
+# Cloud Storage & AWS Services
+boto3>=1.26.0
+botocore>=1.29.0
+
 # Additional Streamlit Components
 streamlit-option-menu>=0.3.0
 streamlit-elements>=0.1.0
