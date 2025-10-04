@@ -9,68 +9,14 @@ import openai
 import os
 from supabase import create_client, Client
 import uuid
-from ai_prediction_engine import AIMarketPredictor, get_ai_predictor, create_prediction_visualizations
 
-# Lazy import functions to avoid event loop issues
-@st.cache_resource
-def get_db_service():
-    """Lazy load database service"""
-    try:
-        from database import db_service
-        return db_service
-    except Exception as e:
-        st.error(f"Database service error: {e}")
-        return None
-
-@st.cache_resource
-def get_financial_modeling():
-    """Lazy load financial modeling"""
-    try:
-        from financial_modeling import AdvancedFinancialModeling, create_cash_flow_chart, create_monte_carlo_chart, create_sensitivity_chart, create_exit_strategy_chart
-        return AdvancedFinancialModeling, create_cash_flow_chart, create_monte_carlo_chart, create_sensitivity_chart, create_exit_strategy_chart
-    except Exception as e:
-        st.error(f"Financial modeling error: {e}")
-        return None, None, None, None, None
-
-@st.cache_resource
-def get_portfolio_analytics():
-    """Lazy load portfolio analytics"""
-    try:
-        from portfolio_analytics import PortfolioAnalyzer, create_portfolio_performance_chart, create_portfolio_metrics_dashboard, create_geographic_diversification_map
-        return PortfolioAnalyzer, create_portfolio_performance_chart, create_portfolio_metrics_dashboard, create_geographic_diversification_map
-    except Exception as e:
-        st.error(f"Portfolio analytics error: {e}")
-        return None, None, None, None
-
-@st.cache_resource
-def get_investor_portal():
-    """Lazy load investor portal"""
-    try:
-        from investor_portal import InvestorPortalManager, InvestorDashboard, generate_investor_report
-        return InvestorPortalManager, InvestorDashboard, generate_investor_report
-    except Exception as e:
-        st.error(f"Investor portal error: {e}")
-        return None, None, None
-
-@st.cache_resource
-def get_enhanced_crm():
-    """Lazy load enhanced CRM"""
-    try:
-        from enhanced_crm import show_enhanced_crm
-        return show_enhanced_crm
-    except Exception as e:
-        st.error(f"Enhanced CRM error: {e}")
-        return None
-
-@st.cache_resource
-def get_models():
-    """Lazy load models"""
-    try:
-        from models import Deal, Investor, Portfolio
-        return Deal, Investor, Portfolio
-    except Exception as e:
-        st.error(f"Models error: {e}")
-        return None, None, None
+# Import our new modules
+from database import db_service
+from models import Deal, Investor, Portfolio
+from financial_modeling import AdvancedFinancialModeling, create_cash_flow_chart, create_monte_carlo_chart, create_sensitivity_chart, create_exit_strategy_chart
+from portfolio_analytics import PortfolioAnalyzer, create_portfolio_performance_chart, create_portfolio_metrics_dashboard, create_geographic_diversification_map
+from investor_portal import InvestorPortalManager, InvestorDashboard, generate_investor_report
+# Import enhanced_crm only when needed to avoid event loop issues
 
 # Navigation helper functions
 def navigate_to_page(page_name):
@@ -109,211 +55,55 @@ supabase = init_supabase()
 # Custom CSS for better styling with proper contrast
 st.markdown("""
 <style>
-    /* ===========================================
-       MOBILE-FIRST RESPONSIVE FRAMEWORK
-       =========================================== */
-    
-    /* Base mobile-first styles */
+    /* Main app background */
     .stApp {
         background-color: #0e1117;
         color: white;
-        font-size: 16px;
-        line-height: 1.5;
     }
     
-    /* Mobile viewport meta tag enforcement */
-    @viewport {
-        width: device-width;
-        initial-scale: 1.0;
-        maximum-scale: 5.0;
-        user-scalable: yes;
-    }
-    
-    /* ===========================================
-       RESPONSIVE TYPOGRAPHY
-       =========================================== */
-    
-    /* Mobile-first typography */
-    h1, h2, h3, h4, h5, h6 {
-        color: white !important;
-        font-weight: 600;
-        line-height: 1.3;
-        margin-bottom: 0.75rem;
-    }
-    
-    h1 { font-size: 1.75rem; }  /* 28px */
-    h2 { font-size: 1.5rem; }   /* 24px */
-    h3 { font-size: 1.25rem; }  /* 20px */
-    h4 { font-size: 1.125rem; } /* 18px */
-    
-    /* Tablet breakpoint - 768px and up */
-    @media (min-width: 768px) {
-        h1 { font-size: 2.25rem; }  /* 36px */
-        h2 { font-size: 1.875rem; } /* 30px */
-        h3 { font-size: 1.5rem; }   /* 24px */
-        h4 { font-size: 1.25rem; }  /* 20px */
-    }
-    
-    /* Desktop breakpoint - 1024px and up */
-    @media (min-width: 1024px) {
-        h1 { font-size: 2.5rem; }   /* 40px */
-        h2 { font-size: 2rem; }     /* 32px */
-        h3 { font-size: 1.75rem; }  /* 28px */
-        h4 { font-size: 1.5rem; }   /* 24px */
-    }
-    
-    /* ===========================================
-       MOBILE HEADER & NAVIGATION
-       =========================================== */
-    
+    /* Header styling */
     .main-header {
         background-color: #262730;
-        padding: 1rem;
-        border-radius: 10px;
+        padding: 2.5rem;
+        border-radius: 15px;
         color: white;
         text-align: center;
-        margin-bottom: 1rem;
+        margin-bottom: 2rem;
         border: 1px solid #404040;
     }
     
     .main-header h1 {
-        margin-bottom: 0.25rem;
-        font-size: 1.5rem;
+        margin-bottom: 0.5rem;
+        font-size: 2.5rem;
         font-weight: 700;
         color: white;
     }
     
     .main-header p {
-        font-size: 0.9rem;
+        font-size: 1.2rem;
         opacity: 0.9;
         color: white;
-        margin: 0;
     }
     
-    /* Tablet header adjustments */
-    @media (min-width: 768px) {
-        .main-header {
-            padding: 1.5rem;
-            border-radius: 12px;
-            margin-bottom: 1.5rem;
-        }
-        
-        .main-header h1 {
-            font-size: 2rem;
-            margin-bottom: 0.5rem;
-        }
-        
-        .main-header p {
-            font-size: 1rem;
-        }
-    }
-    
-    /* Desktop header adjustments */
-    @media (min-width: 1024px) {
-        .main-header {
-            padding: 2.5rem;
-            border-radius: 15px;
-            margin-bottom: 2rem;
-        }
-        
-        .main-header h1 {
-            font-size: 2.5rem;
-        }
-        
-        .main-header p {
-            font-size: 1.2rem;
-        }
-    }
-    
-    /* ===========================================
-       MOBILE-OPTIMIZED CARDS & METRICS
-       =========================================== */
-    
-    /* Mobile-first metric cards */
-    .metric-card, .deal-card {
+    /* Metric cards with better contrast */
+    .metric-card {
         background-color: #262730;
-        padding: 1rem;
-        border-radius: 10px;
+        padding: 2rem;
+        border-radius: 15px;
         border: 1px solid #404040;
-        margin-bottom: 1rem;
+        margin-bottom: 1.5rem;
         color: white;
-        transition: all 0.3s ease;
     }
     
-    .metric-card:hover, .deal-card:hover {
+    .metric-card:hover {
         transform: translateY(-2px);
         border-color: #4CAF50;
-        box-shadow: 0 4px 12px rgba(76, 175, 80, 0.15);
     }
     
     .metric-card h3 {
         color: #ffffff;
-        font-size: 0.75rem;
+        font-size: 0.9rem;
         font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-        margin-bottom: 0.25rem;
-    }
-    
-    .metric-card h2 {
-        font-size: 1.5rem;
-        font-weight: 700;
-        margin-bottom: 0.25rem;
-        color: white;
-    }
-    
-    .metric-card p {
-        color: #cccccc;
-        font-size: 0.8rem;
-        font-weight: 500;
-        margin: 0;
-    }
-    
-    /* Tablet metric adjustments */
-    @media (min-width: 768px) {
-        .metric-card, .deal-card {
-            padding: 1.5rem;
-            border-radius: 12px;
-            margin-bottom: 1.25rem;
-        }
-        
-        .metric-card h3 {
-            font-size: 0.85rem;
-            margin-bottom: 0.375rem;
-        }
-        
-        .metric-card h2 {
-            font-size: 1.75rem;
-            margin-bottom: 0.375rem;
-        }
-        
-        .metric-card p {
-            font-size: 0.875rem;
-        }
-    }
-    
-    /* Desktop metric adjustments */
-    @media (min-width: 1024px) {
-        .metric-card, .deal-card {
-            padding: 2rem;
-            border-radius: 15px;
-            margin-bottom: 1.5rem;
-        }
-        
-        .metric-card h3 {
-            font-size: 0.9rem;
-            margin-bottom: 0.5rem;
-        }
-        
-        .metric-card h2 {
-            font-size: 2rem;
-            margin-bottom: 0.5rem;
-        }
-        
-        .metric-card p {
-            font-size: 0.9rem;
-        }
-    }
         text-transform: uppercase;
         letter-spacing: 0.5px;
         margin-bottom: 0.5rem;
@@ -539,526 +329,7 @@ st.markdown("""
     .stMetric [data-testid="metric-container"] > div {
         color: white !important;
     }
-    
-    /* ===========================================
-       TOUCH-FRIENDLY INPUTS & BUTTONS
-       =========================================== */
-    
-    /* Mobile-optimized inputs */
-    .stTextInput > div > div > input,
-    .stNumberInput > div > div > input,
-    .stSelectbox > div > div > div,
-    .stTextArea > div > div > textarea {
-        background-color: #262730;
-        border: 2px solid #404040;
-        border-radius: 8px;
-        color: white;
-        font-weight: 500;
-        min-height: 44px; /* Touch target minimum */
-        font-size: 16px; /* Prevents zoom on iOS */
-        padding: 0.75rem;
-    }
-    
-    .stTextInput > div > div > input:focus,
-    .stNumberInput > div > div > input:focus,
-    .stTextArea > div > div > textarea:focus {
-        border-color: #4CAF50;
-        box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.1);
-        outline: none;
-    }
-    
-    /* Touch-friendly buttons */
-    .stButton > button {
-        background-color: #4CAF50;
-        color: white;
-        border: none;
-        border-radius: 10px;
-        padding: 1rem 1.5rem;
-        font-weight: 600;
-        font-size: 1rem;
-        min-height: 44px; /* Touch target minimum */
-        min-width: 44px;
-        cursor: pointer;
-        transition: all 0.2s ease;
-    }
-    
-    .stButton > button:hover {
-        background-color: #45a049;
-        transform: translateY(-1px);
-    }
-    
-    .stButton > button:active {
-        transform: translateY(0);
-    }
-    
-    /* Desktop button adjustments */
-    @media (min-width: 1024px) {
-        .stButton > button {
-            padding: 0.75rem 2rem;
-        }
-    }
-    
-    /* ===========================================
-       MOBILE SIDEBAR & NAVIGATION
-       =========================================== */
-    
-    /* Mobile sidebar optimization */
-    .css-1d391kg {
-        background-color: #262730;
-    }
-    
-    /* Mobile-friendly selectbox */
-    .stSelectbox > div > div {
-        background-color: #262730;
-        color: white;
-        border: 1px solid #404040;
-        border-radius: 8px;
-        min-height: 44px;
-    }
-    
-    /* Tab styling for mobile */
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 4px;
-        overflow-x: auto;
-        scrollbar-width: none;
-        -ms-overflow-style: none;
-    }
-    
-    .stTabs [data-baseweb="tab-list"]::-webkit-scrollbar {
-        display: none;
-    }
-    
-    .stTabs [data-baseweb="tab"] {
-        background-color: #262730;
-        color: white;
-        border: 1px solid #404040;
-        border-radius: 8px;
-        padding: 0.75rem 1rem;
-        white-space: nowrap;
-        min-height: 44px;
-        font-size: 0.9rem;
-    }
-    
-    .stTabs [aria-selected="true"] {
-        background-color: #4CAF50;
-        color: white;
-        border-color: #4CAF50;
-    }
-    
-    /* Tablet tab adjustments */
-    @media (min-width: 768px) {
-        .stTabs [data-baseweb="tab-list"] {
-            gap: 8px;
-        }
-        
-        .stTabs [data-baseweb="tab"] {
-            padding: 0.75rem 1.5rem;
-            font-size: 1rem;
-        }
-    }
-    
-    /* ===========================================
-       MOBILE DATA DISPLAY
-       =========================================== */
-    
-    /* Mobile-optimized metrics */
-    .stMetric {
-        background-color: #262730;
-        padding: 1rem;
-        border-radius: 10px;
-        border: 1px solid #404040;
-        color: white;
-        margin-bottom: 0.75rem;
-    }
-    
-    .stMetric > div {
-        color: white;
-    }
-    
-    .stMetric [data-testid="metric-container"] {
-        background-color: #262730;
-        border: 1px solid #404040;
-        padding: 1rem;
-        border-radius: 10px;
-        color: white;
-    }
-    
-    .stMetric [data-testid="metric-container"] > div {
-        color: white !important;
-    }
-    
-    /* Tablet metric adjustments */
-    @media (min-width: 768px) {
-        .stMetric {
-            padding: 1.25rem;
-            border-radius: 12px;
-            margin-bottom: 1rem;
-        }
-    }
-    
-    /* Desktop metric adjustments */
-    @media (min-width: 1024px) {
-        .stMetric {
-            padding: 1.5rem;
-            border-radius: 12px;
-            margin-bottom: 1.5rem;
-        }
-    }
-    
-    /* ===========================================
-       MOBILE CHARTS & VISUALIZATIONS
-       =========================================== */
-    
-    /* Mobile-responsive charts */
-    .js-plotly-plot {
-        background-color: #262730;
-        border-radius: 10px;
-        border: 1px solid #404040;
-        margin-bottom: 1rem;
-    }
-    
-    .js-plotly-plot .plotly {
-        border-radius: 10px;
-    }
-    
-    /* Mobile dataframe styling */
-    .stDataFrame {
-        background-color: #262730;
-        border-radius: 10px;
-        overflow: hidden;
-        border: 1px solid #404040;
-        margin-bottom: 1rem;
-        overflow-x: auto;
-    }
-    
-    .stDataFrame table {
-        font-size: 0.85rem;
-        min-width: 100%;
-    }
-    
-    .stDataFrame th, .stDataFrame td {
-        padding: 0.5rem !important;
-        white-space: nowrap;
-    }
-    
-    /* Tablet chart adjustments */
-    @media (min-width: 768px) {
-        .js-plotly-plot {
-            border-radius: 12px;
-            margin-bottom: 1.25rem;
-        }
-        
-        .stDataFrame {
-            border-radius: 12px;
-            margin-bottom: 1.25rem;
-        }
-        
-        .stDataFrame table {
-            font-size: 0.9rem;
-        }
-        
-        .stDataFrame th, .stDataFrame td {
-            padding: 0.75rem !important;
-        }
-    }
-    
-    /* Desktop chart adjustments */
-    @media (min-width: 1024px) {
-        .js-plotly-plot {
-            border-radius: 10px;
-            margin-bottom: 1.5rem;
-        }
-        
-        .stDataFrame {
-            border-radius: 10px;
-            margin-bottom: 1.5rem;
-        }
-        
-        .stDataFrame table {
-            font-size: 1rem;
-        }
-        
-        .stDataFrame th, .stDataFrame td {
-            padding: 1rem !important;
-        }
-    }
-    
-    /* ===========================================
-       MOBILE STATUS & ALERTS
-       =========================================== */
-    
-    /* Mobile-friendly alerts */
-    .stInfo, .stSuccess, .stWarning, .stError {
-        background-color: #262730;
-        border: 1px solid #404040;
-        color: white;
-        border-radius: 8px;
-        padding: 1rem;
-        margin-bottom: 0.75rem;
-        font-size: 0.9rem;
-    }
-    
-    .stSuccess {
-        border-color: #4CAF50;
-        background-color: rgba(76, 175, 80, 0.1);
-    }
-    
-    .stInfo {
-        border-color: #2196F3;
-        background-color: rgba(33, 150, 243, 0.1);
-    }
-    
-    .stWarning {
-        border-color: #FF9800;
-        background-color: rgba(255, 152, 0, 0.1);
-    }
-    
-    .stError {
-        border-color: #f44336;
-        background-color: rgba(244, 67, 54, 0.1);
-    }
-    
-    /* Tablet alert adjustments */
-    @media (min-width: 768px) {
-        .stInfo, .stSuccess, .stWarning, .stError {
-            border-radius: 10px;
-            padding: 1.25rem;
-            margin-bottom: 1rem;
-            font-size: 1rem;
-        }
-    }
-    
-    /* ===========================================
-       MOBILE AI SCORE & BADGES
-       =========================================== */
-    
-    /* Mobile AI score badge */
-    .ai-score {
-        background-color: #4CAF50;
-        color: white;
-        padding: 0.5rem 1rem;
-        border-radius: 20px;
-        font-weight: 700;
-        font-size: 0.9rem;
-        display: inline-block;
-        letter-spacing: 0.5px;
-        margin-bottom: 0.5rem;
-    }
-    
-    /* Tablet AI score adjustments */
-    @media (min-width: 768px) {
-        .ai-score {
-            padding: 0.65rem 1.25rem;
-            border-radius: 22px;
-            font-size: 1rem;
-        }
-    }
-    
-    /* Desktop AI score adjustments */
-    @media (min-width: 1024px) {
-        .ai-score {
-            padding: 0.8rem 1.5rem;
-            border-radius: 25px;
-            font-size: 1.1rem;
-        }
-    }
-    
-    /* Mobile status badges */
-    .status-active, .status-pending, .status-closed {
-        color: white;
-        padding: 0.25rem 0.6rem;
-        border-radius: 12px;
-        font-size: 0.75rem;
-        font-weight: 600;
-        display: inline-block;
-        margin-bottom: 0.25rem;
-    }
-    
-    .status-active {
-        background-color: #4CAF50;
-    }
-    
-    .status-pending {
-        background-color: #FF9800;
-    }
-    
-    .status-closed {
-        background-color: #607D8B;
-    }
-    
-    /* Tablet status badge adjustments */
-    @media (min-width: 768px) {
-        .status-active, .status-pending, .status-closed {
-            padding: 0.3rem 0.7rem;
-            border-radius: 14px;
-            font-size: 0.8rem;
-        }
-    }
-    
-    /* Desktop status badge adjustments */
-    @media (min-width: 1024px) {
-        .status-active, .status-pending, .status-closed {
-            padding: 0.3rem 0.8rem;
-            border-radius: 15px;
-            font-size: 0.8rem;
-        }
-    }
-    
-    /* ===========================================
-       MOBILE UTILITY CLASSES
-       =========================================== */
-    
-    /* Mobile text utilities */
-    .highlight-text {
-        color: white;
-        font-weight: 600;
-    }
-    
-    .accent-text {
-        color: #4CAF50;
-        font-weight: 600;
-    }
-    
-    /* Mobile spacing utilities */
-    .mobile-hidden {
-        display: none;
-    }
-    
-    .mobile-only {
-        display: block;
-    }
-    
-    /* Tablet utilities */
-    @media (min-width: 768px) {
-        .tablet-hidden {
-            display: none;
-        }
-        
-        .tablet-only {
-            display: block;
-        }
-        
-        .mobile-only {
-            display: none;
-        }
-    }
-    
-    /* Desktop utilities */
-    @media (min-width: 1024px) {
-        .desktop-hidden {
-            display: none;
-        }
-        
-        .desktop-only {
-            display: block;
-        }
-        
-        .tablet-only, .mobile-only {
-            display: none;
-        }
-    }
-    
-    /* ===========================================
-       MOBILE PERFORMANCE OPTIMIZATIONS
-       =========================================== */
-    
-    /* Reduce motion for mobile performance */
-    @media (prefers-reduced-motion: reduce) {
-        *, *::before, *::after {
-            animation-duration: 0.01ms !important;
-            animation-iteration-count: 1 !important;
-            transition-duration: 0.01ms !important;
-        }
-    }
-    
-    /* Hardware acceleration for smooth scrolling */
-    .stApp {
-        -webkit-overflow-scrolling: touch;
-        transform: translateZ(0);
-        backface-visibility: hidden;
-    }
-    
-    /* Remove default streamlit styling that interferes with mobile */
-    .element-container {
-        background: transparent !important;
-    }
-    
-    /* Fix metric containers for mobile */
-    .stMarkdown {
-        color: white !important;
-    }
-    
-    /* Ensure all text is visible on mobile */
-    p, span, div {
-        color: white !important;
-    }
 </style>
-""", unsafe_allow_html=True)
-
-# PWA Configuration and Performance Optimization
-st.markdown("""
-<link rel="manifest" href="./manifest.json">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="NXTRIX CRM">
-<meta name="mobile-web-app-capable" content="yes">
-
-<!-- Service Worker Registration -->
-<script>
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', function() {
-    navigator.serviceWorker.register('./sw.js')
-      .then(function(registration) {
-        console.log('SW registered: ', registration);
-      }, function(registrationError) {
-        console.log('SW registration failed: ', registrationError);
-      });
-  });
-}
-
-// Performance optimization - lazy loading images
-document.addEventListener('DOMContentLoaded', function() {
-  const images = document.querySelectorAll('img[data-src]');
-  const imageObserver = new IntersectionObserver((entries, observer) => {
-    entries.forEach(entry => {
-      if (entry.isIntersecting) {
-        const img = entry.target;
-        img.src = img.dataset.src;
-        img.classList.remove('lazy');
-        imageObserver.unobserve(img);
-      }
-    });
-  });
-  
-  images.forEach(img => imageObserver.observe(img));
-});
-
-// Mobile touch feedback
-document.addEventListener('touchstart', function() {}, {passive: true});
-document.addEventListener('touchend', function() {}, {passive: true});
-
-// PWA Install Banner
-let deferredPrompt;
-window.addEventListener('beforeinstallprompt', (e) => {
-  e.preventDefault();
-  deferredPrompt = e;
-  
-  // Show custom install button if desired
-  const installButton = document.getElementById('pwa-install-btn');
-  if (installButton) {
-    installButton.style.display = 'block';
-    installButton.addEventListener('click', () => {
-      deferredPrompt.prompt();
-      deferredPrompt.userChoice.then((choiceResult) => {
-        if (choiceResult.outcome === 'accepted') {
-          console.log('User accepted the install prompt');
-        }
-        deferredPrompt = null;
-      });
-    });
-  }
-});
-</script>
 """, unsafe_allow_html=True)
 
 # AI Analysis Functions
@@ -1161,295 +432,37 @@ def calculate_advanced_metrics(deal_data):
     }
 
 def calculate_ai_score(deal_data, metrics):
-    """Calculate advanced AI-powered deal score based on multiple factors with market intelligence"""
+    """Calculate AI-powered deal score based on multiple factors"""
     score = 0
-    score_breakdown = {}
     
-    # Initialize AI predictor for market context
-    ai_predictor = get_ai_predictor()
-    market_predictions = ai_predictor.predict_market_trends(12)
-    current_phase = market_predictions['current_phase']
-    
-    # 1. Financial Performance (30 points)
-    # ROI component with market cycle adjustment
-    base_roi_score = min(25, max(0, metrics['total_roi'] / 2))
-    cycle_multiplier = ai_predictor.market_cycles[current_phase]['roi_multiplier']
-    roi_score = base_roi_score * cycle_multiplier
-    roi_score = min(25, max(0, roi_score))
+    # ROI component (25 points)
+    roi_score = min(25, max(0, metrics['total_roi'] / 2))  # Cap at 50% ROI for full points
     score += roi_score
-    score_breakdown['ROI Score'] = f"{roi_score:.1f}/25"
     
-    # Cash flow with inflation adjustment
-    inflation_factor = 1.03  # Assume 3% inflation
-    adjusted_cash_flow = metrics['monthly_cash_flow'] * inflation_factor
-    cash_flow_score = min(20, max(0, adjusted_cash_flow / 50))
+    # Cash flow component (20 points)
+    cash_flow_score = min(20, max(0, metrics['monthly_cash_flow'] / 50))  # $1000+ cash flow = full points
     score += cash_flow_score
-    score_breakdown['Cash Flow Score'] = f"{cash_flow_score:.1f}/20"
     
-    # 2. Market Intelligence (25 points)
-    # Neighborhood grade with location trend analysis
+    # Market factors (20 points)
     neighborhood_grades = {'A+': 20, 'A': 18, 'A-': 16, 'B+': 14, 'B': 12, 'B-': 10, 'C+': 8, 'C': 6, 'C-': 4, 'D': 2}
-    base_market_score = neighborhood_grades.get(deal_data.get('neighborhood_grade', 'B'), 10)
-    
-    # Location trend multiplier based on AI analysis
-    location = deal_data.get('location', '')
-    location_multiplier = 1.0
-    if any(hot_market in location.lower() for hot_market in ['austin', 'nashville', 'tampa', 'phoenix']):
-        location_multiplier = 1.2
-    elif any(emerging in location.lower() for emerging in ['charlotte', 'raleigh', 'atlanta']):
-        location_multiplier = 1.1
-    
-    market_score = min(20, base_market_score * location_multiplier)
+    market_score = neighborhood_grades.get(deal_data.get('neighborhood_grade', 'B'), 10)
     score += market_score
-    score_breakdown['Market Score'] = f"{market_score:.1f}/20"
     
-    # Market timing score (5 points)
-    timing_multiplier = ai_predictor.market_cycles[current_phase]['risk_factor']
-    timing_score = 5 / timing_multiplier  # Lower risk = higher timing score
-    score += timing_score
-    score_breakdown['Market Timing'] = f"{timing_score:.1f}/5"
-    
-    # 3. Property Analysis (20 points)
-    # Property condition with renovation potential
+    # Property condition (15 points)
     condition_scores = {'Excellent': 15, 'Good': 12, 'Fair': 8, 'Poor': 4, 'Tear Down': 1}
-    base_condition_score = condition_scores.get(deal_data.get('condition', 'Good'), 8)
-    
-    # Value-add potential bonus
-    if deal_data.get('condition') in ['Fair', 'Poor'] and metrics.get('total_roi', 0) > 20:
-        base_condition_score *= 1.3  # Bonus for value-add opportunities
-    
-    condition_score = min(15, base_condition_score)
+    condition_score = condition_scores.get(deal_data.get('condition', 'Good'), 8)
     score += condition_score
-    score_breakdown['Property Condition'] = f"{condition_score:.1f}/15"
     
-    # Property type market demand (5 points)
-    property_type_scores = {
-        'Single Family': 5 if current_phase in ['growth', 'recovery'] else 3,
-        'Multi-Family': 4,
-        'Commercial': 3 if current_phase == 'growth' else 2,
-        'Fix & Flip': 5 if current_phase == 'recovery' else 2
-    }
-    property_score = property_type_scores.get(deal_data.get('property_type', 'Single Family'), 3)
-    score += property_score
-    score_breakdown['Property Type'] = f"{property_score}/5"
+    # Market trend (10 points)
+    trend_scores = {'Rising': 10, 'Stable': 7, 'Declining': 3}
+    trend_score = trend_scores.get(deal_data.get('market_trend', 'Stable'), 7)
+    score += trend_score
     
-    # 4. Risk Assessment (15 points)
-    # Cap rate with market risk adjustment
-    base_cap_rate_score = min(10, max(0, metrics.get('cap_rate', 5) - 5))
-    risk_factor = market_predictions['risk_assessment']['overall_risk']
-    risk_adjusted_cap_score = base_cap_rate_score / risk_factor
-    cap_rate_score = min(10, max(0, risk_adjusted_cap_score))
+    # Cap rate bonus (10 points)
+    cap_rate_score = min(10, max(0, metrics['cap_rate'] - 5))  # 5%+ cap rate starts scoring
     score += cap_rate_score
-    score_breakdown['Cap Rate'] = f"{cap_rate_score:.1f}/10"
     
-    # Liquidity risk assessment (5 points)
-    liquidity_score = 5
-    if current_phase == 'correction':
-        liquidity_score = 2
-    elif current_phase == 'peak':
-        liquidity_score = 3
-    score += liquidity_score
-    score_breakdown['Liquidity Risk'] = f"{liquidity_score}/5"
-    
-    # 5. Future Potential (10 points)
-    # Growth potential based on market predictions
-    predicted_growth = (market_predictions['predictions'][11]['market_index'] - 100) / 100
-    growth_score = min(5, max(0, predicted_growth * 100))
-    score += growth_score
-    score_breakdown['Growth Potential'] = f"{growth_score:.1f}/5"
-    
-    # Economic indicators (5 points)
-    # Simulate economic strength (would use real data in production)
-    economic_score = 3  # Base score
-    if current_phase == 'growth':
-        economic_score = 5
-    elif current_phase == 'recovery':
-        economic_score = 4
-    score += economic_score
-    score_breakdown['Economic Indicators'] = f"{economic_score}/5"
-    
-    final_score = min(100, max(0, int(score)))
-    
-    return final_score, score_breakdown
-
-def generate_ai_query_response(query: str, ai_predictor, portfolio_deals: List) -> str:
-    """Generate AI responses to natural language queries"""
-    query_lower = query.lower()
-    
-    # Market timing queries
-    if any(word in query_lower for word in ['timing', 'when', 'time to buy', 'market cycle']):
-        predictions = ai_predictor.predict_market_trends(6)
-        phase = predictions['current_phase']
-        
-        if phase == 'growth':
-            return """🚀 **Excellent timing for acquisitions!** The market is in a growth phase with strong momentum. 
-            Key recommendations:
-            • ✅ Great time to buy - prices rising but not peaked
-            • 📈 Focus on emerging neighborhoods before peak pricing
-            • ⚡ Act quickly on good deals - competition increasing
-            • 💰 Consider value-add properties for maximum upside"""
-            
-        elif phase == 'peak':
-            return """⚠️ **Exercise caution - market at peak.** Be very selective with new investments.
-            Key recommendations:
-            • 🎯 Only pursue exceptional deals with strong fundamentals
-            • 💰 Consider taking profits on well-performing properties
-            • 🔍 Focus on cash-flowing assets over speculation
-            • 📊 Prepare cash reserves for upcoming opportunities"""
-            
-        elif phase == 'correction':
-            return """🛡️ **Defensive mode recommended.** Market correction in progress - exceptional opportunities emerging.
-            Key recommendations:
-            • 💎 Be patient - best deals are coming
-            • 🏦 Maintain strong cash reserves
-            • 📉 Avoid panic - focus on fundamentals
-            • 🎯 Target distressed properties at significant discounts"""
-            
-        else:  # recovery
-            return """🌱 **Recovery phase - strategic positioning time.** Great opportunity for long-term gains.
-            Key recommendations:
-            • 🎯 Excellent time for strategic acquisitions
-            • 💪 Increase activity with strong due diligence
-            • 📈 Position for next growth cycle
-            • 🏠 Focus on quality assets in good locations"""
-    
-    # ROI and returns queries
-    elif any(word in query_lower for word in ['roi', 'return', 'profit', 'best market']):
-        if portfolio_deals:
-            avg_roi = np.mean([getattr(deal, 'ai_score', 75) for deal in portfolio_deals])
-            best_markets = ['Austin, TX', 'Nashville, TN', 'Tampa, FL', 'Phoenix, AZ']
-            
-            return f"""📈 **ROI Analysis Based on Current Data:**
-            
-            **Your Portfolio Performance:**
-            • Current average AI score: {avg_roi:.1f}/100
-            • Top performing markets in your area: {', '.join(best_markets[:2])}
-            
-            **Highest ROI Markets Currently:**
-            • 🥇 Austin, TX: 12-15% average returns, strong job growth
-            • 🥈 Nashville, TN: 10-13% returns, emerging tech hub
-            • 🥉 Tampa, FL: 9-12% returns, population influx
-            
-            **Recommended Strategy:**
-            • Target deals scoring 80+ on AI analysis
-            • Focus on emerging neighborhoods before peak pricing
-            • Consider fix & flip opportunities in recovery markets"""
-        else:
-            return """📈 **Top ROI Markets for New Investors:**
-            
-            **High-Opportunity Markets:**
-            • 🎯 Austin, TX: 12-15% average returns, strong tech job growth
-            • 🚀 Nashville, TN: 10-13% returns, music city boom continues
-            • 🌴 Tampa, FL: 9-12% returns, favorable demographics
-            • 🏜️ Phoenix, AZ: 8-11% returns, steady population growth
-            
-            **Strategy Recommendations:**
-            • Start with single-family homes for easier management
-            • Target 12%+ cap rates for strong cash flow
-            • Focus on emerging neighborhoods
-            • Consider light renovation properties for value-add"""
-    
-    # Property type queries
-    elif any(word in query_lower for word in ['property type', 'single family', 'multi family', 'commercial', 'fix']):
-        predictions = ai_predictor.predict_market_trends(6)
-        phase = predictions['current_phase']
-        
-        if phase in ['growth', 'recovery']:
-            return """🏠 **Recommended Property Types for Current Market:**
-            
-            **Top Performers:**
-            • 🥇 **Single Family Homes**: Easiest to manage, strong demand
-            • 🥈 **Fix & Flip**: Great in recovery/growth phases
-            • 🥉 **Small Multi-Family (2-4 units)**: Good cash flow potential
-            
-            **Strategy by Type:**
-            • **SFH**: Target emerging neighborhoods, 3BR/2BA minimum
-            • **Fix & Flip**: Focus on cosmetic upgrades, avoid major structural
-            • **Multi-Family**: Look for properties under market rent
-            • **Commercial**: Only if you have significant experience
-            
-            **Current Market Advantage**: Growth phase favors value-add properties!"""
-        else:
-            return """🏠 **Conservative Property Strategy for Peak/Correction:**
-            
-            **Safest Bets:**
-            • 🥇 **Cash-Flowing Rentals**: Stable income during volatility
-            • 🥈 **Multi-Family**: Diversified tenant risk
-            • 🥉 **Commercial (experienced only)**: Longer-term leases
-            
-            **Avoid During Uncertainty:**
-            • ❌ Pure speculation plays
-            • ❌ Heavy renovation projects
-            • ❌ Markets with declining fundamentals
-            
-            **Focus**: Steady cash flow over appreciation in this phase."""
-    
-    # Portfolio analysis queries
-    elif any(word in query_lower for word in ['portfolio', 'my deals', 'performance', 'should i']):
-        if portfolio_deals:
-            total_value = sum(getattr(deal, 'purchase_price', 0) for deal in portfolio_deals)
-            avg_score = np.mean([getattr(deal, 'ai_score', 75) for deal in portfolio_deals])
-            
-            return f"""📊 **Your Portfolio Analysis:**
-            
-            **Current Status:**
-            • Total Portfolio Value: ${total_value:,.0f}
-            • Number of Properties: {len(portfolio_deals)}
-            • Average AI Score: {avg_score:.1f}/100
-            
-            **Performance Grade**: {"A" if avg_score >= 80 else "B" if avg_score >= 70 else "C"}
-            
-            **Recommendations:**
-            {"• ✅ Portfolio performing well - consider strategic expansion" if avg_score >= 80 else "• 🔧 Focus on optimizing underperforming assets"}
-            {"• 📈 Good diversification level" if len(portfolio_deals) >= 3 else "• 🎯 Consider diversifying with additional properties"}
-            • 💰 Continue monitoring cash flow vs. market conditions
-            • 📊 Review and optimize deals scoring below 70"""
-        else:
-            return """🎯 **Portfolio Building Strategy for Beginners:**
-            
-            **Phase 1: Foundation (First 1-3 Properties)**
-            • Start with single-family homes in B+ neighborhoods
-            • Target 12%+ cap rates for strong cash flow
-            • Focus on turnkey or light renovation properties
-            
-            **Phase 2: Growth (Properties 4-10)**
-            • Add multi-family for diversification
-            • Consider different geographic markets
-            • Explore value-add opportunities
-            
-            **Phase 3: Optimization (10+ Properties)**
-            • Portfolio refinancing opportunities
-            • Commercial property consideration
-            • Professional property management
-            
-            **Start Here**: Add your first deal to get personalized portfolio analysis!"""
-    
-    # Default response for other queries
-    else:
-        return f"""🤖 **AI Analysis of: "{query}"**
-        
-        Based on current market conditions and AI analysis:
-        
-        **Market Context:**
-        • Current market phase: {ai_predictor.predict_market_trends(3)['current_phase'].title()}
-        • Investment climate: Moderate to good opportunities
-        • Risk level: Medium
-        
-        **General Recommendations:**
-        • Focus on properties scoring 75+ on AI analysis
-        • Maintain 6+ months cash reserves
-        • Diversify across 2-3 markets when possible
-        • Monitor interest rate trends for timing
-        
-        **Next Steps:**
-        • Use the Deal Analysis tool for specific property evaluation
-        • Check Market Predictions for timing insights
-        • Add deals to your portfolio for personalized advice
-        
-        *For more specific guidance, try asking about market timing, ROI, or property types!*"""
-    
-    return "AI analysis complete."
-
+    return min(100, max(0, int(score)))
 
 def generate_ai_recommendations(deal_data, metrics):
     """Generate AI-powered investment recommendations"""
@@ -1508,82 +521,12 @@ def generate_ai_recommendations(deal_data, metrics):
 
 # Main Application
 def main():
-    # Mobile viewport meta tag
-    st.markdown("""
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
-    """, unsafe_allow_html=True)
-    
-    # Mobile-responsive header
+    # Header
     st.markdown("""
     <div class="main-header">
-        <h1>🏢 NXTRIX Enterprise CRM</h1>
-        <p class="mobile-hidden">AI-Powered Real Estate Investment Analysis & Portfolio Management</p>
-        <p class="mobile-only">AI-Powered Real Estate CRM</p>
+        <h1>🏢 NXTRIX Enterprise Deal Analyzer CRM</h1>
+        <p>AI-Powered Real Estate Investment Analysis & Portfolio Management</p>
     </div>
-    """, unsafe_allow_html=True)
-    
-    # Mobile navigation improvements
-    st.markdown("""
-    <script>
-    // Mobile touch optimizations
-    document.addEventListener('DOMContentLoaded', function() {
-        // Add touch feedback for mobile
-        const buttons = document.querySelectorAll('button');
-        buttons.forEach(button => {
-            button.addEventListener('touchstart', function() {
-                this.style.opacity = '0.8';
-            });
-            button.addEventListener('touchend', function() {
-                this.style.opacity = '1';
-            });
-        });
-        
-        // Prevent double-tap zoom on buttons
-        let lastTouchEnd = 0;
-        document.addEventListener('touchend', function (event) {
-            const now = (new Date()).getTime();
-            if (now - lastTouchEnd <= 300) {
-                event.preventDefault();
-            }
-            lastTouchEnd = now;
-        }, false);
-        
-        // Add swipe navigation for mobile
-        let startX = null;
-        let startY = null;
-        
-        document.addEventListener('touchstart', function(e) {
-            startX = e.touches[0].clientX;
-            startY = e.touches[0].clientY;
-        });
-        
-        document.addEventListener('touchend', function(e) {
-            if (!startX || !startY) {
-                return;
-            }
-            
-            const endX = e.changedTouches[0].clientX;
-            const endY = e.changedTouches[0].clientY;
-            
-            const diffX = startX - endX;
-            const diffY = startY - endY;
-            
-            // Only trigger swipe if it's primarily horizontal
-            if (Math.abs(diffX) > Math.abs(diffY) && Math.abs(diffX) > 50) {
-                if (diffX > 0) {
-                    // Swipe left - could navigate forward
-                    console.log('Swipe left detected');
-                } else {
-                    // Swipe right - could navigate back
-                    console.log('Swipe right detected');
-                }
-            }
-            
-            startX = null;
-            startY = null;
-        });
-    });
-    </script>
     """, unsafe_allow_html=True)
     
     # Check for redirect first
@@ -1608,8 +551,7 @@ def main():
     
     # Database connection status in sidebar
     st.sidebar.markdown("---")
-    db_service = get_db_service()
-    if db_service and db_service.is_connected():
+    if db_service.is_connected():
         st.sidebar.success("🟢 Database Connected")
         total_deals = len(db_service.get_deals())
         st.sidebar.info(f"📊 {total_deals} deals in database")
@@ -1663,11 +605,7 @@ def main():
     elif page == "🏛️ Investor Portal":
         show_investor_portal()
     elif page == "� Enhanced CRM":
-        enhanced_crm_func = get_enhanced_crm()
-        if enhanced_crm_func:
-            enhanced_crm_func()
-        else:
-            st.error("❌ Enhanced CRM module failed to load")
+        show_enhanced_crm()
     elif page == "�🤖 AI Insights":
         show_ai_insights()
     elif page == "👥 Investor Matching":
@@ -1676,74 +614,8 @@ def main():
 def show_dashboard():
     st.header("📊 Executive Dashboard")
     
-    # Mobile-optimized dashboard layout
-    st.markdown("""
-    <div class="mobile-dashboard-container">
-        <script>
-        // Add mobile dashboard optimizations
-        document.addEventListener('DOMContentLoaded', function() {
-            // Add swipe navigation between metric cards on mobile
-            const cards = document.querySelectorAll('.metric-card');
-            let currentCard = 0;
-            
-            function showCard(index) {
-                cards.forEach((card, i) => {
-                    if (window.innerWidth <= 768) {
-                        card.style.display = i === index ? 'block' : 'none';
-                    } else {
-                        card.style.display = 'block';
-                    }
-                });
-            }
-            
-            // Initialize mobile view
-            if (window.innerWidth <= 768) {
-                showCard(currentCard);
-                
-                // Add swipe indicators
-                const dashboardContainer = document.querySelector('.mobile-dashboard-container');
-                if (dashboardContainer && cards.length > 1) {
-                    const indicators = document.createElement('div');
-                    indicators.className = 'mobile-card-indicators';
-                    indicators.style.cssText = 'text-align: center; margin: 1rem 0; display: flex; justify-content: center; gap: 0.5rem;';
-                    
-                    for (let i = 0; i < cards.length; i++) {
-                        const dot = document.createElement('span');
-                        dot.style.cssText = 'width: 8px; height: 8px; border-radius: 50%; background-color: ' + (i === 0 ? '#4CAF50' : '#666') + '; display: inline-block; cursor: pointer;';
-                        dot.addEventListener('click', () => {
-                            currentCard = i;
-                            showCard(currentCard);
-                            updateIndicators();
-                        });
-                        indicators.appendChild(dot);
-                    }
-                    dashboardContainer.appendChild(indicators);
-                    
-                    function updateIndicators() {
-                        const dots = indicators.querySelectorAll('span');
-                        dots.forEach((dot, i) => {
-                            dot.style.backgroundColor = i === currentCard ? '#4CAF50' : '#666';
-                        });
-                    }
-                }
-            }
-            
-            // Handle window resize
-            window.addEventListener('resize', function() {
-                if (window.innerWidth > 768) {
-                    cards.forEach(card => card.style.display = 'block');
-                } else {
-                    showCard(currentCard);
-                }
-            });
-        });
-        </script>
-    </div>
-    """, unsafe_allow_html=True)
-    
     # Real-time metrics from database
-    db_service = get_db_service()
-    if db_service and db_service.is_connected():
+    if db_service.is_connected():
         deals = db_service.get_deals()
         total_deals = len(deals)
         
@@ -1773,85 +645,25 @@ def show_dashboard():
         avg_rent = 2950
         growth_percentage = "+12%"
     
-    # Mobile-responsive metrics layout
-    # On mobile: 1 column (stacked), On tablet: 2-3 columns, On desktop: 5 columns
+    col1, col2, col3, col4, col5 = st.columns(5)
     
-    # Mobile-first approach - create individual containers for better mobile control
-    st.markdown('<div class="mobile-metrics-container">', unsafe_allow_html=True)
-    
-    # Use responsive columns
-    if st._get_option('theme.base') == 'dark':  # Mobile detection alternative
-        cols = st.columns([1])  # Single column for mobile-like layout
-        col_index = 0
-    else:
-        cols = st.columns(5)  # Desktop layout
-        col_index = None
-    
-    # Total Deals Metric
-    metric_container = cols[0] if col_index is None else cols[col_index]
-    with metric_container:
+    with col1:
         st.markdown(f"""
-        <div class="metric-card" style="min-height: 140px;">
-            <h3>📊 Total Deals</h3>
-            <h2 style="color: #667eea; font-weight: 700; margin: 0.5rem 0;">{total_deals}</h2>
-            <p style="color: #38a169; font-weight: 600; margin: 0;">↗️ {growth_percentage} this month</p>
+        <div class="metric-card">
+            <h3>Total Deals</h3>
+            <h2 style="color: #667eea; font-weight: 700;">{total_deals}</h2>
+            <p style="color: #38a169; font-weight: 600;">↗️ {growth_percentage} this month</p>
         </div>
         """, unsafe_allow_html=True)
     
-    # High Score Deals Metric
-    metric_container = cols[1] if col_index is None else cols[col_index]
-    with metric_container:
+    with col2:
         st.markdown(f"""
-        <div class="metric-card" style="min-height: 140px;">
-            <h3>🎯 High Score Deals</h3>
-            <h2 style="color: #38a169; font-weight: 700; margin: 0.5rem 0;">{len(high_score_deals)}</h2>
-            <p style="color: #667eea; font-weight: 600; margin: 0;">Score ≥ 85</p>
+        <div class="metric-card">
+            <h3>Avg AI Score</h3>
+            <h2 style="color: #38a169; font-weight: 700;">{avg_score:.1f}</h2>
+            <p style="color: #38a169; font-weight: 600;">↗️ +2.3% improved</p>
         </div>
         """, unsafe_allow_html=True)
-    
-    # Average AI Score Metric
-    metric_container = cols[2] if col_index is None else cols[col_index]
-    with metric_container:
-        st.markdown(f"""
-        <div class="metric-card" style="min-height: 140px;">
-            <h3>🤖 Avg AI Score</h3>
-            <h2 style="color: #f093fb; font-weight: 700; margin: 0.5rem 0;">{avg_score:.1f}</h2>
-            <p style="color: #667eea; font-weight: 600; margin: 0;">AI Analysis</p>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    # Portfolio Value Metric
-    metric_container = cols[3] if col_index is None else cols[col_index]
-    with metric_container:
-        st.markdown(f"""
-        <div class="metric-card" style="min-height: 140px;">
-            <h3>💰 Portfolio Value</h3>
-            <h2 style="color: #f6ad55; font-weight: 700; margin: 0.5rem 0;">${total_value:,.0f}</h2>
-            <p style="color: #667eea; font-weight: 600; margin: 0;">Total Investment</p>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    # Average Rent Metric
-    metric_container = cols[4] if col_index is None else cols[col_index]
-    with metric_container:
-        st.markdown(f"""
-        <div class="metric-card" style="min-height: 140px;">
-            <h3>🏠 Avg Monthly Rent</h3>
-            <h2 style="color: #68d391; font-weight: 700; margin: 0.5rem 0;">${avg_rent:,.0f}</h2>
-            <p style="color: #667eea; font-weight: 600; margin: 0;">Monthly Income</p>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    st.markdown('</div>', unsafe_allow_html=True)
-    
-    # Mobile swipe instructions
-    st.markdown("""
-    <div class="mobile-only" style="text-align: center; margin: 1rem 0; color: #999; font-size: 0.8rem;">
-        📱 Swipe or tap dots to navigate between metrics
-    </div>
-    """, unsafe_allow_html=True)
-    
-
     
     with col3:
         st.markdown(f"""
@@ -1957,8 +769,7 @@ def show_dashboard():
     st.subheader("🔥 Recent High-Scoring Deals")
     
     # Get real deals from database
-    db_service = get_db_service()
-    recent_deals_data = db_service.get_high_scoring_deals(min_score=80) if db_service else []
+    recent_deals_data = db_service.get_high_scoring_deals(min_score=80)
     
     if recent_deals_data:
         # Convert to DataFrame for display
@@ -2032,114 +843,52 @@ def show_dashboard():
             st.rerun()
     
     with col_info:
-        db_service = get_db_service()
-        if db_service and db_service.is_connected():
+        if db_service.is_connected():
             last_updated = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             st.info(f"📡 Live data • Last updated: {last_updated}")
         else:
             st.warning("📡 Offline mode • Sample data shown")
 
 def show_deal_analysis():
-    st.header("🏠 AI Deal Analysis")
+    st.header("🏠 Advanced AI-Powered Deal Analysis")
     
-    # Mobile-optimized layout - stack columns on mobile
-    st.markdown("""
-    <style>
-    /* Mobile form optimizations */
-    @media (max-width: 768px) {
-        .block-container {
-            padding-left: 1rem;
-            padding-right: 1rem;
-        }
+    col1, col2 = st.columns([1, 1])
+    
+    with col1:
+        st.subheader("📋 Deal Information")
         
-        .stNumberInput, .stTextInput, .stSelectbox {
-            margin-bottom: 1rem;
-        }
+        # Enhanced property details
+        property_address = st.text_input("Property Address", placeholder="123 Main Street, City, State")
         
-        .mobile-form-section {
-            background-color: #262730;
-            border-radius: 10px;
-            padding: 1rem;
-            margin-bottom: 1rem;
-            border: 1px solid #404040;
-        }
+        col1a, col1b = st.columns(2)
+        with col1a:
+            property_type = st.selectbox("Property Type", 
+                                       ["Single Family", "Multi-Family", "Condo", "Townhouse", "Commercial", "Land", "Mixed-Use"])
+            bedrooms = st.number_input("Bedrooms", min_value=0, max_value=10, value=3)
+            
+        with col1b:
+            property_condition = st.selectbox("Property Condition", 
+                                            ["Excellent", "Good", "Fair", "Poor", "Tear Down"])
+            bathrooms = st.number_input("Bathrooms", min_value=0.0, max_value=10.0, value=2.0, step=0.5)
         
-        .mobile-form-title {
-            color: #4CAF50;
-            font-size: 1.1rem;
-            font-weight: 600;
-            margin-bottom: 0.75rem;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-    }
-    </style>
-    """, unsafe_allow_html=True)
-    
-    # Load models for Deal creation
-    models = get_models()
-    if not models[0]:  # Deal is the first element
-        st.error("❌ Models module failed to load")
-        return
-    
-    Deal, Investor, Portfolio = models
-    
-    # Mobile-responsive form layout
-    st.markdown('<div class="mobile-form-section">', unsafe_allow_html=True)
-    st.markdown('<div class="mobile-form-title">� Property Information</div>', unsafe_allow_html=True)
-    
-    # Property details - mobile optimized
-    property_address = st.text_input("Property Address", 
-                                   placeholder="123 Main Street, City, State",
-                                   help="Enter the full property address")
-    
-    # Mobile: Single column, Tablet/Desktop: Two columns
-    prop_col1, prop_col2 = st.columns([1, 1])
-    
-    with prop_col1:
-        property_type = st.selectbox("Property Type", 
-                                   ["Single Family", "Multi-Family", "Condo", "Townhouse", "Commercial", "Land", "Mixed-Use"],
-                                   help="Select the property type")
-        bedrooms = st.number_input("Bedrooms", min_value=0, max_value=10, value=3,
-                                 help="Number of bedrooms")
+        # Financial details
+        st.subheader("💰 Financial Details")
+        col2a, col2b, col2c = st.columns(3)
         
-    with prop_col2:
-        property_condition = st.selectbox("Property Condition", 
-                                        ["Excellent", "Good", "Fair", "Poor", "Tear Down"],
-                                        help="Current property condition")
-        bathrooms = st.number_input("Bathrooms", min_value=0.0, max_value=10.0, value=2.0, step=0.5,
-                                   help="Number of bathrooms")
-    
-    st.markdown('</div>', unsafe_allow_html=True)
-    
-    # Financial details section
-    st.markdown('<div class="mobile-form-section">', unsafe_allow_html=True)
-    st.markdown('<div class="mobile-form-title">💰 Financial Details</div>', unsafe_allow_html=True)
-    
-    # Mobile-optimized financial inputs
-    fin_col1, fin_col2, fin_col3 = st.columns([1, 1, 1])
-    
-    with fin_col1:
-        purchase_price = st.number_input("Purchase Price ($)", min_value=0, value=200000, step=1000,
-                                       help="Total purchase price", format="%d")
-        repair_costs = st.number_input("Repair Costs ($)", min_value=0, value=25000, step=1000,
-                                     help="Estimated repair costs", format="%d")
-        
-    with fin_col2:
-        arv = st.number_input("After Repair Value ($)", min_value=0, value=275000, step=1000,
-                            help="Property value after repairs", format="%d")
-        monthly_rent = st.number_input("Monthly Rent ($)", min_value=0, value=2200, step=50,
-                                     help="Expected monthly rental income", format="%d")
-        
-    with fin_col3:
-        closing_costs = st.number_input("Closing Costs ($)", min_value=0, value=5000, step=500,
-                                      help="Transaction closing costs", format="%d")
-        annual_taxes = st.number_input("Annual Taxes ($)", min_value=0, value=3500, step=100,
-                                     help="Annual property taxes", format="%d")
-        insurance = st.number_input("Annual Insurance ($)", min_value=0, value=1200, step=100)
-        hoa_fees = st.number_input("Monthly HOA ($)", min_value=0, value=0, step=25)
-        vacancy_rate = st.slider("Vacancy Rate (%)", min_value=0, max_value=30, value=5)
+        with col2a:
+            purchase_price = st.number_input("Purchase Price ($)", min_value=0, value=200000, step=1000)
+            repair_costs = st.number_input("Repair Costs ($)", min_value=0, value=25000, step=1000)
+            closing_costs = st.number_input("Closing Costs ($)", min_value=0, value=5000, step=500)
+            
+        with col2b:
+            arv = st.number_input("After Repair Value ($)", min_value=0, value=275000, step=1000)
+            monthly_rent = st.number_input("Monthly Rent ($)", min_value=0, value=2200, step=50)
+            annual_taxes = st.number_input("Annual Taxes ($)", min_value=0, value=3500, step=100)
+            
+        with col2c:
+            insurance = st.number_input("Annual Insurance ($)", min_value=0, value=1200, step=100)
+            hoa_fees = st.number_input("Monthly HOA ($)", min_value=0, value=0, step=25)
+            vacancy_rate = st.slider("Vacancy Rate (%)", min_value=0, max_value=30, value=5)
         
         # Market analysis
         st.subheader("📊 Market Analysis")
@@ -2191,7 +940,7 @@ def show_deal_analysis():
             metrics = calculate_advanced_metrics(deal_data)
             
             # AI Score Display with detailed breakdown
-            ai_score, score_breakdown = calculate_ai_score(deal_data, metrics)
+            ai_score = calculate_ai_score(deal_data, metrics)
             
             # Score visualization
             col_score1, col_score2 = st.columns([1, 2])
@@ -2363,8 +1112,7 @@ def show_deal_analysis():
                 })
                 
                 # Save to database
-                db_service = get_db_service()
-                if db_service and db_service.create_deal(new_deal):
+                if db_service.create_deal(new_deal):
                     st.success(f"✅ Deal saved successfully! Address: {property_address}")
                     st.balloons()
                     
@@ -2375,33 +1123,20 @@ def show_deal_analysis():
                     # Refresh after a short delay
                     st.rerun()
                 else:
-                    db_service = get_db_service()
-                    if db_service and db_service.is_connected():
+                    if db_service.is_connected():
                         st.error("❌ Failed to save deal to database. Please try again.")
                     else:
                         st.warning("⚠️ Database not connected. Deal not saved.")
             
-            # Enhanced Deal scoring explanation with breakdown
-            with st.expander("🔍 Advanced AI Score Breakdown"):
-                st.write("**🧠 AI-Powered Analysis with Market Intelligence**")
-                st.write("Our enhanced AI scoring system evaluates deals using real-time market data:")
-                
-                col_breakdown1, col_breakdown2 = st.columns(2)
-                
-                with col_breakdown1:
-                    st.write("**📊 Score Components:**")
-                    for component, score in score_breakdown.items():
-                        st.write(f"• {component}: {score}")
-                
-                with col_breakdown2:
-                    st.write("**🎯 Scoring Methodology:**")
-                    st.write("• **Financial Performance (30%)**: ROI + Cash Flow with market cycle adjustments")
-                    st.write("• **Market Intelligence (25%)**: Neighborhood grade + location trends + timing")  
-                    st.write("• **Property Analysis (20%)**: Condition + type + value-add potential")
-                    st.write("• **Risk Assessment (15%)**: Cap rate + liquidity risk + market risk")
-                    st.write("• **Future Potential (10%)**: Growth predictions + economic indicators")
-                
-                st.info("💡 **AI Enhancement**: Scores are dynamically adjusted based on current market cycle, economic indicators, and predictive analytics.")
+            # Deal scoring explanation
+            with st.expander("🔍 How We Calculate the AI Score"):
+                st.write("""
+                Our AI scoring system evaluates deals across multiple dimensions:
+                - **ROI Potential (25%)**: Expected return on investment
+                - **Market Strength (20%)**: Local market conditions and trends  
+                - **Property Quality (20%)**: Condition, location, and features
+                - **Risk Assessment (20%)**: Various risk factors and mitigation
+                - **Cash Flow (15%)**: Monthly income generation potential
                 
                 Each component is weighted and combined to create a comprehensive score from 0-100.
                 """)
@@ -2427,12 +1162,6 @@ def show_deal_analysis():
 
 def show_deal_database():
     st.header("💾 Deal Database")
-    
-    # Load database service
-    db_service = get_db_service()
-    if not db_service:
-        st.error("❌ Database service failed to load")
-        return
     
     # Search and filter section
     col1, col2, col3 = st.columns(3)
@@ -2581,7 +1310,7 @@ def show_deal_database():
     st.markdown("---")
     st.subheader("📊 Database Analytics")
     
-    analytics = db_service.get_deal_analytics() if db_service else {'total_deals': 0, 'total_value': 0, 'avg_score': 0, 'high_score_count': 0}
+    analytics = db_service.get_deal_analytics()
     
     col_analytics1, col_analytics2, col_analytics3, col_analytics4 = st.columns(4)
     
@@ -2621,12 +1350,6 @@ def show_deal_database():
 
 def show_portfolio():
     st.header("📈 Portfolio Management")
-    
-    # Load database service
-    db_service = get_db_service()
-    if not db_service:
-        st.error("❌ Database service failed to load")
-        return
     
     # Get real portfolio data from database
     portfolio_data = db_service.get_deals()
@@ -2714,377 +1437,55 @@ def show_portfolio():
     st.dataframe(properties_data, use_container_width=True)
 
 def show_ai_insights():
-    st.header("🤖 AI Market Insights & Real-Time Analytics")
+    st.header("🤖 AI Market Insights")
     
-    # Load real-time data sources
-    db_service = get_db_service()
-    if not db_service:
-        st.error("❌ Database service not available for real-time insights")
-        return
+    st.info("🔮 Advanced AI analysis of market trends, opportunities, and predictions")
     
-    # Load Enhanced CRM for activity tracking insights
-    enhanced_crm_func = get_enhanced_crm()
-    
-    # Real-time data refresh indicator
-    col_header1, col_header2 = st.columns([3, 1])
-    with col_header1:
-        st.info("🔮 Real-time AI analysis powered by your live data")
-    with col_header2:
-        current_time = datetime.now().strftime("%H:%M:%S")
-        st.success(f"🕒 Live Data: {current_time}")
-        if st.button("🔄 Refresh Insights"):
-            st.rerun()
-    
-    # Get real-time portfolio data
-    portfolio_deals = db_service.get_deals() if db_service else []
-    total_portfolio_value = sum(deal.purchase_price for deal in portfolio_deals) if portfolio_deals else 0
-    avg_deal_score = np.mean([deal.ai_score for deal in portfolio_deals]) if portfolio_deals else 0
-    
-    # Real-Time Portfolio Insights
-    st.subheader("📊 Live Portfolio Intelligence")
-    
-    col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        st.metric("Total Portfolio Value", f"${total_portfolio_value:,.0f}")
-    with col2:
-        st.metric("Active Deals", len(portfolio_deals))
-    with col3:
-        st.metric("Avg AI Score", f"{avg_deal_score:.1f}/100")
-    with col4:
-        high_performers = len([d for d in portfolio_deals if d.ai_score >= 85]) if portfolio_deals else 0
-        st.metric("High Performers", high_performers)
-    
-    # AI-Generated Market Analysis
+    # Market Analysis
     col1, col2 = st.columns(2)
     
     with col1:
-        st.subheader("🧠 AI Market Analysis")
+        st.subheader("📊 Market Trends Analysis")
         
-        # Generate insights based on real data
-        if portfolio_deals:
-            # Calculate real insights from user's data
-            property_types = {}
-            locations = {}
-            price_ranges = {}
-            
-            for deal in portfolio_deals:
-                # Property type analysis
-                prop_type = getattr(deal, 'property_type', 'Unknown')
-                property_types[prop_type] = property_types.get(prop_type, 0) + 1
-                
-                # Location analysis  
-                location = getattr(deal, 'address', 'Unknown').split(',')[-1].strip() if hasattr(deal, 'address') else 'Unknown'
-                locations[location] = locations.get(location, 0) + 1
-                
-                # Price range analysis
-                price = getattr(deal, 'purchase_price', 0)
-                if price < 200000:
-                    price_ranges['Under $200K'] = price_ranges.get('Under $200K', 0) + 1
-                elif price < 400000:
-                    price_ranges['$200K-$400K'] = price_ranges.get('$200K-$400K', 0) + 1
-                else:
-                    price_ranges['Over $400K'] = price_ranges.get('Over $400K', 0) + 1
-            
-            # Most common property type
-            top_property_type = max(property_types.items(), key=lambda x: x[1])[0] if property_types else "Unknown"
-            
-            # Most common location
-            top_location = max(locations.items(), key=lambda x: x[1])[0] if locations else "Unknown"
-            
-            # Generate real-time insights
-            # Calculate high ROI deals count
-            high_roi_deals = []
-            for d in portfolio_deals:
-                if (d.purchase_price + d.repair_costs) > 0:
-                    roi = ((d.arv - d.purchase_price - d.repair_costs) / (d.purchase_price + d.repair_costs) * 100)
-                    if roi > 15:
-                        high_roi_deals.append(d)
-            
-            real_insights = [
-                f"🏠 Portfolio Focus: {len(property_types)} property types, primarily {top_property_type}",
-                f"📍 Geographic Concentration: Strongest presence in {top_location}",
-                f"💰 Price Strategy: {len(price_ranges)} price segments active",
-                f"⭐ Quality Score: {len([d for d in portfolio_deals if d.ai_score >= 80])} deals rated 80+ by AI",
-                f"📈 Growth Opportunity: {len(high_roi_deals)} deals with 15%+ ROI"
-            ]
-        else:
-            real_insights = [
-                "📊 No portfolio data yet - Start adding deals for personalized insights",
-                "🎯 Market Opportunity: Strong buyer's market emerging",
-                "💡 AI Recommendation: Focus on cash-flowing properties",
-                "🔥 Hot Sectors: Multi-family and fix-and-flip trending up",
-                "⚡ Action Item: Add your first deal to unlock AI insights"
-            ]
+        market_insights = [
+            "🔥 Hot Markets: Austin, Nashville, Tampa showing 15%+ appreciation",
+            "💰 Cash Flow Opportunities: Midwest markets offering 12%+ cap rates",
+            "⚠️ Market Watch: Coastal areas seeing inventory increase",
+            "🏗️ Development Trends: Build-to-rent gaining momentum",
+            "💡 Opportunity: Distressed properties up 8% in target markets"
+        ]
         
-        for insight in real_insights:
+        for insight in market_insights:
             st.write(insight)
     
     with col2:
-        st.subheader("🎯 Personalized AI Recommendations")
+        st.subheader("🎯 AI Recommendations")
         
-        # Generate recommendations based on user's actual portfolio
-        if portfolio_deals:
-            avg_price = np.mean([deal.purchase_price for deal in portfolio_deals])
-            avg_roi = np.mean([getattr(deal, 'estimated_roi', 12) for deal in portfolio_deals])
-            
-            personalized_recommendations = [
-                f"💰 Price Target: Consider deals around ${avg_price:,.0f} (your sweet spot)",
-                f"📊 ROI Focus: Target {avg_roi + 3:.1f}%+ ROI (above your {avg_roi:.1f}% average)",
-                f"🏠 Diversification: Explore {3 - len(property_types)} new property types",
-                f"📍 Geographic Expansion: Consider {3 - len(locations)} new markets",
-                f"⚡ Quick Win: {len([d for d in portfolio_deals if d.ai_score < 70])} deals could be optimized"
-            ]
-        else:
-            personalized_recommendations = [
-                "🚀 Start with single-family homes for easier management",
-                "💰 Target 12%+ cap rates for strong cash flow",
-                "📍 Focus on emerging markets with growth potential",
-                "🏗️ Consider light renovation properties for value-add",
-                "📈 Aim for deals scoring 75+ on our AI analysis"
-            ]
+        # Simulated AI recommendations
+        recommendations = [
+            "Focus on multi-family properties in emerging markets",
+            "Consider fix-and-flip opportunities in gentrifying areas",
+            "Diversify portfolio with commercial properties",
+            "Explore opportunity zones for tax benefits",
+            "Monitor interest rate trends for refinancing opportunities"
+        ]
         
-        for i, rec in enumerate(personalized_recommendations, 1):
+        for i, rec in enumerate(recommendations, 1):
             st.write(f"{i}. {rec}")
     
-    # Advanced AI Market Prediction Engine
-    st.markdown("---")
-    st.subheader("🔮 Advanced AI Market Predictions")
+    # Predictive Analytics
+    st.subheader("🔮 Predictive Market Analytics")
     
-    # Initialize AI predictor
-    ai_predictor = get_ai_predictor()
-    
-    # Prediction controls
-    col_pred1, col_pred2, col_pred3 = st.columns([2, 2, 2])
-    
-    with col_pred1:
-        prediction_months = st.slider("Prediction Horizon (months)", 3, 24, 12)
-    
-    with col_pred2:
-        analysis_type = st.selectbox("Analysis Type", 
-                                   ["Market Trends", "Portfolio Predictions", "Deal Timing Analysis"])
-    
-    with col_pred3:
-        if st.button("🧠 Generate AI Predictions", type="primary"):
-            st.session_state.run_predictions = True
-    
-    # Generate and display predictions
-    if getattr(st.session_state, 'run_predictions', False):
-        with st.spinner("🤖 AI analyzing market patterns and generating predictions..."):
-            
-            if analysis_type == "Market Trends":
-                predictions = ai_predictor.predict_market_trends(prediction_months)
-                
-                # Display market phase and risk assessment
-                col_phase1, col_phase2, col_phase3 = st.columns(3)
-                
-                with col_phase1:
-                    st.metric("Current Market Phase", 
-                             predictions['current_phase'].title(),
-                             help="AI-determined market cycle phase")
-                
-                with col_phase2:
-                    risk_level = predictions['risk_assessment']['volatility']
-                    risk_color = "🔴" if risk_level == "High" else "🟡" if risk_level == "Medium" else "🟢"
-                    st.metric("Risk Level", f"{risk_color} {risk_level}")
-                
-                with col_phase3:
-                    confidence = f"{predictions['predictions'][0]['confidence']:.0%}"
-                    st.metric("AI Confidence", confidence)
-                
-                # Create prediction visualizations
-                create_prediction_visualizations(ai_predictor, predictions)
-                
-                # Display AI recommendations
-                st.subheader("🎯 AI Investment Recommendations")
-                for rec in predictions['recommendations']:
-                    st.write(f"• {rec}")
-                
-                # Risk assessment details
-                with st.expander("� Detailed Risk Assessment"):
-                    risk_data = predictions['risk_assessment']
-                    st.write(f"**Overall Risk Factor:** {risk_data['overall_risk']:.2f}")
-                    st.write(f"**Volatility:** {risk_data['volatility']}")
-                    st.write(f"**Timing Risk:** {risk_data['timing_risk']}")
-                    st.write(f"**Liquidity Risk:** {risk_data['liquidity_risk']}")
-                    st.info(f"💡 **Recommendation:** {risk_data['recommendation']}")
-            
-            elif analysis_type == "Portfolio Predictions":
-                if portfolio_deals:
-                    portfolio_analysis = ai_predictor.generate_portfolio_predictions(portfolio_deals)
-                    
-                    # Portfolio metrics
-                    col_port1, col_port2, col_port3, col_port4 = st.columns(4)
-                    
-                    with col_port1:
-                        st.metric("Current Value", f"${portfolio_analysis['current_value']:,.0f}")
-                    
-                    with col_port2:
-                        predicted_value = portfolio_analysis['predicted_12m_value']
-                        growth = ((predicted_value - portfolio_analysis['current_value']) / portfolio_analysis['current_value'] * 100)
-                        st.metric("12M Predicted Value", f"${predicted_value:,.0f}", f"{growth:+.1f}%")
-                    
-                    with col_port3:
-                        st.metric("Performance Grade", portfolio_analysis['performance_grade'])
-                    
-                    with col_port4:
-                        diversity_score = portfolio_analysis['diversification_score']
-                        st.metric("Diversification", f"{diversity_score:.1%}")
-                    
-                    # Optimization opportunities
-                    st.subheader("🔧 Portfolio Optimization")
-                    for opp in portfolio_analysis['optimization_opportunities']:
-                        st.write(f"• {opp}")
-                    
-                    # AI recommendations
-                    st.subheader("🚀 AI Portfolio Recommendations")
-                    for rec in portfolio_analysis['recommended_actions']:
-                        st.write(f"• {rec}")
-                
-                else:
-                    st.info("📊 Add deals to your portfolio to get AI-powered portfolio predictions")
-            
-            elif analysis_type == "Deal Timing Analysis":
-                st.subheader("⏰ AI Deal Timing Analyzer")
-                
-                # Deal input for timing analysis
-                col_deal1, col_deal2 = st.columns(2)
-                
-                with col_deal1:
-                    deal_location = st.text_input("Deal Location", placeholder="e.g., Austin, TX")
-                    deal_price = st.number_input("Purchase Price", value=300000, step=10000)
-                
-                with col_deal2:
-                    deal_type = st.selectbox("Property Type", ["Single Family", "Multi-Family", "Commercial", "Fix & Flip"])
-                    renovation_needed = st.checkbox("Renovation Required")
-                
-                if st.button("🎯 Analyze Deal Timing"):
-                    deal_data = {
-                        'location': deal_location,
-                        'price': deal_price,
-                        'property_type': deal_type,
-                        'renovation_needed': renovation_needed
-                    }
-                    
-                    timing_analysis = ai_predictor.analyze_deal_timing(deal_data)
-                    
-                    # Timing results
-                    col_time1, col_time2, col_time3 = st.columns(3)
-                    
-                    with col_time1:
-                        score = timing_analysis['timing_score']
-                        score_color = "🟢" if score > 80 else "🟡" if score > 60 else "🔴"
-                        st.metric("Timing Score", f"{score_color} {score:.0f}/100")
-                    
-                    with col_time2:
-                        st.metric("Action Recommendation", timing_analysis['action'])
-                    
-                    with col_time3:
-                        st.info(timing_analysis['best_month'])
-                    
-                    # Risk factors
-                    st.subheader("⚠️ Risk Factors")
-                    for risk in timing_analysis['risk_factors']:
-                        st.write(f"• {risk}")
-    
-    # AI Query Interface
-    st.markdown("---")
-    st.subheader("🤖 AI Query Interface")
-    st.info("💬 Ask the AI questions about your portfolio, market conditions, or investment strategies!")
-    
-    # Query input
-    col_query1, col_query2 = st.columns([4, 1])
-    
-    with col_query1:
-        user_query = st.text_input("Ask AI", 
-                                  placeholder="e.g., 'Show me best deals under $300k in Austin' or 'What's the market outlook for fix & flip?'",
-                                  key="ai_query")
-    
-    with col_query2:
-        if st.button("🧠 Ask AI", type="primary"):
-            st.session_state.process_query = True
-    
-    # Quick query suggestions
-    st.write("**💡 Try these queries:**")
-    query_cols = st.columns(3)
-    
-    with query_cols[0]:
-        if st.button("💰 Best ROI markets"):
-            st.session_state.ai_query = "What markets have the best ROI potential right now?"
-            st.session_state.process_query = True
-    
-    with query_cols[1]:
-        if st.button("📈 Market timing advice"):
-            st.session_state.ai_query = "When is the best time to buy in the current market?"
-            st.session_state.process_query = True
-    
-    with query_cols[2]:
-        if st.button("🏠 Property type recommendation"):
-            st.session_state.ai_query = "What property type should I focus on for maximum returns?"
-            st.session_state.process_query = True
-    
-    # Process query if requested
-    if getattr(st.session_state, 'process_query', False):
-        query = getattr(st.session_state, 'ai_query', user_query)
-        if query:
-            with st.spinner("🤖 AI analyzing your question..."):
-                
-                # Simple AI response logic (would integrate with OpenAI API in production)
-                ai_response = generate_ai_query_response(query, ai_predictor, portfolio_deals)
-                
-                st.markdown("### 🤖 AI Response:")
-                st.write(ai_response)
-                
-        st.session_state.process_query = False
-    
-    # Quick Market Overview
-    st.markdown("---")
-    st.subheader("📊 Market Overview")
-    
-    # Enhanced prediction data with real market indicators
-    current_date = datetime.now()
+    # Sample prediction data
     prediction_data = pd.DataFrame({
-        'Market': ['Austin, TX', 'Nashville, TN', 'Tampa, FL', 'Phoenix, AZ', 'Denver, CO'],
-        'Current Avg Price': [485000, 395000, 340000, 425000, 545000],
-        '6-Month Prediction': [503000, 411000, 354000, 435000, 557000],
-        '12-Month Prediction': [522000, 428000, 368000, 446000, 570000],
-        'AI Confidence': ['94%', '91%', '88%', '87%', '85%'],
-        'Investment Grade': ['A+', 'A', 'A-', 'B+', 'B+'],
-        'Last Updated': [current_date.strftime('%m/%d %H:%M')] * 5
+        'Market': ['Austin', 'Nashville', 'Tampa', 'Phoenix', 'Denver'],
+        'Current Avg Price': [450000, 380000, 320000, 410000, 520000],
+        '12-Month Prediction': [495000, 418000, 352000, 430000, 546000],
+        'Predicted Growth': ['10.0%', '10.0%', '10.0%', '4.9%', '5.0%'],
+        'Investment Grade': ['A+', 'A', 'A-', 'B+', 'B+']
     })
     
     st.dataframe(prediction_data, use_container_width=True)
-    
-    # Enhanced CRM Activity Insights
-    if enhanced_crm_func:
-        st.subheader("🎯 CRM Activity Intelligence")
-        
-        # This would integrate with your Enhanced CRM activity tracking
-        st.info("💡 **CRM Integration Active**: AI insights now include your deal pipeline, lead activity, and opportunity trends")
-        
-        activity_insights = [
-            "📞 Lead Response: 73% of leads contacted within 24hrs perform better",
-            "🤝 Deal Velocity: Average 14 days from lead to contract in your pipeline", 
-            "💰 Conversion Rate: Top-scoring leads (85+) have 67% close rate",
-            "📈 Opportunity Alert: 3 warm leads haven't been followed up in 48hrs",
-            "🎯 Pipeline Health: 12 active opportunities worth $2.4M total value"
-        ]
-        
-        for insight in activity_insights:
-            st.write(insight)
-    
-    # Auto-refresh settings
-    st.markdown("---")
-    st.subheader("⚙️ Real-Time Settings")
-    
-    col_settings1, col_settings2 = st.columns(2)
-    with col_settings1:
-        auto_refresh = st.checkbox("🔄 Auto-refresh every 5 minutes", value=False)
-        if auto_refresh:
-            st.info("🕒 Page will automatically refresh to show latest market data")
-            # In a real implementation, you'd use st.rerun() with a timer
-    
-    with col_settings2:
-        st.selectbox("📊 Data Freshness", ["Real-time", "5-minute delay", "Hourly updates"], index=0)
 
 def show_investor_matching():
     st.header("👥 Smart Investor Matching")
@@ -3098,54 +1499,23 @@ def show_investor_matching():
         
         deal_type = st.selectbox("Deal Type", ["Fix & Flip", "Buy & Hold", "Wholesale", "Commercial"])
         investment_range = st.slider("Investment Range", 50000, 1000000, (100000, 500000), step=25000)
-        
-        # Comprehensive market options covering major US markets and international locations
-        all_markets = [
-            # Major US Metropolitan Areas
-            "Atlanta", "Austin", "Boston", "Charlotte", "Chicago", "Dallas", "Denver", "Detroit",
-            "Houston", "Las Vegas", "Los Angeles", "Miami", "Nashville", "New York", "Orlando",
-            "Phoenix", "Portland", "Raleigh", "San Antonio", "Seattle", "Tampa", "Washington DC",
-            
-            # Growing Secondary Markets
-            "Albuquerque", "Boise", "Buffalo", "Charleston", "Columbus", "El Paso", "Fresno",
-            "Grand Rapids", "Indianapolis", "Jacksonville", "Kansas City", "Louisville", "Memphis",
-            "Milwaukee", "Oklahoma City", "Omaha", "Richmond", "Sacramento", "Salt Lake City",
-            "Tucson", "Virginia Beach", "Wichita",
-            
-            # Emerging Markets
-            "Asheville", "Chattanooga", "Fort Wayne", "Greenville", "Huntsville", "Knoxville",
-            "Little Rock", "Madison", "Mobile", "Spokane", "Springfield", "Tallahassee",
-            
-            # International Markets
-            "Toronto (Canada)", "Vancouver (Canada)", "Montreal (Canada)", "London (UK)", 
-            "Manchester (UK)", "Dublin (Ireland)", "Berlin (Germany)", "Munich (Germany)",
-            "Amsterdam (Netherlands)", "Barcelona (Spain)", "Madrid (Spain)", "Rome (Italy)",
-            "Milan (Italy)", "Paris (France)", "Lyon (France)", "Sydney (Australia)",
-            "Melbourne (Australia)", "Auckland (New Zealand)", "Tokyo (Japan)", "Singapore",
-            "Dubai (UAE)", "Mexico City (Mexico)", "Monterrey (Mexico)", "São Paulo (Brazil)",
-            "Buenos Aires (Argentina)"
-        ]
-        
         location_pref = st.multiselect("Preferred Markets", 
-                                     sorted(all_markets),
-                                     help="Select markets where you're looking for investment opportunities. International markets included for global investors.")
+                                     ["Austin", "Nashville", "Tampa", "Phoenix", "Denver", "Atlanta"])
         
         if st.button("🔍 Find Matching Investors", type="primary"):
             st.success("Found 12 matching investors!")
             
-            # Sample investor matches with diverse market coverage
+            # Sample investor matches
             investors_data = pd.DataFrame({
                 'Investor': ['Premium Capital LLC', 'Growth Equity Partners', 'Sunbelt Investments', 
-                           'Metro Property Group', 'Apex Real Estate Fund', 'Global Realty Partners',
-                           'Coastal Investment Co', 'Midwest Property Fund'],
-                'Type': ['Private Equity', 'Individual', 'Fund', 'Group', 'Institutional', 'International', 'Regional', 'Multi-Market'],
-                'Investment Range': ['$200K-$800K', '$100K-$500K', '$500K-$2M', '$150K-$600K', '$1M-$5M', '$300K-$1.5M', '$250K-$750K', '$400K-$2.5M'],
-                'Preferred Markets': ['Austin, Nashville, Charlotte', 'Tampa, Phoenix, Orlando', 'Austin, Denver, Seattle', 
-                                    'Nashville, Atlanta, Raleigh', 'Multi-Market US', 'Toronto, Vancouver, London',
-                                    'Miami, Charleston, Virginia Beach', 'Chicago, Indianapolis, Milwaukee'],
-                'Success Rate': ['94%', '87%', '91%', '89%', '96%', '88%', '92%', '90%'],
+                           'Metro Property Group', 'Apex Real Estate Fund'],
+                'Type': ['Private Equity', 'Individual', 'Fund', 'Group', 'Institutional'],
+                'Investment Range': ['$200K-$800K', '$100K-$500K', '$500K-$2M', '$150K-$600K', '$1M-$5M'],
+                'Preferred Markets': ['Austin, Nashville', 'Tampa, Phoenix', 'Austin, Denver', 
+                                    'Nashville, Atlanta', 'Multi-Market'],
+                'Success Rate': ['94%', '87%', '91%', '89%', '96%'],
                 'Contact': ['📧 Send Pitch', '📞 Schedule Call', '📧 Send Pitch', 
-                          '📞 Schedule Call', '📧 Send Pitch', '🌐 International Call', '📧 Send Pitch', '📞 Schedule Call']
+                          '📞 Schedule Call', '📧 Send Pitch']
             })
             
             st.dataframe(investors_data, use_container_width=True)
@@ -3308,7 +1678,7 @@ def create_projections_chart(projections):
     return fig
 
 def create_financial_breakdown_chart(metrics):
-    # Create a pie chart showing financial breakdown
+    """Create a pie chart showing financial breakdown"""
     labels = ['Monthly Income', 'Taxes', 'Insurance', 'Management', 'Maintenance', 'Vacancy Reserve']
     values = [
         metrics['monthly_income'],
@@ -3341,17 +1711,11 @@ def create_financial_breakdown_chart(metrics):
     return fig
 
 def show_advanced_financial_modeling():
-    # Advanced Financial Modeling section with sophisticated analysis
+    """Advanced Financial Modeling section with sophisticated analysis"""
     st.header("💹 Advanced Financial Modeling")
     st.markdown("**Enterprise-grade financial analysis with projections, Monte Carlo simulations, and exit strategy comparisons**")
     
     # Initialize the financial modeling engine
-    financial_modules = get_financial_modeling()
-    if not financial_modules[0]:  # AdvancedFinancialModeling is the first element
-        st.error("❌ Financial modeling module failed to load")
-        return
-    
-    AdvancedFinancialModeling, create_cash_flow_chart, create_monte_carlo_chart, create_sensitivity_chart, create_exit_strategy_chart = financial_modules
     fm = AdvancedFinancialModeling()
     
     # Two ways to get deal data: from form or from database
@@ -3387,8 +1751,7 @@ def show_advanced_financial_modeling():
                 deal_data['vacancy_rate'] = st.number_input("Vacancy Rate (%)", min_value=0.0, max_value=50.0, value=5.0, step=0.5)
     
     else:  # Select from Database
-        db_service = get_db_service()
-        if db_service and db_service.is_connected():
+        if db_service.is_connected():
             deals = db_service.get_deals()
             if deals:
                 deal_options = [f"{deal.address} - ${deal.purchase_price:,}" for deal in deals]
@@ -3446,12 +1809,14 @@ def show_advanced_financial_modeling():
                     
                     # Key insights
                     base_case = advanced_metrics['Base Case']
-                    st.markdown("**📊 Key Insights:**")
-                    st.write(f"- **IRR (Base Case):** {base_case['irr']:.1f}% - Internal Rate of Return")
-                    st.write(f"- **NPV (10% discount):** ${base_case['npv']:,.0f} - Net Present Value")
-                    st.write(f"- **Total ROI:** {base_case['roi']:.1f}% - Total Return on Investment")
-                    st.write(f"- **Cash-on-Cash:** {base_case['cash_on_cash']:.1f}% - Annual cash return")
-                    st.write(f"- **Debt Coverage:** {base_case['debt_coverage_ratio']:.2f}x - Ability to service debt")
+                    st.markdown(f"""
+                    **🎯 Key Insights:**
+                    - **IRR (Base Case):** {base_case['irr']:.1f}% - Internal Rate of Return
+                    - **NPV (10% discount):** ${base_case['npv']:,.0f} - Net Present Value
+                    - **Total ROI:** {base_case['roi']:.1f}% - Total Return on Investment
+                    - **Cash-on-Cash:** {base_case['cash_on_cash']:.1f}% - Annual cash return
+                    - **Debt Coverage:** {base_case['debt_coverage_ratio']:.2f}x - Ability to service debt
+                    """)
         
         with analysis_tabs[1]:  # Monte Carlo Simulation
             st.markdown("**Risk Analysis with 1,000+ Scenarios**")
@@ -3556,16 +1921,10 @@ def show_advanced_financial_modeling():
         st.info("📋 Please enter deal information or select a deal from the database to begin advanced financial modeling.")
 
 def show_portfolio_analytics():
-    # Enhanced Portfolio Analytics Dashboard
+    """Enhanced Portfolio Analytics Dashboard"""
     st.header("📈 Portfolio Analytics & Optimization")
     
     # Initialize portfolio analyzer
-    portfolio_modules = get_portfolio_analytics()
-    if not portfolio_modules[0]:  # PortfolioAnalyzer is the first element
-        st.error("❌ Portfolio analytics module failed to load")
-        return
-    
-    PortfolioAnalyzer, create_portfolio_performance_chart, create_portfolio_metrics_dashboard, create_geographic_diversification_map = portfolio_modules
     analyzer = PortfolioAnalyzer()
     deals = analyzer.load_portfolio_data()
     
@@ -3655,16 +2014,10 @@ def show_portfolio_analytics():
         st.info("Your portfolio is well-optimized! No immediate recommendations.")
 
 def show_investor_portal():
-    # Investor Portal with Secure Access and Analytics
+    """Investor Portal with Secure Access and Analytics"""
     st.header("🏛️ Investor Portal")
     
     # Initialize portal manager
-    investor_modules = get_investor_portal()
-    if not investor_modules[0]:  # InvestorPortalManager is the first element
-        st.error("❌ Investor portal module failed to load")
-        return
-    
-    InvestorPortalManager, InvestorDashboard, generate_investor_report = investor_modules
     portal_manager = InvestorPortalManager()
     
     # Authentication Section
@@ -3720,22 +2073,28 @@ def show_investor_portal():
         
         col1, col2, col3 = st.columns(3)
         with col1:
-            st.markdown("**🎯 Curated Opportunities**")
-            st.write("- AI-screened deals")
-            st.write("- High-ROI potential")
-            st.write("- Risk-assessed investments")
+            st.markdown("""
+            **🎯 Curated Opportunities**
+            - AI-screened deals
+            - High-ROI potential
+            - Risk-assessed investments
+            """)
         
         with col2:
-            st.write("**📊 Real-Time Tracking**")
-            st.write("- Live portfolio updates")
-            st.write("- Performance analytics")
-            st.write("- Market insights")
+            st.markdown("""
+            **📊 Real-Time Tracking**
+            - Live portfolio updates
+            - Performance analytics
+            - Market insights
+            """)
         
         with col3:
-            st.write("**🤝 Expert Support**")
-            st.write("- Dedicated account manager")
-            st.write("- Investment guidance")
-            st.write("- Market research")
+            st.markdown("""
+            **🤝 Expert Support**
+            - Dedicated account manager
+            - Investment guidance
+            - Market research
+            """)
         
         return
     
@@ -3799,8 +2158,7 @@ def show_investor_portal():
     # Investment Opportunities
     st.subheader("🎯 New Investment Opportunities")
     
-    db_service = get_db_service()
-    if db_service and db_service.is_connected():
+    if db_service.is_connected():
         all_deals = db_service.get_deals()
         # Show deals the investor hasn't invested in yet (simplified)
         available_deals = all_deals[3:6] if len(all_deals) > 6 else []
