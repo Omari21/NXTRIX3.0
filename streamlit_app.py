@@ -1629,11 +1629,11 @@ def main():
     # Use redirect page if available
     navigation_options = ["📊 Dashboard", "🏠 Deal Analysis", "💹 Advanced Financial Modeling", "🗄️ Deal Database", "📈 Portfolio Analytics", "🏛️ Investor Portal", "� Enhanced CRM", "�🤖 AI Insights", "👥 Investor Matching"]
     
+    # Initialize default_index
+    default_index = 0
+    
     if redirect_page and redirect_page in navigation_options:
         default_index = navigation_options.index(redirect_page)
-
-        default_index = 0
-    
     page = st.sidebar.selectbox(
         "Choose Section",
         navigation_options,
