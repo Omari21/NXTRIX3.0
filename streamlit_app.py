@@ -5,6 +5,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from datetime import datetime, timedelta
+from typing import List, Optional, Dict, Any
 import openai
 import os
 from supabase import create_client, Client
