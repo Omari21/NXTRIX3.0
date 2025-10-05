@@ -112,14 +112,30 @@ st.set_page_config(
 )
 
 # Initialize OpenAI
-openai.api_key = st.secrets["OPENAI"]["OPENAI_API_KEY"]
+# Initialize OpenAI with error handling
+try:
+    openai.api_key = st.secrets["OPENAI"]["OPENAI_API_KEY"]
+    OPENAI_AVAILABLE = True
+except KeyError:
+    st.warning("⚠️ OpenAI API key not configured. AI features will have limited functionality.")
+    OPENAI_AVAILABLE = False
+except Exception as e:
+    st.error(f"OpenAI configuration error: {e}")
+    OPENAI_AVAILABLE = False
 
 # Initialize Supabase
 @st.cache_resource
 def init_supabase():
-    url = st.secrets["SUPABASE"]["SUPABASE_URL"]
-    key = st.secrets["SUPABASE"]["SUPABASE_KEY"]
-    return create_client(url, key)
+    try:
+        url = st.secrets["SUPABASE"]["SUPABASE_URL"]
+        key = st.secrets["SUPABASE"]["SUPABASE_KEY"]
+        return create_client(url, key)
+    except KeyError:
+        st.warning("⚠️ Supabase credentials not configured. Using demo mode.")
+        return None
+    except Exception as e:
+        st.error(f"Supabase initialization failed: {e}")
+        return None
 
 supabase = init_supabase()
 
