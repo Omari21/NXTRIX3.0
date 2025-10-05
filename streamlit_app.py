@@ -1339,7 +1339,7 @@ def generate_ai_query_response(query: str, ai_predictor, portfolio_deals: List) 
             • 📉 Avoid panic - focus on fundamentals
             • 🎯 Target distressed properties at significant discounts"""
             
-        else:  # recovery
+      # recovery
             return """🌱 **Recovery phase - strategic positioning time.** Great opportunity for long-term gains.
             Key recommendations:
             • 🎯 Excellent time for strategic acquisitions
@@ -1368,7 +1368,7 @@ def generate_ai_query_response(query: str, ai_predictor, portfolio_deals: List) 
             • Target deals scoring 80+ on AI analysis
             • Focus on emerging neighborhoods before peak pricing
             • Consider fix & flip opportunities in recovery markets"""
-        else:
+    
             return """📈 **Top ROI Markets for New Investors:**
             
             **High-Opportunity Markets:**
@@ -1403,7 +1403,7 @@ def generate_ai_query_response(query: str, ai_predictor, portfolio_deals: List) 
             • **Commercial**: Only if you have significant experience
             
             **Current Market Advantage**: Growth phase favors value-add properties!"""
-        else:
+    
             return """🏠 **Conservative Property Strategy for Peak/Correction:**
             
             **Safest Bets:**
@@ -1438,7 +1438,7 @@ def generate_ai_query_response(query: str, ai_predictor, portfolio_deals: List) 
             {"• 📈 Good diversification level" if len(portfolio_deals) >= 3 else "• 🎯 Consider diversifying with additional properties"}
             • 💰 Continue monitoring cash flow vs. market conditions
             • 📊 Review and optimize deals scoring below 70"""
-        else:
+    
             return """🎯 **Portfolio Building Strategy for Beginners:**
             
             **Phase 1: Foundation (First 1-3 Properties)**
@@ -1459,7 +1459,7 @@ def generate_ai_query_response(query: str, ai_predictor, portfolio_deals: List) 
             **Start Here**: Add your first deal to get personalized portfolio analysis!"""
     
     # Default response for other queries
-    else:
+
         return f"""🤖 **AI Analysis of: "{query}"**
         
         Based on current market conditions and AI analysis:
@@ -1494,7 +1494,7 @@ def generate_ai_recommendations(deal_data, metrics):
         recommendations.append("🎯 Excellent ROI potential - This deal shows strong profit margins")
     elif metrics['total_roi'] > 20:
         recommendations.append("✅ Good ROI potential - Above average returns expected")
-    else:
+
         recommendations.append("⚠️ Consider negotiating purchase price to improve ROI")
     
     # Cash flow recommendations
@@ -1502,7 +1502,7 @@ def generate_ai_recommendations(deal_data, metrics):
         recommendations.append("💰 Strong positive cash flow - Great for wealth building")
     elif metrics['monthly_cash_flow'] > 200:
         recommendations.append("💵 Moderate cash flow - Consider rent optimization strategies")
-    else:
+
         recommendations.append("📉 Negative/low cash flow - Evaluate rental market or reduce expenses")
     
     # Market-based recommendations
@@ -1511,7 +1511,7 @@ def generate_ai_recommendations(deal_data, metrics):
         recommendations.append("🏆 Prime location - Expect strong appreciation and rental demand")
     elif neighborhood_grade in ['B+', 'B']:
         recommendations.append("🎯 Solid neighborhood - Good balance of growth and affordability")
-    else:
+
         recommendations.append("⚠️ Emerging area - Higher risk but potential for significant upside")
     
     # BRRRR strategy recommendation
@@ -1521,7 +1521,7 @@ def generate_ai_recommendations(deal_data, metrics):
     # 1% rule recommendation
     if metrics['one_percent_rule']:
         recommendations.append("✅ Passes 1% rule - Strong rental yield indicator")
-    else:
+
         recommendations.append("📊 Below 1% rule - Focus on appreciation or rent increases")
     
     # Property condition recommendations
@@ -1631,7 +1631,7 @@ def main():
     
     if redirect_page and redirect_page in navigation_options:
         default_index = navigation_options.index(redirect_page)
-    else:
+
         default_index = 0
     
     page = st.sidebar.selectbox(
@@ -1660,7 +1660,7 @@ def main():
                 navigate_to_page("🏠 Deal Analysis")
             if st.sidebar.button("💹 Financial Modeling"):
                 navigate_to_page("💹 Advanced Financial Modeling")
-    else:
+
         st.sidebar.error("🔴 Database Offline")
         st.sidebar.warning("Using local data only")
         
@@ -1700,7 +1700,7 @@ def main():
         enhanced_crm_func = get_enhanced_crm()
         if enhanced_crm_func:
             enhanced_crm_func()
-        else:
+    
             st.error("❌ Enhanced CRM module failed to load")
     elif page == "�🤖 AI Insights":
         show_ai_insights()
@@ -1788,7 +1788,7 @@ def show_dashboard():
             avg_price = sum(d.purchase_price for d in deals) / len(deals)
             total_value = sum(d.purchase_price for d in deals)
             avg_rent = sum(d.monthly_rent for d in deals) / len(deals)
-        else:
+    
             high_score_deals = []
             avg_score = 0
             avg_price = 0
@@ -1797,7 +1797,7 @@ def show_dashboard():
             
         # Growth calculation (mock for now - in production, compare with previous period)
         growth_percentage = "+12%" if total_deals > 0 else "0%"
-    else:
+
         # Fallback to sample data when database is offline
         total_deals = 4
         high_score_deals = []
@@ -1814,12 +1814,14 @@ def show_dashboard():
     st.markdown('<div class="mobile-metrics-container">', unsafe_allow_html=True)
     
     # Use responsive columns
-    if st._get_option('theme.base') == 'dark':  # Mobile detection alternative
-        cols = st.columns([1])  # Single column for mobile-like layout
-        col_index = 0
-    else:
-        cols = st.columns(5)  # Desktop layout
-        col_index = None
+    # Default to desktop layout - Streamlit handles mobile responsiveness automatically
+    cols = st.columns(5)  # Desktop layout
+    col_index = None
+
+
+
+
+
     
     # Total Deals Metric
     metric_container = cols[0] if col_index is None else cols[col_index]
@@ -2008,7 +2010,7 @@ def show_dashboard():
             })
         
         recent_deals_df = pd.DataFrame(deals_display)
-    else:
+
         # Fallback to sample data if no deals in database
         recent_deals_df = pd.DataFrame({
             'Property': ['123 Oak St', '456 Pine Ave', '789 Maple Dr', '321 Elm St'],
@@ -2070,7 +2072,7 @@ def show_dashboard():
         if db_service and db_service.is_connected():
             last_updated = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             st.info(f"📡 Live data • Last updated: {last_updated}")
-        else:
+    
             st.warning("📡 Offline mode • Sample data shown")
 
 def show_deal_analysis():
@@ -2408,11 +2410,11 @@ def show_deal_analysis():
                     
                     # Refresh after a short delay
                     st.rerun()
-                else:
+            
                     db_service = get_db_service()
                     if db_service and db_service.is_connected():
                         st.error("❌ Failed to save deal to database. Please try again.")
-                    else:
+                
                         st.warning("⚠️ Database not connected. Deal not saved.")
             
             # Enhanced Deal scoring explanation with breakdown
@@ -2439,7 +2441,7 @@ def show_deal_analysis():
                 
                 st.write("Each component is weighted and combined to create a comprehensive score from 0-100.")
     
-        else:
+    
             st.info("👈 Enter deal information and click 'Run Advanced AI Analysis' to see comprehensive insights")
             
             # Show sample analysis preview
@@ -2484,7 +2486,7 @@ def show_deal_database():
     # Get deals from database
     if search_term:
         deals = db_service.search_deals(search_term)
-    else:
+
         deals = db_service.get_deals()
     
     # Apply status filter
@@ -2498,7 +2500,7 @@ def show_deal_database():
         deals.sort(key=lambda x: x.purchase_price, reverse=True)
     elif sort_by == "ROI (Highest)":
         deals.sort(key=lambda x: ((x.arv - x.purchase_price - x.repair_costs) / (x.purchase_price + x.repair_costs) * 100) if (x.purchase_price + x.repair_costs) > 0 else 0, reverse=True)
-    else:  # Created Date (Newest)
+  # Created Date (Newest)
         deals.sort(key=lambda x: x.created_at, reverse=True)
     
     if deals:
@@ -2571,7 +2573,7 @@ def show_deal_database():
                             if db_service.update_deal(deal):
                                 st.success(f"✅ Status updated to {new_status}")
                                 st.rerun()
-                            else:
+                        
                                 st.error("❌ Failed to update status")
                 
                 with col_action3:
@@ -2585,7 +2587,7 @@ def show_deal_database():
                         if st.button(f"🗑️ Delete Deal", key=f"delete_{deal.id}", type="secondary"):
                             st.session_state[delete_key] = True
                             st.rerun()
-                    else:
+                
                         st.warning(f"⚠️ Confirm deletion of {deal.address}?")
                         col_confirm1, col_confirm2 = st.columns(2)
                         
@@ -2595,7 +2597,7 @@ def show_deal_database():
                                     st.success("✅ Deal deleted successfully")
                                     del st.session_state[delete_key]
                                     st.rerun()
-                                else:
+                            
                                     st.error("❌ Failed to delete deal")
                                     st.session_state[delete_key] = False
                         
@@ -2604,7 +2606,7 @@ def show_deal_database():
                                 st.session_state[delete_key] = False
                                 st.rerun()
     
-    else:
+
         st.info("📭 No deals found. Add some deals using the Deal Analysis section!")
         
         if st.button("➕ Add New Deal", type="primary"):
@@ -2815,7 +2817,7 @@ def show_ai_insights():
                     price_ranges['Under $200K'] = price_ranges.get('Under $200K', 0) + 1
                 elif price < 400000:
                     price_ranges['$200K-$400K'] = price_ranges.get('$200K-$400K', 0) + 1
-                else:
+            
                     price_ranges['Over $400K'] = price_ranges.get('Over $400K', 0) + 1
             
             # Most common property type
@@ -2840,7 +2842,7 @@ def show_ai_insights():
                 f"⭐ Quality Score: {len([d for d in portfolio_deals if d.ai_score >= 80])} deals rated 80+ by AI",
                 f"📈 Growth Opportunity: {len(high_roi_deals)} deals with 15%+ ROI"
             ]
-        else:
+    
             real_insights = [
                 "📊 No portfolio data yet - Start adding deals for personalized insights",
                 "🎯 Market Opportunity: Strong buyer's market emerging",
@@ -2867,7 +2869,7 @@ def show_ai_insights():
                 f"📍 Geographic Expansion: Consider {3 - len(locations)} new markets",
                 f"⚡ Quick Win: {len([d for d in portfolio_deals if d.ai_score < 70])} deals could be optimized"
             ]
-        else:
+    
             personalized_recommendations = [
                 "🚀 Start with single-family homes for easier management",
                 "💰 Target 12%+ cap rates for strong cash flow",
@@ -2973,7 +2975,7 @@ def show_ai_insights():
                     for rec in portfolio_analysis['recommended_actions']:
                         st.write(f"• {rec}")
                 
-                else:
+            
                     st.info("📊 Add deals to your portfolio to get AI-powered portfolio predictions")
             
             elif analysis_type == "Deal Timing Analysis":
@@ -3419,7 +3421,7 @@ def show_advanced_financial_modeling():
                 deal_data['hoa_fees'] = st.number_input("Annual HOA Fees ($)", min_value=0, value=0, step=100)
                 deal_data['vacancy_rate'] = st.number_input("Vacancy Rate (%)", min_value=0.0, max_value=50.0, value=5.0, step=0.5)
     
-    else:  # Select from Database
+  # Select from Database
         db_service = get_db_service()
         if db_service and db_service.is_connected():
             deals = db_service.get_deals()
@@ -3442,10 +3444,10 @@ def show_advanced_financial_modeling():
                         'vacancy_rate': selected_deal.vacancy_rate
                     }
                     st.success(f"✅ Loaded deal: {selected_deal.address}")
-            else:
+        
                 st.warning("📭 No deals found in database. Please add deals first or use manual entry.")
                 deal_data = {}
-        else:
+    
             st.error("🔴 Database not connected. Please use manual entry.")
             deal_data = {}
     
@@ -3523,7 +3525,7 @@ def show_advanced_financial_modeling():
                     elif stats['probability_positive'] > 60:
                         risk_level = "🟡 MEDIUM RISK"
                         risk_color = "orange"
-                    else:
+                
                         risk_level = "🔴 HIGH RISK"
                         risk_color = "red"
                     
@@ -3585,7 +3587,7 @@ def show_advanced_financial_modeling():
                     best_strategy = max(strategies.items(), key=lambda x: x[1]['annual_roi'])
                     st.success(f"🏆 **Recommended Strategy:** {best_strategy[0]} with {best_strategy[1]['annual_roi']:.1f}% annual ROI")
     
-    else:
+
         st.info("📋 Please enter deal information or select a deal from the database to begin advanced financial modeling.")
 
 def show_portfolio_analytics():
@@ -3684,7 +3686,7 @@ def show_portfolio_analytics():
                 
                 if st.button(f"Implement {rec['title']}", key=f"implement_{rec['type']}"):
                     st.success("Recommendation noted! Our team will follow up with implementation details.")
-    else:
+
         st.info("Your portfolio is well-optimized! No immediate recommendations.")
 
 def show_investor_portal():
@@ -3724,7 +3726,7 @@ def show_investor_portal():
                         st.session_state.authenticated_investor = investor
                         st.success(f"Welcome back, {investor.name}!")
                         st.rerun()
-                    else:
+                
                         st.error("Invalid credentials. Please try again.")
                 
                 if demo_button:
@@ -3826,7 +3828,7 @@ def show_investor_portal():
         } for deal in investor_deals])
         
         st.dataframe(deals_df, use_container_width=True)
-    else:
+
         st.info("No investment properties found. Contact us to explore opportunities!")
     
     # Investment Opportunities
@@ -3849,7 +3851,7 @@ def show_investor_portal():
                     with col2:
                         if st.button(f"💰 Express Interest", key=f"interest_{deal.id}"):
                             st.success("Interest recorded! Our team will contact you within 24 hours.")
-        else:
+    
             st.info("No new opportunities available at the moment. Check back soon!")
     
     # Communication Timeline
@@ -3870,7 +3872,7 @@ def show_investor_portal():
                 
                 if st.button(f"Learn More", key=f"learn_{rec['type']}"):
                     st.info("Our investment team will reach out to discuss this recommendation in detail.")
-    else:
+
         st.success("Your investment strategy is well-aligned with your goals!")
 
 if __name__ == "__main__":
