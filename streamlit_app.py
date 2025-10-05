@@ -9,7 +9,24 @@ import openai
 import os
 from supabase import create_client, Client
 import uuid
-from ai_prediction_engine import AIMarketPredictor, get_ai_predictor, create_prediction_visualizations
+# Optional AI module import with error handling
+try:
+    from ai_prediction_engine import AIMarketPredictor, get_ai_predictor, create_prediction_visualizations
+    AI_MODULE_AVAILABLE = True
+except ImportError:
+    AI_MODULE_AVAILABLE = False
+    # Create placeholder functions when module is not available
+    class AIMarketPredictor:
+        def __init__(self, *args, **kwargs):
+            pass
+        def predict(self, *args, **kwargs):
+            return {"error": "AI module not available"}
+    
+    def get_ai_predictor(*args, **kwargs):
+        return AIMarketPredictor()
+    
+    def create_prediction_visualizations(*args, **kwargs):
+        return None
 
 # Lazy import functions to avoid event loop issues
 @st.cache_resource
