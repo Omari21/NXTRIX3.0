@@ -1958,16 +1958,16 @@ def show_dashboard():
         
         recent_deals_df = pd.DataFrame(deals_display)
 
+    else:
         # Fallback to sample data if no deals in database
         recent_deals_df = pd.DataFrame({
             'Property': ['123 Oak St', '456 Pine Ave', '789 Maple Dr', '321 Elm St'],
             'Type': ['Fix & Flip', 'Buy & Hold', 'Wholesale', 'Multi-Family'],
-            'Purchase Price': ['$180,000', '$320,000', '$95,000', '$650,000'],
+            'Purchase Price': [',000', ',000', ',000', ',000'],
             'AI Score': [94, 88, 91, 86],
             'ROI': ['32.5%', '28.3%', '15.8%', '22.1%'],
             'Status': ['Under Contract', 'Analyzing', 'Closed', 'Negotiating']
         })
-    
     # Style the dataframe for better visibility
     st.markdown("""
     <style>
