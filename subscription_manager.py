@@ -15,8 +15,17 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import Enum
 import json
-import psycopg2
-from psycopg2.extras import RealDictCursor
+
+# Optional PostgreSQL import with error handling
+try:
+    import psycopg2
+    from psycopg2.extras import RealDictCursor
+    PSYCOPG2_AVAILABLE = True
+except ImportError:
+    PSYCOPG2_AVAILABLE = False
+    # Create placeholder for psycopg2 when not available
+    class RealDictCursor:
+        pass
 
 class SubscriptionTier(Enum):
     FREE = "free"
@@ -68,6 +77,10 @@ class SubscriptionManager:
         
     def _get_db_connection(self):
         """Get database connection using Supabase credentials"""
+        if not PSYCOPG2_AVAILABLE:
+            st.warning("⚠️ PostgreSQL adapter not available. Subscription features will use demo mode.")
+            return None
+            
         try:
             return psycopg2.connect(
                 host=st.secrets["supabase"]["host"],

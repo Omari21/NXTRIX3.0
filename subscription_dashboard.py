@@ -10,8 +10,18 @@ import plotly.express as px
 import plotly.graph_objects as go
 from subscription_manager import SubscriptionManager, SubscriptionTier
 from feature_access_control import FeatureAccessControl, access_control
-import psycopg2
-from psycopg2.extras import RealDictCursor
+
+# Optional PostgreSQL import with error handling
+try:
+    import psycopg2
+    from psycopg2.extras import RealDictCursor
+    PSYCOPG2_AVAILABLE = True
+except ImportError:
+    PSYCOPG2_AVAILABLE = False
+    # Create placeholder for psycopg2 when not available
+    class RealDictCursor:
+        pass
+
 from typing import Dict, List, Any, Optional
 
 class SubscriptionDashboard:

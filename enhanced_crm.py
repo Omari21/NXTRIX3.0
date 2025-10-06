@@ -38,7 +38,40 @@ from advanced_deal_analytics import AdvancedDealAnalytics, show_advanced_deal_an
 from automated_deal_sourcing import show_automated_deal_sourcing
 from ai_enhancement_system import show_ai_enhancement_system
 from advanced_automation_system import show_advanced_automation_system
-from subscription_manager import SubscriptionManager, SubscriptionTier, get_user_tier
+
+# Optional subscription imports with error handling
+try:
+    from subscription_manager import SubscriptionManager, SubscriptionTier, get_user_tier
+    SUBSCRIPTION_MANAGER_AVAILABLE = True
+except ImportError:
+    SUBSCRIPTION_MANAGER_AVAILABLE = False
+    # Create placeholder classes when not available
+    class SubscriptionTier:
+        BASIC = "basic"
+        PROFESSIONAL = "professional"
+        ENTERPRISE = "enterprise"
+    
+    class SubscriptionManager:
+        def __init__(self, *args, **kwargs):
+            pass
+        
+        def get_user_subscription(self, user_id):
+            return None
+    
+    def get_user_tier(user_id):
+        return SubscriptionTier.BASIC
+
+try:
+    from subscription_dashboard import subscription_dashboard
+    SUBSCRIPTION_DASHBOARD_AVAILABLE = True
+except ImportError:
+    SUBSCRIPTION_DASHBOARD_AVAILABLE = False
+    # Create placeholder for subscription dashboard
+    class subscription_dashboard:
+        @staticmethod
+        def show_admin_dashboard():
+            st.warning("⚠️ Subscription dashboard requires additional dependencies (psycopg2)")
+
 from feature_access_control import (
     FeatureAccessControl, 
     require_feature, 
@@ -46,7 +79,6 @@ from feature_access_control import (
     track_feature_usage,
     access_control
 )
-from subscription_dashboard import subscription_dashboard
 
 class LeadStatus(Enum):
     """Lead status options"""
