@@ -1788,16 +1788,17 @@ def show_dashboard():
             avg_price = sum(d.purchase_price for d in deals) / len(deals)
             total_value = sum(d.purchase_price for d in deals)
             avg_rent = sum(d.monthly_rent for d in deals) / len(deals)
-    
+            avg_rent = sum(d.monthly_rent for d in deals) / len(deals)
+        else:
             high_score_deals = []
             avg_score = 0
             avg_price = 0
             total_value = 0
             avg_rent = 0
-            
-        # Growth calculation (mock for now - in production, compare with previous period)
-        growth_percentage = "+12%" if total_deals > 0 else "0%"
 
+        # Growth calculation (mock for now - in production, compare with previous period)
+
+    else:
         # Fallback to sample data when database is offline
         total_deals = 4
         high_score_deals = []
@@ -1806,7 +1807,6 @@ def show_dashboard():
         total_value = 1450000
         avg_rent = 2950
         growth_percentage = "+12%"
-    
     # Mobile-responsive metrics layout
     # On mobile: 1 column (stacked), On tablet: 2-3 columns, On desktop: 5 columns
     
