@@ -20,19 +20,34 @@ import asyncio
 import requests
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
-import nltk
-from textblob import TextBlob
 
-# Download required NLTK data
+# Optional NLTK import with error handling
 try:
-    nltk.data.find('tokenizers/punkt')
-except LookupError:
-    nltk.download('punkt', quiet=True)
+    import nltk
+    from textblob import TextBlob
+    NLTK_AVAILABLE = True
+    
+    # Download required NLTK data
+    try:
+        nltk.data.find('tokenizers/punkt')
+    except LookupError:
+        nltk.download('punkt', quiet=True)
 
-try:
-    nltk.data.find('corpora/stopwords')
-except LookupError:
-    nltk.download('stopwords', quiet=True)
+    try:
+        nltk.data.find('corpora/stopwords')
+    except LookupError:
+        nltk.download('stopwords', quiet=True)
+        
+except ImportError:
+    NLTK_AVAILABLE = False
+    # Create placeholder for TextBlob when not available
+    class TextBlob:
+        def __init__(self, text):
+            self.text = text
+        
+        @property
+        def sentiment(self):
+            return type('obj', (object,), {'polarity': 0.0, 'subjectivity': 0.0})
 
 @dataclass
 class AIAnalysisResult:
