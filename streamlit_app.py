@@ -1889,60 +1889,7 @@ def show_dashboard():
     
 
     
-    with col3:
-        st.markdown(f"""
-        <div class="metric-card">
-            <h3>High Score Deals</h3>
-            <h2 style="color: #667eea; font-weight: 700;">{len(high_score_deals)}</h2>
-            <p style="color: #38a169; font-weight: 600;">↗️ Score ≥85</p>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with col4:
-        st.markdown(f"""
-        <div class="metric-card">
-            <h3>Portfolio Value</h3>
-            <h2 style="color: #667eea; font-weight: 700;">${total_value:,.0f}</h2>
-            <p style="color: #38a169; font-weight: 600;">↗️ +8.1% growth</p>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with col5:
-        st.markdown(f"""
-        <div class="metric-card">
-            <h3>Avg Rent</h3>
-            <h2 style="color: #38a169; font-weight: 700;">${avg_rent:,.0f}</h2>
-            <p style="color: #38a169; font-weight: 600;">↗️ +5.2% market</p>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with col3:
-        st.markdown("""
-        <div class="metric-card">
-            <h3>AI Score Avg</h3>
-            <h2 style="color: #e53e3e; font-weight: 700;">82.4</h2>
-            <p style="color: #805ad5; font-weight: 600;">🎯 High-quality deals</p>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with col4:
-        st.markdown("""
-        <div class="metric-card">
-            <h3>Portfolio Value</h3>
-            <h2 style="color: #805ad5; font-weight: 700;">$8.4M</h2>
-            <p style="color: #38a169; font-weight: 600;">↗️ +15% YoY growth</p>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with col5:
-        st.markdown("""
-        <div class="metric-card">
-            <h3>Active Investors</h3>
-            <h2 style="color: #dd6b20; font-weight: 700;">234</h2>
-            <p style="color: #38a169; font-weight: 600;">🤝 +18 new this week</p>
-        </div>
-        """, unsafe_allow_html=True)
-    
+
     # Charts Section
     col1, col2 = st.columns(2)
     
