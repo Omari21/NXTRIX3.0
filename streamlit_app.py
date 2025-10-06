@@ -2068,8 +2068,8 @@ def show_deal_analysis():
     
     Deal, Investor, Portfolio = models
     
-    # Mobile-responsive form layout
-    st.markdown('<div class="mobile-form-section">', unsafe_allow_html=True)
+    # Create columns for layout
+    col1, col2 = st.columns([1, 1])
     st.markdown('<div class="mobile-form-title">� Property Information</div>', unsafe_allow_html=True)
     
     # Property details - mobile optimized
