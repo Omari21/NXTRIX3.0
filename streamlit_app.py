@@ -2433,7 +2433,7 @@ def show_deal_database():
     # Get deals from database
     if search_term:
         deals = db_service.search_deals(search_term)
-
+    else:
         deals = db_service.get_deals()
     
     # Apply status filter
