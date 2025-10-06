@@ -2790,6 +2790,7 @@ def show_ai_insights():
                 f"📈 Growth Opportunity: {len(high_roi_deals)} deals with 15%+ ROI"
             ]
     
+        else:
             real_insights = [
                 "📊 No portfolio data yet - Start adding deals for personalized insights",
                 "🎯 Market Opportunity: Strong buyer's market emerging",

@@ -6409,8 +6409,20 @@ def show_activity_analytics(activity_tracker):
     """Show activity analytics"""
     st.subheader("📊 Activity Analytics")
     
-    # Get analytics data
-    analytics = activity_tracker.get_activity_analytics(days_back=30)
+    # Get analytics data with error handling
+    try:
+        analytics = activity_tracker.get_activity_analytics(days_back=30)
+    except AttributeError:
+        st.warning("⚠️ Activity analytics not available - using demo data")
+        analytics = {
+            'total_activities': 25,
+            'activities_today': 3,
+            'avg_daily_activities': 5.2,
+            'most_active_day': 'Tuesday'
+        }
+    except Exception as e:
+        st.error(f"Error loading activity analytics: {e}")
+        analytics = {}
     
     col1, col2, col3, col4 = st.columns(4)
     
