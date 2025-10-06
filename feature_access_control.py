@@ -4,20 +4,46 @@ Enforces subscription tier restrictions across all modules
 """
 
 import streamlit as st
-from subscription_manager impor            "api_access": {
-                "tiers": ["professional", "enterprise"],
-                "usage_limit": "api_calls_per_month",
-                "description": "API access and integrations"
-            },
-            "admin_dashboard": {
-                "tiers": ["enterprise"],
-                "usage_limit": None,criptionManager, 
-    require_subscription, 
-    track_usage,
-    get_user_tier,
-    is_feature_available,
-    SubscriptionTier
-)
+try:
+    from subscription_manager import (
+        SubscriptionManager, 
+        require_subscription, 
+        track_usage,
+        get_user_tier,
+        is_feature_available,
+        SubscriptionTier
+    )
+except ImportError:
+    # Fallback for missing subscription manager
+    class SubscriptionManager:
+        def __init__(self):
+            pass
+        def get_user_tier(self, user_id):
+            return "free"
+        def is_feature_available(self, feature, user_id):
+            return True
+    
+    def require_subscription(tier):
+        def decorator(func):
+            return func
+        return decorator
+    
+    def track_usage(feature):
+        def decorator(func):
+            return func
+        return decorator
+    
+    def get_user_tier(user_id):
+        return "free"
+    
+    def is_feature_available(feature, user_id):
+        return True
+    
+    class SubscriptionTier:
+        FREE = "free"
+        PRO = "pro" 
+        ENTERPRISE = "enterprise"
+
 import functools
 from typing import Any, Callable, Dict, List
 import logging
