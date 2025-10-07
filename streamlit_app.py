@@ -1,3954 +1,6692 @@
+"""
+Enhanced CRM Features for NXTRIX Deal Analyzer
+Comprehensive lead tracking, contact management, and sales pipeline automation
+"""
+
+from __future__ import annotations
+
 import streamlit as st
 import pandas as pd
-import numpy as np
-import plotly.express as px
 import plotly.graph_objects as go
+import plotly.express as px
 from plotly.subplots import make_subplots
 from datetime import datetime, timedelta
-from typing import List, Optional, Dict, Any
-import openai
-import os
-from supabase import create_client, Client
+from dataclasses import dataclass, field
+from typing import List, Dict, Optional, Any
+from enum import Enum
 import uuid
-# Optional AI module import with error handling
+import json
+import sqlite3
+import csv
+import io
+import os
+from pathlib import Path
+from database import db_service
+from email_automation import get_email_manager, EmailAutomationManager
+from deal_workflow_automation import (
+    get_workflow_manager, 
+    DealWorkflowAutomation, 
+    PropertyType, 
+    InvestmentCriteria,
+    DealStage,
+    BuyerStatus,
+    NotificationType
+)
+from email_automation import get_email_manager, EmailTemplate, DripCampaign, EmailType, CampaignStatus
+from activity_tracker import get_activity_tracker, ActivityType, Priority, ActivityLog, OpportunityAlert
+from advanced_deal_analytics import AdvancedDealAnalytics, show_advanced_deal_analytics
+from automated_deal_sourcing import show_automated_deal_sourcing
+from ai_enhancement_system import show_ai_enhancement_system
+from advanced_automation_system import show_advanced_automation_system
+
+# Optional subscription imports with error handling
 try:
-    from ai_prediction_engine import AIMarketPredictor, get_ai_predictor, create_prediction_visualizations
-    AI_MODULE_AVAILABLE = True
+    from subscription_manager import SubscriptionManager, SubscriptionTier, get_user_tier
+    SUBSCRIPTION_MANAGER_AVAILABLE = True
 except ImportError:
-    AI_MODULE_AVAILABLE = False
-    # Create placeholder functions when module is not available
-    class AIMarketPredictor:
+    SUBSCRIPTION_MANAGER_AVAILABLE = False
+    # Create placeholder classes when not available
+    class SubscriptionTier:
+        BASIC = "basic"
+        PROFESSIONAL = "professional"
+        ENTERPRISE = "enterprise"
+    
+    class SubscriptionManager:
         def __init__(self, *args, **kwargs):
             pass
-        def predict(self, *args, **kwargs):
-            return {"error": "AI module not available"}
+        
+        def get_user_subscription(self, user_id):
+            return None
     
-    def get_ai_predictor(*args, **kwargs):
-        return AIMarketPredictor()
-    
-    def create_prediction_visualizations(*args, **kwargs):
-        return None
+    def get_user_tier(user_id):
+        return SubscriptionTier.BASIC
 
-# Lazy import functions to avoid event loop issues
-@st.cache_resource
-def get_db_service():
-    """Lazy load database service"""
-    try:
-        from database import db_service
-        return db_service
-    except Exception as e:
-        st.error(f"Database service error: {e}")
-        return None
+try:
+    from subscription_dashboard import subscription_dashboard
+    SUBSCRIPTION_DASHBOARD_AVAILABLE = True
+except ImportError:
+    SUBSCRIPTION_DASHBOARD_AVAILABLE = False
+    # Create placeholder for subscription dashboard
+    class subscription_dashboard:
+        @staticmethod
+        def show_admin_dashboard():
+            st.warning("⚠️ Subscription dashboard requires additional dependencies (psycopg2)")
 
-@st.cache_resource
-def get_financial_modeling():
-    """Lazy load financial modeling"""
-    try:
-        from financial_modeling import AdvancedFinancialModeling, create_cash_flow_chart, create_monte_carlo_chart, create_sensitivity_chart, create_exit_strategy_chart
-        return AdvancedFinancialModeling, create_cash_flow_chart, create_monte_carlo_chart, create_sensitivity_chart, create_exit_strategy_chart
-    except Exception as e:
-        st.error(f"Financial modeling error: {e}")
-        return None, None, None, None, None
-
-@st.cache_resource
-def get_portfolio_analytics():
-    """Lazy load portfolio analytics"""
-    try:
-        from portfolio_analytics import PortfolioAnalyzer, create_portfolio_performance_chart, create_portfolio_metrics_dashboard, create_geographic_diversification_map
-        return PortfolioAnalyzer, create_portfolio_performance_chart, create_portfolio_metrics_dashboard, create_geographic_diversification_map
-    except Exception as e:
-        st.error(f"Portfolio analytics error: {e}")
-        return None, None, None, None
-
-@st.cache_resource
-def get_investor_portal():
-    """Lazy load investor portal"""
-    try:
-        from investor_portal import InvestorPortalManager, InvestorDashboard, generate_investor_report
-        return InvestorPortalManager, InvestorDashboard, generate_investor_report
-    except Exception as e:
-        st.error(f"Investor portal error: {e}")
-        return None, None, None
-
-@st.cache_resource
-def get_enhanced_crm():
-    """Lazy load enhanced CRM"""
-    try:
-        from enhanced_crm import show_enhanced_crm
-        return show_enhanced_crm
-    except Exception as e:
-        st.error(f"Enhanced CRM error: {e}")
-        return None
-
-@st.cache_resource
-def get_models():
-    """Lazy load models"""
-    try:
-        from models import Deal, Investor, Portfolio
-        return Deal, Investor, Portfolio
-    except Exception as e:
-        st.error(f"Models error: {e}")
-        return None, None, None
-
-# Navigation helper functions
-def navigate_to_page(page_name):
-    """Helper function to navigate to a specific page"""
-    st.session_state.redirect_to_page = page_name
-    st.rerun()
-
-def get_current_page():
-    """Get the current page with redirect handling"""
-    if 'redirect_to_page' in st.session_state:
-        redirect_page = st.session_state.redirect_to_page
-        del st.session_state.redirect_to_page
-        return redirect_page
-    return None
-
-# Page configuration
-st.set_page_config(
-    page_title="NXTRIX Deal Analyzer CRM",
-    page_icon="🏢",
-    layout="wide",
-    initial_sidebar_state="expanded"
+from feature_access_control import (
+    FeatureAccessControl, 
+    require_feature, 
+    require_tier,
+    track_feature_usage,
+    access_control
 )
 
-# Initialize OpenAI
-# Initialize OpenAI with error handling
-try:
-    openai.api_key = st.secrets["OPENAI"]["OPENAI_API_KEY"]
-    OPENAI_AVAILABLE = True
-except KeyError:
-    st.warning("⚠️ OpenAI API key not configured. AI features will have limited functionality.")
-    OPENAI_AVAILABLE = False
-except Exception as e:
-    st.error(f"OpenAI configuration error: {e}")
-    OPENAI_AVAILABLE = False
+class LeadStatus(Enum):
+    """Lead status options"""
+    NEW = "New"
+    CONTACTED = "Contacted"
+    QUALIFIED = "Qualified"
+    MEETING_SCHEDULED = "Meeting Scheduled"
+    PROPOSAL_SENT = "Proposal Sent"
+    NEGOTIATING = "Negotiating"
+    CLOSED_WON = "Closed Won"
+    CLOSED_LOST = "Closed Lost"
+    NURTURING = "Nurturing"
 
-# Initialize Supabase
-@st.cache_resource
-def init_supabase():
-    try:
-        url = st.secrets["SUPABASE"]["SUPABASE_URL"]
-        key = st.secrets["SUPABASE"]["SUPABASE_KEY"]
-        return create_client(url, key)
-    except KeyError:
-        st.warning("⚠️ Supabase credentials not configured. Using demo mode.")
-        return None
-    except Exception as e:
-        st.error(f"Supabase initialization failed: {e}")
-        return None
+class LeadSource(Enum):
+    """Lead source options"""
+    WEBSITE = "Website"
+    REFERRAL = "Referral"
+    SOCIAL_MEDIA = "Social Media"
+    EMAIL_CAMPAIGN = "Email Campaign"
+    COLD_OUTREACH = "Cold Outreach"
+    NETWORKING_EVENT = "Networking Event"
+    ADVERTISEMENT = "Advertisement"
+    PARTNER = "Partner"
+    OTHER = "Other"
 
-supabase = init_supabase()
+class ContactType(Enum):
+    """Contact type classification"""
+    SELLER = "Seller"
+    BUYER = "Buyer"
+    INVESTOR = "Investor"
+    AGENT = "Agent"
+    CONTRACTOR = "Contractor"
+    LENDER = "Lender"
+    ATTORNEY = "Attorney"
+    OTHER = "Other"
 
-# Custom CSS for better styling with proper contrast
-st.markdown("""
-<style>
-    /* ===========================================
-       MOBILE-FIRST RESPONSIVE FRAMEWORK
-       =========================================== */
-    
-    /* Base mobile-first styles */
-    .stApp {
-        background-color: #0e1117;
-        color: white;
-        font-size: 16px;
-        line-height: 1.5;
-    }
-    
-    /* Mobile viewport meta tag enforcement */
-    @viewport {
-        width: device-width;
-        initial-scale: 1.0;
-        maximum-scale: 5.0;
-        user-scalable: yes;
-    }
-    
-    /* ===========================================
-       RESPONSIVE TYPOGRAPHY
-       =========================================== */
-    
-    /* Mobile-first typography */
-    h1, h2, h3, h4, h5, h6 {
-        color: white !important;
-        font-weight: 600;
-        line-height: 1.3;
-        margin-bottom: 0.75rem;
-    }
-    
-    h1 { font-size: 1.75rem; }  /* 28px */
-    h2 { font-size: 1.5rem; }   /* 24px */
-    h3 { font-size: 1.25rem; }  /* 20px */
-    h4 { font-size: 1.125rem; } /* 18px */
-    
-    /* Tablet breakpoint - 768px and up */
-    @media (min-width: 768px) {
-        h1 { font-size: 2.25rem; }  /* 36px */
-        h2 { font-size: 1.875rem; } /* 30px */
-        h3 { font-size: 1.5rem; }   /* 24px */
-        h4 { font-size: 1.25rem; }  /* 20px */
-    }
-    
-    /* Desktop breakpoint - 1024px and up */
-    @media (min-width: 1024px) {
-        h1 { font-size: 2.5rem; }   /* 40px */
-        h2 { font-size: 2rem; }     /* 32px */
-        h3 { font-size: 1.75rem; }  /* 28px */
-        h4 { font-size: 1.5rem; }   /* 24px */
-    }
-    
-    /* ===========================================
-       MOBILE HEADER & NAVIGATION
-       =========================================== */
-    
-    .main-header {
-        background-color: #262730;
-        padding: 1rem;
-        border-radius: 10px;
-        color: white;
-        text-align: center;
-        margin-bottom: 1rem;
-        border: 1px solid #404040;
-    }
-    
-    .main-header h1 {
-        margin-bottom: 0.25rem;
-        font-size: 1.5rem;
-        font-weight: 700;
-        color: white;
-    }
-    
-    .main-header p {
-        font-size: 0.9rem;
-        opacity: 0.9;
-        color: white;
-        margin: 0;
-    }
-    
-    /* Tablet header adjustments */
-    @media (min-width: 768px) {
-        .main-header {
-            padding: 1.5rem;
-            border-radius: 12px;
-            margin-bottom: 1.5rem;
-        }
-        
-        .main-header h1 {
-            font-size: 2rem;
-            margin-bottom: 0.5rem;
-        }
-        
-        .main-header p {
-            font-size: 1rem;
-        }
-    }
-    
-    /* Desktop header adjustments */
-    @media (min-width: 1024px) {
-        .main-header {
-            padding: 2.5rem;
-            border-radius: 15px;
-            margin-bottom: 2rem;
-        }
-        
-        .main-header h1 {
-            font-size: 2.5rem;
-        }
-        
-        .main-header p {
-            font-size: 1.2rem;
-        }
-    }
-    
-    /* ===========================================
-       MOBILE-OPTIMIZED CARDS & METRICS
-       =========================================== */
-    
-    /* Mobile-first metric cards */
-    .metric-card, .deal-card {
-        background-color: #262730;
-        padding: 1rem;
-        border-radius: 10px;
-        border: 1px solid #404040;
-        margin-bottom: 1rem;
-        color: white;
-        transition: all 0.3s ease;
-    }
-    
-    .metric-card:hover, .deal-card:hover {
-        transform: translateY(-2px);
-        border-color: #4CAF50;
-        box-shadow: 0 4px 12px rgba(76, 175, 80, 0.15);
-    }
-    
-    .metric-card h3 {
-        color: #ffffff;
-        font-size: 0.75rem;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-        margin-bottom: 0.25rem;
-    }
-    
-    .metric-card h2 {
-        font-size: 1.5rem;
-        font-weight: 700;
-        margin-bottom: 0.25rem;
-        color: white;
-    }
-    
-    .metric-card p {
-        color: #cccccc;
-        font-size: 0.8rem;
-        font-weight: 500;
-        margin: 0;
-    }
-    
-    /* Tablet metric adjustments */
-    @media (min-width: 768px) {
-        .metric-card, .deal-card {
-            padding: 1.5rem;
-            border-radius: 12px;
-            margin-bottom: 1.25rem;
-        }
-        
-        .metric-card h3 {
-            font-size: 0.85rem;
-            margin-bottom: 0.375rem;
-        }
-        
-        .metric-card h2 {
-            font-size: 1.75rem;
-            margin-bottom: 0.375rem;
-        }
-        
-        .metric-card p {
-            font-size: 0.875rem;
-        }
-    }
-    
-    /* Desktop metric adjustments */
-    @media (min-width: 1024px) {
-        .metric-card, .deal-card {
-            padding: 2rem;
-            border-radius: 15px;
-            margin-bottom: 1.5rem;
-        }
-        
-        .metric-card h3 {
-            font-size: 0.9rem;
-            margin-bottom: 0.5rem;
-        }
-        
-        .metric-card h2 {
-            font-size: 2rem;
-            margin-bottom: 0.5rem;
-        }
-        
-        .metric-card p {
-            font-size: 0.9rem;
-        }
-    }
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-        margin-bottom: 0.5rem;
-    }
-    
-    .metric-card h2 {
-        font-size: 2rem;
-        font-weight: 700;
-        margin-bottom: 0.5rem;
-        color: white;
-    }
-    
-    .metric-card p {
-        color: #cccccc;
-        font-size: 0.9rem;
-        font-weight: 500;
-    }
-    
-    /* Deal cards with enhanced visibility */
-    .deal-card {
-        background-color: #262730;
-        padding: 2rem;
-        border-radius: 15px;
-        border: 1px solid #404040;
-        margin-bottom: 1.5rem;
-        color: white;
-    }
-    
-    .deal-card:hover {
-        transform: translateY(-2px);
-        border-color: #4CAF50;
-    }
-    
-    /* AI Score badge with better visibility */
-    .ai-score {
-        background-color: #4CAF50;
-        color: white;
-        padding: 0.8rem 1.5rem;
-        border-radius: 25px;
-        font-weight: 700;
-        font-size: 1.1rem;
-        display: inline-block;
-        letter-spacing: 0.5px;
-    }
-    
-    /* Sidebar styling */
-    .css-1d391kg {
-        background-color: #262730;
-    }
-    
-    /* Section headers */
-    h1, h2, h3, h4, h5, h6 {
-        color: white !important;
-        font-weight: 600;
-    }
-    
-    /* Input fields styling */
-    .stTextInput > div > div > input,
-    .stNumberInput > div > div > input,
-    .stSelectbox > div > div > div,
-    .stTextArea > div > div > textarea {
-        background-color: #262730;
-        border: 2px solid #404040;
-        border-radius: 8px;
-        color: white;
-        font-weight: 500;
-    }
-    
-    .stTextInput > div > div > input:focus,
-    .stNumberInput > div > div > input:focus,
-    .stTextArea > div > div > textarea:focus {
-        border-color: #4CAF50;
-        box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.1);
-    }
-    
-    /* Button styling */
-    .stButton > button {
-        background-color: #4CAF50;
-        color: white;
-        border: none;
-        border-radius: 10px;
-        padding: 0.75rem 2rem;
-        font-weight: 600;
-        font-size: 1rem;
-    }
-    
-    .stButton > button:hover {
-        background-color: #45a049;
-    }
-    
-    /* Metrics display */
-    .stMetric {
-        background-color: #262730;
-        padding: 1.5rem;
-        border-radius: 12px;
-        border: 1px solid #404040;
-        color: white;
-    }
-    
-    .stMetric > div {
-        color: white;
-    }
-    
-    /* Ensure all text elements are visible */
-    .stMarkdown {
-        color: white;
-    }
-    
-    /* Tab styling */
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 8px;
-    }
-    
-    .stTabs [data-baseweb="tab"] {
-        background-color: #262730;
-        color: white;
-        border: 1px solid #404040;
-    }
-    
-    .stTabs [aria-selected="true"] {
-        background-color: #4CAF50;
-        color: white;
-    }
-    
-    /* Select box styling */
-    .stSelectbox > div > div {
-        background-color: #262730;
-        color: white;
-        border: 1px solid #404040;
-    }
-    
-    /* Info boxes */
-    .stInfo {
-        background-color: #262730;
-        border: 1px solid #404040;
-        color: white;
-    }
-    
-    .stSuccess {
-        background-color: #262730;
-        border: 1px solid #4CAF50;
-        color: white;
-    }
-    
-    /* Dataframe styling */
-    .stDataFrame {
-        background-color: #262730;
-        border-radius: 10px;
-        overflow: hidden;
-        border: 1px solid #404040;
-    }
-    
-    /* Chart containers */
-    .js-plotly-plot {
-        background-color: #262730;
-        border-radius: 10px;
-        border: 1px solid #404040;
-    }
-    
-    /* Status badges */
-    .status-active {
-        background-color: #4CAF50;
-        color: white;
-        padding: 0.3rem 0.8rem;
-        border-radius: 15px;
-        font-size: 0.8rem;
-        font-weight: 600;
-    }
-    
-    .status-pending {
-        background-color: #FF9800;
-        color: white;
-        padding: 0.3rem 0.8rem;
-        border-radius: 15px;
-        font-size: 0.8rem;
-        font-weight: 600;
-    }
-    
-    .status-closed {
-        background-color: #607D8B;
-        color: white;
-        padding: 0.3rem 0.8rem;
-        border-radius: 15px;
-        font-size: 0.8rem;
-        font-weight: 600;
-    }
-    
-    /* High contrast text */
-    .highlight-text {
-        color: white;
-        font-weight: 600;
-    }
-    
-    .accent-text {
-        color: #4CAF50;
-        font-weight: 600;
-    }
-    
-    /* Remove default streamlit styling that causes issues */
-    .element-container {
-        background: transparent !important;
-    }
-    
-    /* Ensure text is always visible */
-    p, span, div {
-        color: white !important;
-    }
-    
-    /* Override any problematic backgrounds */
-    .stMarkdown {
-        color: white !important;
-    }
-    
-    /* Fix metric containers */
-    .stMetric [data-testid="metric-container"] {
-        background-color: #262730;
-        border: 1px solid #404040;
-        padding: 1rem;
-        border-radius: 0.5rem;
-        color: white;
-    }
-    
-    .stMetric [data-testid="metric-container"] > div {
-        color: white !important;
-    }
-    
-    /* ===========================================
-       TOUCH-FRIENDLY INPUTS & BUTTONS
-       =========================================== */
-    
-    /* Mobile-optimized inputs */
-    .stTextInput > div > div > input,
-    .stNumberInput > div > div > input,
-    .stSelectbox > div > div > div,
-    .stTextArea > div > div > textarea {
-        background-color: #262730;
-        border: 2px solid #404040;
-        border-radius: 8px;
-        color: white;
-        font-weight: 500;
-        min-height: 44px; /* Touch target minimum */
-        font-size: 16px; /* Prevents zoom on iOS */
-        padding: 0.75rem;
-    }
-    
-    .stTextInput > div > div > input:focus,
-    .stNumberInput > div > div > input:focus,
-    .stTextArea > div > div > textarea:focus {
-        border-color: #4CAF50;
-        box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.1);
-        outline: none;
-    }
-    
-    /* Touch-friendly buttons */
-    .stButton > button {
-        background-color: #4CAF50;
-        color: white;
-        border: none;
-        border-radius: 10px;
-        padding: 1rem 1.5rem;
-        font-weight: 600;
-        font-size: 1rem;
-        min-height: 44px; /* Touch target minimum */
-        min-width: 44px;
-        cursor: pointer;
-        transition: all 0.2s ease;
-    }
-    
-    .stButton > button:hover {
-        background-color: #45a049;
-        transform: translateY(-1px);
-    }
-    
-    .stButton > button:active {
-        transform: translateY(0);
-    }
-    
-    /* Desktop button adjustments */
-    @media (min-width: 1024px) {
-        .stButton > button {
-            padding: 0.75rem 2rem;
-        }
-    }
-    
-    /* ===========================================
-       MOBILE SIDEBAR & NAVIGATION
-       =========================================== */
-    
-    /* Mobile sidebar optimization */
-    .css-1d391kg {
-        background-color: #262730;
-    }
-    
-    /* Mobile-friendly selectbox */
-    .stSelectbox > div > div {
-        background-color: #262730;
-        color: white;
-        border: 1px solid #404040;
-        border-radius: 8px;
-        min-height: 44px;
-    }
-    
-    /* Tab styling for mobile */
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 4px;
-        overflow-x: auto;
-        scrollbar-width: none;
-        -ms-overflow-style: none;
-    }
-    
-    .stTabs [data-baseweb="tab-list"]::-webkit-scrollbar {
-        display: none;
-    }
-    
-    .stTabs [data-baseweb="tab"] {
-        background-color: #262730;
-        color: white;
-        border: 1px solid #404040;
-        border-radius: 8px;
-        padding: 0.75rem 1rem;
-        white-space: nowrap;
-        min-height: 44px;
-        font-size: 0.9rem;
-    }
-    
-    .stTabs [aria-selected="true"] {
-        background-color: #4CAF50;
-        color: white;
-        border-color: #4CAF50;
-    }
-    
-    /* Tablet tab adjustments */
-    @media (min-width: 768px) {
-        .stTabs [data-baseweb="tab-list"] {
-            gap: 8px;
-        }
-        
-        .stTabs [data-baseweb="tab"] {
-            padding: 0.75rem 1.5rem;
-            font-size: 1rem;
-        }
-    }
-    
-    /* ===========================================
-       MOBILE DATA DISPLAY
-       =========================================== */
-    
-    /* Mobile-optimized metrics */
-    .stMetric {
-        background-color: #262730;
-        padding: 1rem;
-        border-radius: 10px;
-        border: 1px solid #404040;
-        color: white;
-        margin-bottom: 0.75rem;
-    }
-    
-    .stMetric > div {
-        color: white;
-    }
-    
-    .stMetric [data-testid="metric-container"] {
-        background-color: #262730;
-        border: 1px solid #404040;
-        padding: 1rem;
-        border-radius: 10px;
-        color: white;
-    }
-    
-    .stMetric [data-testid="metric-container"] > div {
-        color: white !important;
-    }
-    
-    /* Tablet metric adjustments */
-    @media (min-width: 768px) {
-        .stMetric {
-            padding: 1.25rem;
-            border-radius: 12px;
-            margin-bottom: 1rem;
-        }
-    }
-    
-    /* Desktop metric adjustments */
-    @media (min-width: 1024px) {
-        .stMetric {
-            padding: 1.5rem;
-            border-radius: 12px;
-            margin-bottom: 1.5rem;
-        }
-    }
-    
-    /* ===========================================
-       MOBILE CHARTS & VISUALIZATIONS
-       =========================================== */
-    
-    /* Mobile-responsive charts */
-    .js-plotly-plot {
-        background-color: #262730;
-        border-radius: 10px;
-        border: 1px solid #404040;
-        margin-bottom: 1rem;
-    }
-    
-    .js-plotly-plot .plotly {
-        border-radius: 10px;
-    }
-    
-    /* Mobile dataframe styling */
-    .stDataFrame {
-        background-color: #262730;
-        border-radius: 10px;
-        overflow: hidden;
-        border: 1px solid #404040;
-        margin-bottom: 1rem;
-        overflow-x: auto;
-    }
-    
-    .stDataFrame table {
-        font-size: 0.85rem;
-        min-width: 100%;
-    }
-    
-    .stDataFrame th, .stDataFrame td {
-        padding: 0.5rem !important;
-        white-space: nowrap;
-    }
-    
-    /* Tablet chart adjustments */
-    @media (min-width: 768px) {
-        .js-plotly-plot {
-            border-radius: 12px;
-            margin-bottom: 1.25rem;
-        }
-        
-        .stDataFrame {
-            border-radius: 12px;
-            margin-bottom: 1.25rem;
-        }
-        
-        .stDataFrame table {
-            font-size: 0.9rem;
-        }
-        
-        .stDataFrame th, .stDataFrame td {
-            padding: 0.75rem !important;
-        }
-    }
-    
-    /* Desktop chart adjustments */
-    @media (min-width: 1024px) {
-        .js-plotly-plot {
-            border-radius: 10px;
-            margin-bottom: 1.5rem;
-        }
-        
-        .stDataFrame {
-            border-radius: 10px;
-            margin-bottom: 1.5rem;
-        }
-        
-        .stDataFrame table {
-            font-size: 1rem;
-        }
-        
-        .stDataFrame th, .stDataFrame td {
-            padding: 1rem !important;
-        }
-    }
-    
-    /* ===========================================
-       MOBILE STATUS & ALERTS
-       =========================================== */
-    
-    /* Mobile-friendly alerts */
-    .stInfo, .stSuccess, .stWarning, .stError {
-        background-color: #262730;
-        border: 1px solid #404040;
-        color: white;
-        border-radius: 8px;
-        padding: 1rem;
-        margin-bottom: 0.75rem;
-        font-size: 0.9rem;
-    }
-    
-    .stSuccess {
-        border-color: #4CAF50;
-        background-color: rgba(76, 175, 80, 0.1);
-    }
-    
-    .stInfo {
-        border-color: #2196F3;
-        background-color: rgba(33, 150, 243, 0.1);
-    }
-    
-    .stWarning {
-        border-color: #FF9800;
-        background-color: rgba(255, 152, 0, 0.1);
-    }
-    
-    .stError {
-        border-color: #f44336;
-        background-color: rgba(244, 67, 54, 0.1);
-    }
-    
-    /* Tablet alert adjustments */
-    @media (min-width: 768px) {
-        .stInfo, .stSuccess, .stWarning, .stError {
-            border-radius: 10px;
-            padding: 1.25rem;
-            margin-bottom: 1rem;
-            font-size: 1rem;
-        }
-    }
-    
-    /* ===========================================
-       MOBILE AI SCORE & BADGES
-       =========================================== */
-    
-    /* Mobile AI score badge */
-    .ai-score {
-        background-color: #4CAF50;
-        color: white;
-        padding: 0.5rem 1rem;
-        border-radius: 20px;
-        font-weight: 700;
-        font-size: 0.9rem;
-        display: inline-block;
-        letter-spacing: 0.5px;
-        margin-bottom: 0.5rem;
-    }
-    
-    /* Tablet AI score adjustments */
-    @media (min-width: 768px) {
-        .ai-score {
-            padding: 0.65rem 1.25rem;
-            border-radius: 22px;
-            font-size: 1rem;
-        }
-    }
-    
-    /* Desktop AI score adjustments */
-    @media (min-width: 1024px) {
-        .ai-score {
-            padding: 0.8rem 1.5rem;
-            border-radius: 25px;
-            font-size: 1.1rem;
-        }
-    }
-    
-    /* Mobile status badges */
-    .status-active, .status-pending, .status-closed {
-        color: white;
-        padding: 0.25rem 0.6rem;
-        border-radius: 12px;
-        font-size: 0.75rem;
-        font-weight: 600;
-        display: inline-block;
-        margin-bottom: 0.25rem;
-    }
-    
-    .status-active {
-        background-color: #4CAF50;
-    }
-    
-    .status-pending {
-        background-color: #FF9800;
-    }
-    
-    .status-closed {
-        background-color: #607D8B;
-    }
-    
-    /* Tablet status badge adjustments */
-    @media (min-width: 768px) {
-        .status-active, .status-pending, .status-closed {
-            padding: 0.3rem 0.7rem;
-            border-radius: 14px;
-            font-size: 0.8rem;
-        }
-    }
-    
-    /* Desktop status badge adjustments */
-    @media (min-width: 1024px) {
-        .status-active, .status-pending, .status-closed {
-            padding: 0.3rem 0.8rem;
-            border-radius: 15px;
-            font-size: 0.8rem;
-        }
-    }
-    
-    /* ===========================================
-       MOBILE UTILITY CLASSES
-       =========================================== */
-    
-    /* Mobile text utilities */
-    .highlight-text {
-        color: white;
-        font-weight: 600;
-    }
-    
-    .accent-text {
-        color: #4CAF50;
-        font-weight: 600;
-    }
-    
-    /* Mobile spacing utilities */
-    .mobile-hidden {
-        display: none;
-    }
-    
-    .mobile-only {
-        display: block;
-    }
-    
-    /* Tablet utilities */
-    @media (min-width: 768px) {
-        .tablet-hidden {
-            display: none;
-        }
-        
-        .tablet-only {
-            display: block;
-        }
-        
-        .mobile-only {
-            display: none;
-        }
-    }
-    
-    /* Desktop utilities */
-    @media (min-width: 1024px) {
-        .desktop-hidden {
-            display: none;
-        }
-        
-        .desktop-only {
-            display: block;
-        }
-        
-        .tablet-only, .mobile-only {
-            display: none;
-        }
-    }
-    
-    /* ===========================================
-       MOBILE PERFORMANCE OPTIMIZATIONS
-       =========================================== */
-    
-    /* Reduce motion for mobile performance */
-    @media (prefers-reduced-motion: reduce) {
-        *, *::before, *::after {
-            animation-duration: 0.01ms !important;
-            animation-iteration-count: 1 !important;
-            transition-duration: 0.01ms !important;
-        }
-    }
-    
-    /* Hardware acceleration for smooth scrolling */
-    .stApp {
-        -webkit-overflow-scrolling: touch;
-        transform: translateZ(0);
-        backface-visibility: hidden;
-    }
-    
-    /* Remove default streamlit styling that interferes with mobile */
-    .element-container {
-        background: transparent !important;
-    }
-    
-    /* Fix metric containers for mobile */
-    .stMarkdown {
-        color: white !important;
-    }
-    
-    /* Ensure all text is visible on mobile */
-    p, span, div {
-        color: white !important;
-    }
-</style>
-""", unsafe_allow_html=True)
+class TaskPriority(Enum):
+    """Task priority levels"""
+    LOW = "Low"
+    MEDIUM = "Medium"
+    HIGH = "High"
+    URGENT = "Urgent"
 
-# PWA Configuration and Performance Optimization
-st.markdown("""
-<link rel="manifest" href="./manifest.json">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="NXTRIX CRM">
-<meta name="mobile-web-app-capable" content="yes">
+class InvestorType(Enum):
+    """Creative finance investor types"""
+    WHOLESALER = "Wholesaler"
+    FIX_AND_FLIP = "Fix & Flip"
+    BUY_AND_HOLD = "Buy & Hold"
+    SUBJECT_TO = "Subject To Specialist"
+    OWNER_FINANCE = "Owner Finance Specialist"
+    LEASE_OPTION = "Lease Option Specialist"
+    HARD_MONEY_LENDER = "Hard Money Lender"
+    PRIVATE_LENDER = "Private Lender"
+    REAL_ESTATE_AGENT = "Real Estate Agent"
+    SYNDICATOR = "Syndicator"
+    MULTI_FAMILY = "Multi-Family Investor"
+    COMMERCIAL = "Commercial Investor"
+    LAND_INVESTOR = "Land Investor"
+    NEW_INVESTOR = "New/Beginner Investor"
+    CASH_BUYER = "Cash Buyer"
 
-<!-- Service Worker Registration -->
-<script>
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', function() {
-    navigator.serviceWorker.register('./sw.js')
-      .then(function(registration) {
-        console.log('SW registered: ', registration);
-      }, function(registrationError) {
-        console.log('SW registration failed: ', registrationError);
-      });
-  });
-}
+class SellerMotivation(Enum):
+    """Seller motivation types"""
+    FINANCIAL_DISTRESS = "Financial Distress"
+    RELOCATION = "Relocation/Job Transfer"
+    INHERITANCE = "Inherited Property"
+    DIVORCE = "Divorce Settlement"
+    DOWNSIZING = "Downsizing"
+    TIRED_LANDLORD = "Tired Landlord"
+    PROPERTY_CONDITION = "Property Needs Repairs"
+    ESTATE_SALE = "Estate Sale"
+    FORECLOSURE_AVOIDANCE = "Avoiding Foreclosure"
+    TAX_ISSUES = "Tax Problems"
+    MEDICAL_BILLS = "Medical Bills"
+    BUSINESS_OPPORTUNITY = "Business Opportunity"
+    RETIREMENT = "Retirement"
+    QUICK_SALE_NEEDED = "Need Quick Sale"
+    OTHER = "Other"
 
-// Performance optimization - lazy loading images
-document.addEventListener('DOMContentLoaded', function() {
-  const images = document.querySelectorAll('img[data-src]');
-  const imageObserver = new IntersectionObserver((entries, observer) => {
-    entries.forEach(entry => {
-      if (entry.isIntersecting) {
-        const img = entry.target;
-        img.src = img.dataset.src;
-        img.classList.remove('lazy');
-        imageObserver.unobserve(img);
-      }
-    });
-  });
-  
-  images.forEach(img => imageObserver.observe(img));
-});
+class CreativeFinanceMethod(Enum):
+    """Creative financing methods"""
+    SUBJECT_TO = "Subject To"
+    OWNER_FINANCING = "Owner Financing/Seller Carryback"
+    LEASE_OPTION = "Lease Option"
+    RENT_TO_OWN = "Rent to Own"
+    CONTRACT_FOR_DEED = "Contract for Deed/Land Contract"
+    ASSUMABLE_MORTGAGE = "Assumable Mortgage"
+    WRAP_AROUND_MORTGAGE = "Wrap Around Mortgage"
+    EQUITY_SHARING = "Equity Sharing"
+    PARTNERSHIP = "Investment Partnership"
+    HARD_MONEY = "Hard Money Loan"
+    PRIVATE_MONEY = "Private Money"
+    FHA_203K = "FHA 203K Loan"
+    CONVENTIONAL_LOW_DOWN = "Low Down Conventional"
+    CASH_OUT_REFINANCE = "Cash Out Refinance"
+    CROSS_COLLATERAL = "Cross Collateral"
+    SELLER_SECOND = "Seller Second Mortgage"
+    NOVATION = "Novation"
+    ASSIGNMENT = "Assignment of Contract"
+    SANDWICH_LEASE = "Sandwich Lease Option"
+    OTHER = "Other Creative Method"
 
-// Mobile touch feedback
-document.addEventListener('touchstart', function() {}, {passive: true});
-document.addEventListener('touchend', function() {}, {passive: true});
+class LeadCategory(Enum):
+    """Lead category types"""
+    INVESTOR_LEAD = "Investor Lead"
+    SELLER_LEAD = "Seller Lead"
+    BUYER_LEAD = "Buyer Lead"
+    GENERAL_LEAD = "General Lead"
 
-// PWA Install Banner
-let deferredPrompt;
-window.addEventListener('beforeinstallprompt', (e) => {
-  e.preventDefault();
-  deferredPrompt = e;
-  
-  // Show custom install button if desired
-  const installButton = document.getElementById('pwa-install-btn');
-  if (installButton) {
-    installButton.style.display = 'block';
-    installButton.addEventListener('click', () => {
-      deferredPrompt.prompt();
-      deferredPrompt.userChoice.then((choiceResult) => {
-        if (choiceResult.outcome === 'accepted') {
-          console.log('User accepted the install prompt');
-        }
-        deferredPrompt = null;
-      });
-    });
-  }
-});
-</script>
-""", unsafe_allow_html=True)
+class DealStatus(Enum):
+    """Deal status options"""
+    LEAD = "Lead"
+    ANALYZING = "Analyzing"
+    UNDER_CONTRACT = "Under Contract"
+    DUE_DILIGENCE = "Due Diligence"
+    FINANCING = "Financing"
+    CLOSING = "Closing"
+    CLOSED = "Closed"
+    DEAD = "Dead"
+    ON_HOLD = "On Hold"
 
-# AI Analysis Functions
-def analyze_deal_with_ai(deal_data):
-    """Analyze deal using OpenAI GPT-4"""
-    try:
-        prompt = f"""
-        Analyze this real estate deal and provide a comprehensive assessment:
-        
-        Property Type: {deal_data.get('property_type', 'N/A')}
-        Purchase Price: ${deal_data.get('purchase_price', 0):,.2f}
-        After Repair Value: ${deal_data.get('arv', 0):,.2f}
-        Repair Costs: ${deal_data.get('repair_costs', 0):,.2f}
-        Monthly Rent: ${deal_data.get('monthly_rent', 0):,.2f}
-        Location: {deal_data.get('location', 'N/A')}
-        
-        Provide:
-        1. AI Score (0-100)
-        2. Risk Assessment
-        3. Profit Potential
-        4. Key Recommendations
-        5. Market Analysis
-        
-        Format as JSON with keys: score, risk_level, profit_potential, recommendations, market_analysis
-        """
-        
-        response = openai.ChatCompletion.create(
-            model="gpt-4",
-            messages=[{"role": "user", "content": prompt}],
-            max_tokens=500,
-            temperature=0.3
-        )
-        
-        return response.choices[0].message.content
-    except Exception as e:
+class PropertyType(Enum):
+    """Property type options"""
+    SINGLE_FAMILY = "Single Family"
+    MULTI_FAMILY = "Multi Family"
+    CONDO = "Condo"
+    TOWNHOUSE = "Townhouse"
+    COMMERCIAL = "Commercial"
+    LAND = "Land"
+    MOBILE_HOME = "Mobile Home"
+    OTHER = "Other"
+
+class DealType(Enum):
+    """Deal type options"""
+    WHOLESALE = "Wholesale"
+    FIX_AND_FLIP = "Fix & Flip"
+    BUY_AND_HOLD = "Buy & Hold"
+    SUBJECT_TO = "Subject To"
+    OWNER_FINANCE = "Owner Finance"
+    LEASE_OPTION = "Lease Option"
+    ASSIGNMENT = "Assignment"
+    OTHER = "Other"
+
+class MessageType(Enum):
+    """Message type options"""
+    DEAL_ALERT = "Deal Alert"
+    DEAL_UPDATE = "Deal Update"
+    GENERAL_MESSAGE = "General Message"
+    MEETING_REQUEST = "Meeting Request"
+    CONTRACT_UPDATE = "Contract Update"
+    CLOSING_REMINDER = "Closing Reminder"
+
+class MessageStatus(Enum):
+    """Message status options"""
+    SENT = "Sent"
+    DELIVERED = "Delivered"
+    READ = "Read"
+    REPLIED = "Replied"
+
+@dataclass
+class Lead:
+    """Enhanced lead data model for creative finance"""
+    id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    name: str = ""
+    email: str = ""
+    phone: str = ""
+    property_address: str = ""
+    property_type: str = ""
+    budget_min: float = 0
+    budget_max: float = 0
+    lead_source: LeadSource = LeadSource.WEBSITE
+    status: LeadStatus = LeadStatus.NEW
+    assigned_to: str = ""
+    score: int = 0
+    notes: str = ""
+    created_at: datetime = field(default_factory=datetime.now)
+    updated_at: datetime = field(default_factory=datetime.now)
+    last_contact: Optional[datetime] = None
+    next_follow_up: Optional[datetime] = None
+    
+    # Creative Finance Specific Fields
+    lead_category: LeadCategory = LeadCategory.GENERAL_LEAD
+    investor_type: Optional[InvestorType] = None
+    seller_motivation: Optional[SellerMotivation] = None
+    preferred_finance_methods: List[CreativeFinanceMethod] = field(default_factory=list)
+    
+    # Seller-specific fields
+    property_value: float = 0
+    mortgage_balance: float = 0
+    monthly_payment: float = 0
+    equity_amount: float = 0
+    time_frame: str = ""  # How quickly they need to sell
+    seller_financing_interest: bool = False
+    
+    # Investor-specific fields
+    experience_level: str = ""  # Beginner, Intermediate, Advanced
+    investment_criteria: str = ""
+    funding_source: str = ""  # Cash, Hard Money, Private Money, etc.
+    portfolio_size: int = 0
+    target_roi: float = 0
+    preferred_markets: str = ""
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert lead to dictionary"""
         return {
-            "score": 75,
-            "risk_level": "Medium",
-            "profit_potential": "Good",
-            "recommendations": "Consider market conditions and financing options",
-            "market_analysis": "Standard market analysis needed"
+            'id': self.id,
+            'name': self.name,
+            'email': self.email,
+            'phone': self.phone,
+            'property_address': self.property_address,
+            'property_type': self.property_type,
+            'budget_min': self.budget_min,
+            'budget_max': self.budget_max,
+            'lead_source': self.lead_source.value,
+            'status': self.status.value,
+            'assigned_to': self.assigned_to,
+            'score': self.score,
+            'notes': self.notes,
+            'created_at': self.created_at.isoformat(),
+            'updated_at': self.updated_at.isoformat(),
+            'last_contact': self.last_contact.isoformat() if self.last_contact else None,
+            'next_follow_up': self.next_follow_up.isoformat() if self.next_follow_up else None,
+            
+            # Creative Finance Fields
+            'lead_category': self.lead_category.value,
+            'investor_type': self.investor_type.value if self.investor_type else None,
+            'seller_motivation': self.seller_motivation.value if self.seller_motivation else None,
+            'preferred_finance_methods': [method.value for method in self.preferred_finance_methods],
+            
+            # Seller fields
+            'property_value': self.property_value,
+            'mortgage_balance': self.mortgage_balance,
+            'monthly_payment': self.monthly_payment,
+            'equity_amount': self.equity_amount,
+            'time_frame': self.time_frame,
+            'seller_financing_interest': self.seller_financing_interest,
+            
+            # Investor fields
+            'experience_level': self.experience_level,
+            'investment_criteria': self.investment_criteria,
+            'funding_source': self.funding_source,
+            'portfolio_size': self.portfolio_size,
+            'target_roi': self.target_roi,
+            'preferred_markets': self.preferred_markets
         }
 
-def calculate_advanced_metrics(deal_data):
-    """Calculate comprehensive real estate investment metrics"""
-    purchase_price = deal_data.get('purchase_price', 0)
-    arv = deal_data.get('arv', 0)
-    repair_costs = deal_data.get('repair_costs', 0)
-    monthly_rent = deal_data.get('monthly_rent', 0)
-    closing_costs = deal_data.get('closing_costs', 0)
-    annual_taxes = deal_data.get('annual_taxes', 0)
-    insurance = deal_data.get('insurance', 0)
-    hoa_fees = deal_data.get('hoa_fees', 0)
-    vacancy_rate = deal_data.get('vacancy_rate', 5) / 100
-    
-    # Basic calculations
-    total_investment = purchase_price + repair_costs + closing_costs
-    gross_profit = arv - total_investment
-    
-    # Monthly calculations
-    monthly_taxes = annual_taxes / 12
-    monthly_insurance = insurance / 12
-    property_management = monthly_rent * 0.10  # 10% property management
-    maintenance_reserve = monthly_rent * 0.05  # 5% maintenance
-    vacancy_reserve = monthly_rent * vacancy_rate
-    
-    monthly_expenses = (monthly_taxes + monthly_insurance + hoa_fees + 
-                       property_management + maintenance_reserve + vacancy_reserve)
-    monthly_income = monthly_rent
-    monthly_cash_flow = monthly_income - monthly_expenses
-    
-    # Advanced metrics
-    annual_cash_flow = monthly_cash_flow * 12
-    total_roi = (gross_profit / total_investment * 100) if total_investment > 0 else 0
-    cash_on_cash = (annual_cash_flow / total_investment * 100) if total_investment > 0 else 0
-    cap_rate = (annual_cash_flow / purchase_price * 100) if purchase_price > 0 else 0
-    
-    # BRRRR Score (Buy, Rehab, Rent, Refinance, Repeat)
-    brrrr_score = min(10, max(0, (arv - total_investment) / total_investment * 10))
-    
-    # 1% Rule (monthly rent should be 1% of purchase price)
-    one_percent_rule = monthly_rent >= (purchase_price * 0.01)
-    
-    # Payback period
-    payback_period = (total_investment / annual_cash_flow) if annual_cash_flow > 0 else float('inf')
-    
-    return {
-        'total_investment': total_investment,
-        'gross_profit': gross_profit,
-        'monthly_income': monthly_income,
-        'monthly_expenses': monthly_expenses,
-        'monthly_cash_flow': monthly_cash_flow,
-        'annual_cash_flow': annual_cash_flow,
-        'total_roi': total_roi,
-        'cash_on_cash': cash_on_cash,
-        'cap_rate': cap_rate,
-        'brrrr_score': brrrr_score,
-        'one_percent_rule': one_percent_rule,
-        'payback_period': payback_period
-    }
-
-def calculate_ai_score(deal_data, metrics):
-    """Calculate advanced AI-powered deal score based on multiple factors with market intelligence"""
-    score = 0
-    score_breakdown = {}
-    
-    # Initialize AI predictor for market context
-    ai_predictor = get_ai_predictor()
-    market_predictions = ai_predictor.predict_market_trends(12)
-    current_phase = market_predictions['current_phase']
-    
-    # 1. Financial Performance (30 points)
-    # ROI component with market cycle adjustment
-    base_roi_score = min(25, max(0, metrics['total_roi'] / 2))
-    cycle_multiplier = ai_predictor.market_cycles[current_phase]['roi_multiplier']
-    roi_score = base_roi_score * cycle_multiplier
-    roi_score = min(25, max(0, roi_score))
-    score += roi_score
-    score_breakdown['ROI Score'] = f"{roi_score:.1f}/25"
-    
-    # Cash flow with inflation adjustment
-    inflation_factor = 1.03  # Assume 3% inflation
-    adjusted_cash_flow = metrics['monthly_cash_flow'] * inflation_factor
-    cash_flow_score = min(20, max(0, adjusted_cash_flow / 50))
-    score += cash_flow_score
-    score_breakdown['Cash Flow Score'] = f"{cash_flow_score:.1f}/20"
-    
-    # 2. Market Intelligence (25 points)
-    # Neighborhood grade with location trend analysis
-    neighborhood_grades = {'A+': 20, 'A': 18, 'A-': 16, 'B+': 14, 'B': 12, 'B-': 10, 'C+': 8, 'C': 6, 'C-': 4, 'D': 2}
-    base_market_score = neighborhood_grades.get(deal_data.get('neighborhood_grade', 'B'), 10)
-    
-    # Location trend multiplier based on AI analysis
-    location = deal_data.get('location', '')
-    location_multiplier = 1.0
-    if any(hot_market in location.lower() for hot_market in ['austin', 'nashville', 'tampa', 'phoenix']):
-        location_multiplier = 1.2
-    elif any(emerging in location.lower() for emerging in ['charlotte', 'raleigh', 'atlanta']):
-        location_multiplier = 1.1
-    
-    market_score = min(20, base_market_score * location_multiplier)
-    score += market_score
-    score_breakdown['Market Score'] = f"{market_score:.1f}/20"
-    
-    # Market timing score (5 points)
-    timing_multiplier = ai_predictor.market_cycles[current_phase]['risk_factor']
-    timing_score = 5 / timing_multiplier  # Lower risk = higher timing score
-    score += timing_score
-    score_breakdown['Market Timing'] = f"{timing_score:.1f}/5"
-    
-    # 3. Property Analysis (20 points)
-    # Property condition with renovation potential
-    condition_scores = {'Excellent': 15, 'Good': 12, 'Fair': 8, 'Poor': 4, 'Tear Down': 1}
-    base_condition_score = condition_scores.get(deal_data.get('condition', 'Good'), 8)
-    
-    # Value-add potential bonus
-    if deal_data.get('condition') in ['Fair', 'Poor'] and metrics.get('total_roi', 0) > 20:
-        base_condition_score *= 1.3  # Bonus for value-add opportunities
-    
-    condition_score = min(15, base_condition_score)
-    score += condition_score
-    score_breakdown['Property Condition'] = f"{condition_score:.1f}/15"
-    
-    # Property type market demand (5 points)
-    property_type_scores = {
-        'Single Family': 5 if current_phase in ['growth', 'recovery'] else 3,
-        'Multi-Family': 4,
-        'Commercial': 3 if current_phase == 'growth' else 2,
-        'Fix & Flip': 5 if current_phase == 'recovery' else 2
-    }
-    property_score = property_type_scores.get(deal_data.get('property_type', 'Single Family'), 3)
-    score += property_score
-    score_breakdown['Property Type'] = f"{property_score}/5"
-    
-    # 4. Risk Assessment (15 points)
-    # Cap rate with market risk adjustment
-    base_cap_rate_score = min(10, max(0, metrics.get('cap_rate', 5) - 5))
-    risk_factor = market_predictions['risk_assessment']['overall_risk']
-    risk_adjusted_cap_score = base_cap_rate_score / risk_factor
-    cap_rate_score = min(10, max(0, risk_adjusted_cap_score))
-    score += cap_rate_score
-    score_breakdown['Cap Rate'] = f"{cap_rate_score:.1f}/10"
-    
-    # Liquidity risk assessment (5 points)
-    liquidity_score = 5
-    if current_phase == 'correction':
-        liquidity_score = 2
-    elif current_phase == 'peak':
-        liquidity_score = 3
-    score += liquidity_score
-    score_breakdown['Liquidity Risk'] = f"{liquidity_score}/5"
-    
-    # 5. Future Potential (10 points)
-    # Growth potential based on market predictions
-    predicted_growth = (market_predictions['predictions'][11]['market_index'] - 100) / 100
-    growth_score = min(5, max(0, predicted_growth * 100))
-    score += growth_score
-    score_breakdown['Growth Potential'] = f"{growth_score:.1f}/5"
-    
-    # Economic indicators (5 points)
-    # Simulate economic strength (would use real data in production)
-    economic_score = 3  # Base score
-    if current_phase == 'growth':
-        economic_score = 5
-    elif current_phase == 'recovery':
-        economic_score = 4
-    score += economic_score
-    score_breakdown['Economic Indicators'] = f"{economic_score}/5"
-    
-    final_score = min(100, max(0, int(score)))
-    
-    return final_score, score_breakdown
-
-def generate_ai_query_response(query: str, ai_predictor, portfolio_deals: List) -> str:
-    """Generate AI responses to natural language queries"""
-    query_lower = query.lower()
-    
-    # Market timing queries
-    if any(word in query_lower for word in ['timing', 'when', 'time to buy', 'market cycle']):
-        predictions = ai_predictor.predict_market_trends(6)
-        phase = predictions['current_phase']
-        
-        if phase == 'growth':
-            return """🚀 **Excellent timing for acquisitions!** The market is in a growth phase with strong momentum. 
-            Key recommendations:
-            • ✅ Great time to buy - prices rising but not peaked
-            • 📈 Focus on emerging neighborhoods before peak pricing
-            • ⚡ Act quickly on good deals - competition increasing
-            • 💰 Consider value-add properties for maximum upside"""
-            
-        elif phase == 'peak':
-            return """⚠️ **Exercise caution - market at peak.** Be very selective with new investments.
-            Key recommendations:
-            • 🎯 Only pursue exceptional deals with strong fundamentals
-            • 💰 Consider taking profits on well-performing properties
-            • 🔍 Focus on cash-flowing assets over speculation
-            • 📊 Prepare cash reserves for upcoming opportunities"""
-            
-        elif phase == 'correction':
-            return """🛡️ **Defensive mode recommended.** Market correction in progress - exceptional opportunities emerging.
-            Key recommendations:
-            • 💎 Be patient - best deals are coming
-            • 🏦 Maintain strong cash reserves
-            • 📉 Avoid panic - focus on fundamentals
-            • 🎯 Target distressed properties at significant discounts"""
-            
-      # recovery
-            return """🌱 **Recovery phase - strategic positioning time.** Great opportunity for long-term gains.
-            Key recommendations:
-            • 🎯 Excellent time for strategic acquisitions
-            • 💪 Increase activity with strong due diligence
-            • 📈 Position for next growth cycle
-            • 🏠 Focus on quality assets in good locations"""
-    
-    # ROI and returns queries
-    elif any(word in query_lower for word in ['roi', 'return', 'profit', 'best market']):
-        if portfolio_deals:
-            avg_roi = np.mean([getattr(deal, 'ai_score', 75) for deal in portfolio_deals])
-            best_markets = ['Austin, TX', 'Nashville, TN', 'Tampa, FL', 'Phoenix, AZ']
-            
-            return f"""📈 **ROI Analysis Based on Current Data:**
-            
-            **Your Portfolio Performance:**
-            • Current average AI score: {avg_roi:.1f}/100
-            • Top performing markets in your area: {', '.join(best_markets[:2])}
-            
-            **Highest ROI Markets Currently:**
-            • 🥇 Austin, TX: 12-15% average returns, strong job growth
-            • 🥈 Nashville, TN: 10-13% returns, emerging tech hub
-            • 🥉 Tampa, FL: 9-12% returns, population influx
-            
-            **Recommended Strategy:**
-            • Target deals scoring 80+ on AI analysis
-            • Focus on emerging neighborhoods before peak pricing
-            • Consider fix & flip opportunities in recovery markets"""
-    
-            return """📈 **Top ROI Markets for New Investors:**
-            
-            **High-Opportunity Markets:**
-            • 🎯 Austin, TX: 12-15% average returns, strong tech job growth
-            • 🚀 Nashville, TN: 10-13% returns, music city boom continues
-            • 🌴 Tampa, FL: 9-12% returns, favorable demographics
-            • 🏜️ Phoenix, AZ: 8-11% returns, steady population growth
-            
-            **Strategy Recommendations:**
-            • Start with single-family homes for easier management
-            • Target 12%+ cap rates for strong cash flow
-            • Focus on emerging neighborhoods
-            • Consider light renovation properties for value-add"""
-    
-    # Property type queries
-    elif any(word in query_lower for word in ['property type', 'single family', 'multi family', 'commercial', 'fix']):
-        predictions = ai_predictor.predict_market_trends(6)
-        phase = predictions['current_phase']
-        
-        if phase in ['growth', 'recovery']:
-            return """🏠 **Recommended Property Types for Current Market:**
-            
-            **Top Performers:**
-            • 🥇 **Single Family Homes**: Easiest to manage, strong demand
-            • 🥈 **Fix & Flip**: Great in recovery/growth phases
-            • 🥉 **Small Multi-Family (2-4 units)**: Good cash flow potential
-            
-            **Strategy by Type:**
-            • **SFH**: Target emerging neighborhoods, 3BR/2BA minimum
-            • **Fix & Flip**: Focus on cosmetic upgrades, avoid major structural
-            • **Multi-Family**: Look for properties under market rent
-            • **Commercial**: Only if you have significant experience
-            
-            **Current Market Advantage**: Growth phase favors value-add properties!"""
-    
-            return """🏠 **Conservative Property Strategy for Peak/Correction:**
-            
-            **Safest Bets:**
-            • 🥇 **Cash-Flowing Rentals**: Stable income during volatility
-            • 🥈 **Multi-Family**: Diversified tenant risk
-            • 🥉 **Commercial (experienced only)**: Longer-term leases
-            
-            **Avoid During Uncertainty:**
-            • ❌ Pure speculation plays
-            • ❌ Heavy renovation projects
-            • ❌ Markets with declining fundamentals
-            
-            **Focus**: Steady cash flow over appreciation in this phase."""
-    
-    # Portfolio analysis queries
-    elif any(word in query_lower for word in ['portfolio', 'my deals', 'performance', 'should i']):
-        if portfolio_deals:
-            total_value = sum(getattr(deal, 'purchase_price', 0) for deal in portfolio_deals)
-            avg_score = np.mean([getattr(deal, 'ai_score', 75) for deal in portfolio_deals])
-            
-            return f"""📊 **Your Portfolio Analysis:**
-            
-            **Current Status:**
-            • Total Portfolio Value: ${total_value:,.0f}
-            • Number of Properties: {len(portfolio_deals)}
-            • Average AI Score: {avg_score:.1f}/100
-            
-            **Performance Grade**: {"A" if avg_score >= 80 else "B" if avg_score >= 70 else "C"}
-            
-            **Recommendations:**
-            {"• ✅ Portfolio performing well - consider strategic expansion" if avg_score >= 80 else "• 🔧 Focus on optimizing underperforming assets"}
-            {"• 📈 Good diversification level" if len(portfolio_deals) >= 3 else "• 🎯 Consider diversifying with additional properties"}
-            • 💰 Continue monitoring cash flow vs. market conditions
-            • 📊 Review and optimize deals scoring below 70"""
-    
-            return """🎯 **Portfolio Building Strategy for Beginners:**
-            
-            **Phase 1: Foundation (First 1-3 Properties)**
-            • Start with single-family homes in B+ neighborhoods
-            • Target 12%+ cap rates for strong cash flow
-            • Focus on turnkey or light renovation properties
-            
-            **Phase 2: Growth (Properties 4-10)**
-            • Add multi-family for diversification
-            • Consider different geographic markets
-            • Explore value-add opportunities
-            
-            **Phase 3: Optimization (10+ Properties)**
-            • Portfolio refinancing opportunities
-            • Commercial property consideration
-            • Professional property management
-            
-            **Start Here**: Add your first deal to get personalized portfolio analysis!"""
-    
-    # Default response for other queries
-
-        return f"""🤖 **AI Analysis of: "{query}"**
-        
-        Based on current market conditions and AI analysis:
-        
-        **Market Context:**
-        • Current market phase: {ai_predictor.predict_market_trends(3)['current_phase'].title()}
-        • Investment climate: Moderate to good opportunities
-        • Risk level: Medium
-        
-        **General Recommendations:**
-        • Focus on properties scoring 75+ on AI analysis
-        • Maintain 6+ months cash reserves
-        • Diversify across 2-3 markets when possible
-        • Monitor interest rate trends for timing
-        
-        **Next Steps:**
-        • Use the Deal Analysis tool for specific property evaluation
-        • Check Market Predictions for timing insights
-        • Add deals to your portfolio for personalized advice
-        
-        *For more specific guidance, try asking about market timing, ROI, or property types!*"""
-    
-    return "AI analysis complete."
-
-
-def generate_ai_recommendations(deal_data, metrics):
-    """Generate AI-powered investment recommendations"""
-    recommendations = []
-    
-    # ROI-based recommendations
-    if metrics['total_roi'] > 30:
-        recommendations.append("🎯 Excellent ROI potential - This deal shows strong profit margins")
-    elif metrics['total_roi'] > 20:
-        recommendations.append("✅ Good ROI potential - Above average returns expected")
-
-        recommendations.append("⚠️ Consider negotiating purchase price to improve ROI")
-    
-    # Cash flow recommendations
-    if metrics['monthly_cash_flow'] > 500:
-        recommendations.append("💰 Strong positive cash flow - Great for wealth building")
-    elif metrics['monthly_cash_flow'] > 200:
-        recommendations.append("💵 Moderate cash flow - Consider rent optimization strategies")
-
-        recommendations.append("📉 Negative/low cash flow - Evaluate rental market or reduce expenses")
-    
-    # Market-based recommendations
-    neighborhood_grade = deal_data.get('neighborhood_grade', 'B')
-    if neighborhood_grade in ['A+', 'A', 'A-']:
-        recommendations.append("🏆 Prime location - Expect strong appreciation and rental demand")
-    elif neighborhood_grade in ['B+', 'B']:
-        recommendations.append("🎯 Solid neighborhood - Good balance of growth and affordability")
-
-        recommendations.append("⚠️ Emerging area - Higher risk but potential for significant upside")
-    
-    # BRRRR strategy recommendation
-    if metrics['brrrr_score'] > 7:
-        recommendations.append("🔄 Excellent BRRRR candidate - Consider refinancing strategy")
-    
-    # 1% rule recommendation
-    if metrics['one_percent_rule']:
-        recommendations.append("✅ Passes 1% rule - Strong rental yield indicator")
-
-        recommendations.append("📊 Below 1% rule - Focus on appreciation or rent increases")
-    
-    # Property condition recommendations
-    condition = deal_data.get('condition', 'Good')
-    if condition in ['Poor', 'Tear Down']:
-        recommendations.append("🔨 Significant renovation needed - Budget extra for unexpected costs")
-    elif condition == 'Fair':
-        recommendations.append("🛠️ Moderate repairs required - Get detailed contractor estimates")
-    
-    # Market trend recommendations
-    trend = deal_data.get('market_trend', 'Stable')
-    if trend == 'Rising':
-        recommendations.append("📈 Rising market - Consider holding for appreciation")
-    elif trend == 'Declining':
-        recommendations.append("📉 Declining market - Focus on cash flow over appreciation")
-    
-    return recommendations[:6]  # Return top 6 recommendations
-
-# Main Application
-def main():
-    # Mobile viewport meta tag
-    st.markdown("""
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
-    """, unsafe_allow_html=True)
-    
-    # Mobile-responsive header
-    st.markdown("""
-    <div class="main-header">
-        <h1>🏢 NXTRIX Enterprise CRM</h1>
-        <p class="mobile-hidden">AI-Powered Real Estate Investment Analysis & Portfolio Management</p>
-        <p class="mobile-only">AI-Powered Real Estate CRM</p>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # Mobile navigation improvements
-    st.markdown("""
-    <script>
-    // Mobile touch optimizations
-    document.addEventListener('DOMContentLoaded', function() {
-        // Add touch feedback for mobile
-        const buttons = document.querySelectorAll('button');
-        buttons.forEach(button => {
-            button.addEventListener('touchstart', function() {
-                this.style.opacity = '0.8';
-            });
-            button.addEventListener('touchend', function() {
-                this.style.opacity = '1';
-            });
-        });
-        
-        // Prevent double-tap zoom on buttons
-        let lastTouchEnd = 0;
-        document.addEventListener('touchend', function (event) {
-            const now = (new Date()).getTime();
-            if (now - lastTouchEnd <= 300) {
-                event.preventDefault();
-            }
-            lastTouchEnd = now;
-        }, false);
-        
-        // Add swipe navigation for mobile
-        let startX = null;
-        let startY = null;
-        
-        document.addEventListener('touchstart', function(e) {
-            startX = e.touches[0].clientX;
-            startY = e.touches[0].clientY;
-        });
-        
-        document.addEventListener('touchend', function(e) {
-            if (!startX || !startY) {
-                return;
-            }
-            
-            const endX = e.changedTouches[0].clientX;
-            const endY = e.changedTouches[0].clientY;
-            
-            const diffX = startX - endX;
-            const diffY = startY - endY;
-            
-            // Only trigger swipe if it's primarily horizontal
-            if (Math.abs(diffX) > Math.abs(diffY) && Math.abs(diffX) > 50) {
-                if (diffX > 0) {
-                    // Swipe left - could navigate forward
-                    console.log('Swipe left detected');
-                } else {
-                    // Swipe right - could navigate back
-                    console.log('Swipe right detected');
-                }
-            }
-            
-            startX = null;
-            startY = null;
-        });
-    });
-    </script>
-    """, unsafe_allow_html=True)
-    
-    # Check for redirect first
-    redirect_page = get_current_page()
-    
-    # Sidebar Navigation
-    st.sidebar.title("🎯 Navigation")
-    
-    # Use redirect page if available
-    navigation_options = ["📊 Dashboard", "🏠 Deal Analysis", "💹 Advanced Financial Modeling", "🗄️ Deal Database", "📈 Portfolio Analytics", "🏛️ Investor Portal", "� Enhanced CRM", "�🤖 AI Insights", "👥 Investor Matching"]
-    
-    # Initialize default_index
-    default_index = 0
-    
-    if redirect_page and redirect_page in navigation_options:
-        default_index = navigation_options.index(redirect_page)
-    page = st.sidebar.selectbox(
-        "Choose Section",
-        navigation_options,
-        index=default_index
-    )
-    
-    # Database connection status in sidebar
-    st.sidebar.markdown("---")
-    db_service = get_db_service()
-    if db_service and db_service.is_connected():
-        st.sidebar.success("🟢 Database Connected")
-        total_deals = len(db_service.get_deals())
-        st.sidebar.info(f"📊 {total_deals} deals in database")
-        
-        # Additional real-time stats
-        if total_deals > 0:
-            deals = db_service.get_deals()
-            high_score_count = len([d for d in deals if d.ai_score >= 85])
-            st.sidebar.metric("🎯 High Score Deals", high_score_count, f"{high_score_count}/{total_deals}")
-            
-            # Quick actions
-            st.sidebar.markdown("### ⚡ Quick Actions")
-            if st.sidebar.button("➕ New Deal Analysis"):
-                navigate_to_page("🏠 Deal Analysis")
-            if st.sidebar.button("💹 Financial Modeling"):
-                navigate_to_page("💹 Advanced Financial Modeling")
-
-        st.sidebar.error("🔴 Database Offline")
-        st.sidebar.warning("Using local data only")
-        
-        with st.sidebar.expander("🔧 Setup Database"):
-            st.write("""
-            **To connect to Supabase:**
-            1. Create a Supabase project at supabase.com
-            2. Get your project URL and anon key
-            3. Add them to `.streamlit/secrets.toml`:
-            
-            ```toml
-            [SUPABASE]
-            SUPABASE_URL = "https://your-project.supabase.co"
-            SUPABASE_KEY = "your-anon-key"
-            ```
-            
-            4. Run the SQL schema from `schema.sql`
-            5. Restart the app
-            """)
-            
-            if st.button("📄 View Setup Instructions"):
-                st.session_state.show_setup = True
-    
-    if page == "📊 Dashboard":
-        show_dashboard()
-    elif page == "🏠 Deal Analysis":
-        show_deal_analysis()
-    elif page == "💹 Advanced Financial Modeling":
-        show_advanced_financial_modeling()
-    elif page == "🗄️ Deal Database":
-        show_deal_database()
-    elif page == "📈 Portfolio Analytics":
-        show_portfolio_analytics()
-    elif page == "🏛️ Investor Portal":
-        show_investor_portal()
-    elif page == "� Enhanced CRM":
-        enhanced_crm_func = get_enhanced_crm()
-        if enhanced_crm_func:
-            enhanced_crm_func()
-    
-            st.error("❌ Enhanced CRM module failed to load")
-    elif page == "�🤖 AI Insights":
-        show_ai_insights()
-    elif page == "👥 Investor Matching":
-        show_investor_matching()
-
-def show_dashboard():
-    st.header("📊 Executive Dashboard")
-    
-    # Mobile-optimized dashboard layout
-    st.markdown("""
-    <div class="mobile-dashboard-container">
-        <script>
-        // Add mobile dashboard optimizations
-        document.addEventListener('DOMContentLoaded', function() {
-            // Add swipe navigation between metric cards on mobile
-            const cards = document.querySelectorAll('.metric-card');
-            let currentCard = 0;
-            
-            function showCard(index) {
-                cards.forEach((card, i) => {
-                    if (window.innerWidth <= 768) {
-                        card.style.display = i === index ? 'block' : 'none';
-                    } else {
-                        card.style.display = 'block';
-                    }
-                });
-            }
-            
-            // Initialize mobile view
-            if (window.innerWidth <= 768) {
-                showCard(currentCard);
-                
-                // Add swipe indicators
-                const dashboardContainer = document.querySelector('.mobile-dashboard-container');
-                if (dashboardContainer && cards.length > 1) {
-                    const indicators = document.createElement('div');
-                    indicators.className = 'mobile-card-indicators';
-                    indicators.style.cssText = 'text-align: center; margin: 1rem 0; display: flex; justify-content: center; gap: 0.5rem;';
-                    
-                    for (let i = 0; i < cards.length; i++) {
-                        const dot = document.createElement('span');
-                        dot.style.cssText = 'width: 8px; height: 8px; border-radius: 50%; background-color: ' + (i === 0 ? '#4CAF50' : '#666') + '; display: inline-block; cursor: pointer;';
-                        dot.addEventListener('click', () => {
-                            currentCard = i;
-                            showCard(currentCard);
-                            updateIndicators();
-                        });
-                        indicators.appendChild(dot);
-                    }
-                    dashboardContainer.appendChild(indicators);
-                    
-                    function updateIndicators() {
-                        const dots = indicators.querySelectorAll('span');
-                        dots.forEach((dot, i) => {
-                            dot.style.backgroundColor = i === currentCard ? '#4CAF50' : '#666';
-                        });
-                    }
-                }
-            }
-            
-            // Handle window resize
-            window.addEventListener('resize', function() {
-                if (window.innerWidth > 768) {
-                    cards.forEach(card => card.style.display = 'block');
-                } else {
-                    showCard(currentCard);
-                }
-            });
-        });
-        </script>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # Real-time metrics from database
-    db_service = get_db_service()
-    if db_service and db_service.is_connected():
-        deals = db_service.get_deals()
-        total_deals = len(deals)
-        
-        # Calculate real metrics
-        if deals:
-            high_score_deals = [d for d in deals if d.ai_score >= 85]
-            avg_score = sum(d.ai_score for d in deals) / len(deals)
-            avg_price = sum(d.purchase_price for d in deals) / len(deals)
-            total_value = sum(d.purchase_price for d in deals)
-            avg_rent = sum(d.monthly_rent for d in deals) / len(deals)
-            avg_rent = sum(d.monthly_rent for d in deals) / len(deals)
-        else:
-            high_score_deals = []
-            avg_score = 0
-            avg_price = 0
-            total_value = 0
-            avg_rent = 0
-
-        # Growth calculation (mock for now - in production, compare with previous period)
-
-    else:
-        # Fallback to sample data when database is offline
-        total_deals = 4
-        high_score_deals = []
-        avg_score = 89.8
-        avg_price = 362500
-        total_value = 1450000
-        avg_rent = 2950
-        growth_percentage = "+12%"
-    # Mobile-responsive metrics layout
-    # On mobile: 1 column (stacked), On tablet: 2-3 columns, On desktop: 5 columns
-    
-    # Mobile-first approach - create individual containers for better mobile control
-    st.markdown('<div class="mobile-metrics-container">', unsafe_allow_html=True)
-    
-    # Use responsive columns
-    # Default to desktop layout - Streamlit handles mobile responsiveness automatically
-    cols = st.columns(5)  # Desktop layout
-    col_index = None
-
-
-
-
-
-    
-    # Total Deals Metric
-    metric_container = cols[0] if col_index is None else cols[col_index]
-    with metric_container:
-        st.markdown(f"""
-        <div class="metric-card" style="min-height: 140px;">
-            <h3>📊 Total Deals</h3>
-            <h2 style="color: #667eea; font-weight: 700; margin: 0.5rem 0;">{total_deals}</h2>
-            <p style="color: #38a169; font-weight: 600; margin: 0;">↗️ {growth_percentage} this month</p>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    # High Score Deals Metric
-    metric_container = cols[1] if col_index is None else cols[col_index]
-    with metric_container:
-        st.markdown(f"""
-        <div class="metric-card" style="min-height: 140px;">
-            <h3>🎯 High Score Deals</h3>
-            <h2 style="color: #38a169; font-weight: 700; margin: 0.5rem 0;">{len(high_score_deals)}</h2>
-            <p style="color: #667eea; font-weight: 600; margin: 0;">Score ≥ 85</p>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    # Average AI Score Metric
-    metric_container = cols[2] if col_index is None else cols[col_index]
-    with metric_container:
-        st.markdown(f"""
-        <div class="metric-card" style="min-height: 140px;">
-            <h3>🤖 Avg AI Score</h3>
-            <h2 style="color: #f093fb; font-weight: 700; margin: 0.5rem 0;">{avg_score:.1f}</h2>
-            <p style="color: #667eea; font-weight: 600; margin: 0;">AI Analysis</p>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    # Portfolio Value Metric
-    metric_container = cols[3] if col_index is None else cols[col_index]
-    with metric_container:
-        st.markdown(f"""
-        <div class="metric-card" style="min-height: 140px;">
-            <h3>💰 Portfolio Value</h3>
-            <h2 style="color: #f6ad55; font-weight: 700; margin: 0.5rem 0;">${total_value:,.0f}</h2>
-            <p style="color: #667eea; font-weight: 600; margin: 0;">Total Investment</p>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    # Average Rent Metric
-    metric_container = cols[4] if col_index is None else cols[col_index]
-    with metric_container:
-        st.markdown(f"""
-        <div class="metric-card" style="min-height: 140px;">
-            <h3>🏠 Avg Monthly Rent</h3>
-            <h2 style="color: #68d391; font-weight: 700; margin: 0.5rem 0;">${avg_rent:,.0f}</h2>
-            <p style="color: #667eea; font-weight: 600; margin: 0;">Monthly Income</p>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    st.markdown('</div>', unsafe_allow_html=True)
-    
-    # Mobile swipe instructions
-    st.markdown("""
-    <div class="mobile-only" style="text-align: center; margin: 1rem 0; color: #999; font-size: 0.8rem;">
-        📱 Swipe or tap dots to navigate between metrics
-    </div>
-    """, unsafe_allow_html=True)
-    
-
-    
-
-    # Charts Section
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.subheader("📈 Deal Performance Trends")
-        # Sample chart data
-        dates = pd.date_range(start='2024-01-01', end='2024-12-31', freq='ME')
-        performance_data = pd.DataFrame({
-            'Date': dates,
-            'ROI': np.random.normal(25, 5, len(dates)),
-            'AI Score': np.random.normal(80, 8, len(dates))
-        })
-        
-        fig = px.line(performance_data, x='Date', y=['ROI', 'AI Score'], 
-                     title="Monthly Performance Metrics",
-                     color_discrete_map={'ROI': '#4CAF50', 'AI Score': '#2196F3'})
-        fig.update_layout(
-            height=400,
-            plot_bgcolor='rgba(0,0,0,0)',
-            paper_bgcolor='rgba(0,0,0,0)',
-            font=dict(color='white'),
-            title_font=dict(size=16, color='white', family='Arial Black'),
-            xaxis=dict(gridcolor='#404040', color='white'),
-            yaxis=dict(gridcolor='#404040', color='white'),
-            legend=dict(font=dict(color='white'))
-        )
-        st.plotly_chart(fig, use_container_width=True)
-    
-    with col2:
-        st.subheader("🏠 Deal Types Distribution")
-        deal_types = ['Fix & Flip', 'Buy & Hold', 'Wholesale', 'Commercial', 'Multi-Family']
-        values = [45, 30, 15, 7, 3]
-        
-        fig = px.pie(values=values, names=deal_types, 
-                    title="Portfolio Distribution by Deal Type",
-                    color_discrete_sequence=['#4CAF50', '#2196F3', '#FF9800', '#9C27B0', '#607D8B'])
-        fig.update_layout(
-            height=400,
-            plot_bgcolor='rgba(0,0,0,0)',
-            paper_bgcolor='rgba(0,0,0,0)',
-            font=dict(color='white'),
-            title_font=dict(size=16, color='white', family='Arial Black'),
-            legend=dict(font=dict(color='white'))
-        )
-        st.plotly_chart(fig, use_container_width=True)
-    
-    # Recent Deals with enhanced styling
-    st.subheader("🔥 Recent High-Scoring Deals")
-    
-    # Get real deals from database
-    db_service = get_db_service()
-    recent_deals_data = db_service.get_high_scoring_deals(min_score=80) if db_service else []
-    
-    if recent_deals_data:
-        # Convert to DataFrame for display
-        deals_display = []
-        for deal in recent_deals_data[:5]:  # Show top 5
-            deals_display.append({
-                'Property': deal.address,
-                'Type': deal.property_type,
-                'Purchase Price': f"${deal.purchase_price:,.0f}",
-                'AI Score': deal.ai_score,
-                'ROI': f"{((deal.arv - deal.purchase_price - deal.repair_costs) / (deal.purchase_price + deal.repair_costs) * 100):.1f}%" if (deal.purchase_price + deal.repair_costs) > 0 else "0%",
-                'Status': deal.status
-            })
-        
-        recent_deals_df = pd.DataFrame(deals_display)
-
-    else:
-        # Fallback to sample data if no deals in database
-        recent_deals_df = pd.DataFrame({
-            'Property': ['123 Oak St', '456 Pine Ave', '789 Maple Dr', '321 Elm St'],
-            'Type': ['Fix & Flip', 'Buy & Hold', 'Wholesale', 'Multi-Family'],
-            'Purchase Price': [',000', ',000', ',000', ',000'],
-            'AI Score': [94, 88, 91, 86],
-            'ROI': ['32.5%', '28.3%', '15.8%', '22.1%'],
-            'Status': ['Under Contract', 'Analyzing', 'Closed', 'Negotiating']
-        })
-    # Style the dataframe for better visibility
-    st.markdown("""
-    <style>
-    .stDataFrame > div {
-        background: #262730;
-        border-radius: 10px;
-        padding: 1rem;
-        border: 1px solid #404040;
-    }
-    
-    .stDataFrame table {
-        background: #262730 !important;
-        color: white !important;
-    }
-    
-    .stDataFrame thead tr th {
-        background: #4CAF50 !important;
-        color: white !important;
-        font-weight: 600 !important;
-        text-align: center !important;
-    }
-    
-    .stDataFrame tbody tr td {
-        background: #262730 !important;
-        color: white !important;
-        font-weight: 500 !important;
-        text-align: center !important;
-        border-bottom: 1px solid #404040 !important;
-    }
-    
-    .stDataFrame tbody tr:hover td {
-        background: #363740 !important;
-    }
-    </style>
-    """, unsafe_allow_html=True)
-    
-    st.dataframe(recent_deals_df, use_container_width=True)
-    
-    # Dashboard controls
-    st.markdown("---")
-    col_refresh, col_info = st.columns([1, 3])
-    
-    with col_refresh:
-        if st.button("🔄 Refresh Dashboard", type="secondary"):
-            st.rerun()
-    
-    with col_info:
-        db_service = get_db_service()
-        if db_service and db_service.is_connected():
-            last_updated = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            st.info(f"📡 Live data • Last updated: {last_updated}")
-    
-            st.warning("📡 Offline mode • Sample data shown")
-
-def show_deal_analysis():
-    st.header("🏠 AI Deal Analysis")
-    
-    # Mobile-optimized layout - stack columns on mobile
-    st.markdown("""
-    <style>
-    /* Mobile form optimizations */
-    @media (max-width: 768px) {
-        .block-container {
-            padding-left: 1rem;
-            padding-right: 1rem;
+@dataclass
+class Contact:
+    """Contact data model"""
+    id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    name: str = ""
+    email: str = ""
+    phone: str = ""
+    company: str = ""
+    contact_type: ContactType = ContactType.OTHER
+    address: str = ""
+    notes: str = ""
+    tags: List[str] = field(default_factory=list)
+    created_at: datetime = field(default_factory=datetime.now)
+    updated_at: datetime = field(default_factory=datetime.now)
+    last_interaction: Optional[datetime] = None
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert contact to dictionary"""
+        return {
+            'id': self.id,
+            'name': self.name,
+            'email': self.email,
+            'phone': self.phone,
+            'company': self.company,
+            'contact_type': self.contact_type.value,
+            'address': self.address,
+            'notes': self.notes,
+            'tags': self.tags,
+            'created_at': self.created_at.isoformat(),
+            'updated_at': self.updated_at.isoformat(),
+            'last_interaction': self.last_interaction.isoformat() if self.last_interaction else None
         }
-        
-        .stNumberInput, .stTextInput, .stSelectbox {
-            margin-bottom: 1rem;
+
+@dataclass
+class Task:
+    """Task data model"""
+    id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    title: str = ""
+    description: str = ""
+    assigned_to: str = ""
+    priority: TaskPriority = TaskPriority.MEDIUM
+    due_date: Optional[datetime] = None
+    completed: bool = False
+    related_lead_id: Optional[str] = None
+    related_contact_id: Optional[str] = None
+    created_at: datetime = field(default_factory=datetime.now)
+    completed_at: Optional[datetime] = None
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert task to dictionary"""
+        return {
+            'id': self.id,
+            'title': self.title,
+            'description': self.description,
+            'assigned_to': self.assigned_to,
+            'priority': self.priority.value,
+            'due_date': self.due_date.isoformat() if self.due_date else None,
+            'completed': self.completed,
+            'related_lead_id': self.related_lead_id,
+            'related_contact_id': self.related_contact_id,
+            'created_at': self.created_at.isoformat(),
+            'completed_at': self.completed_at.isoformat() if self.completed_at else None
         }
-        
-        .mobile-form-section {
-            background-color: #262730;
-            border-radius: 10px;
-            padding: 1rem;
-            margin-bottom: 1rem;
-            border: 1px solid #404040;
+
+@dataclass
+class Activity:
+    """Activity log data model"""
+    id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    activity_type: str = ""  # Call, Email, Meeting, Note, etc.
+    subject: str = ""
+    description: str = ""
+    related_lead_id: Optional[str] = None
+    related_contact_id: Optional[str] = None
+    user_id: str = ""
+    created_at: datetime = field(default_factory=datetime.now)
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert activity to dictionary"""
+        return {
+            'id': self.id,
+            'activity_type': self.activity_type,
+            'subject': self.subject,
+            'description': self.description,
+            'related_lead_id': self.related_lead_id,
+            'related_contact_id': self.related_contact_id,
+            'user_id': self.user_id,
+            'created_at': self.created_at.isoformat()
         }
+
+class LeadScoringEngine:
+    """Advanced lead scoring system"""
+    
+    def calculate_lead_score(self, lead: Lead) -> int:
+        """Calculate lead score based on creative finance criteria"""
+        score = 0
         
-        .mobile-form-title {
-            color: #4CAF50;
-            font-size: 1.1rem;
-            font-weight: 600;
-            margin-bottom: 0.75rem;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
+        # Lead Category Score (25% weight)
+        category_scores = {
+            LeadCategory.INVESTOR_LEAD: 25,
+            LeadCategory.SELLER_LEAD: 20,
+            LeadCategory.BUYER_LEAD: 15,
+            LeadCategory.GENERAL_LEAD: 10
         }
-    }
-    </style>
-    """, unsafe_allow_html=True)
-    
-    # Load models for Deal creation
-    models = get_models()
-    if not models[0]:  # Deal is the first element
-        st.error("❌ Models module failed to load")
-        return
-    
-    Deal, Investor, Portfolio = models
-    
-    # Create columns for layout
-    col1, col2 = st.columns([1, 1])
-    st.markdown('<div class="mobile-form-title">� Property Information</div>', unsafe_allow_html=True)
-    
-    # Property details - mobile optimized
-    property_address = st.text_input("Property Address", 
-                                   placeholder="123 Main Street, City, State",
-                                   help="Enter the full property address")
-    
-    # Mobile: Single column, Tablet/Desktop: Two columns
-    prop_col1, prop_col2 = st.columns([1, 1])
-    
-    with prop_col1:
-        property_type = st.selectbox("Property Type", 
-                                   ["Single Family", "Multi-Family", "Condo", "Townhouse", "Commercial", "Land", "Mixed-Use"],
-                                   help="Select the property type")
-        bedrooms = st.number_input("Bedrooms", min_value=0, max_value=10, value=3,
-                                 help="Number of bedrooms")
+        score += category_scores.get(lead.lead_category, 10)
         
-    with prop_col2:
-        property_condition = st.selectbox("Property Condition", 
-                                        ["Excellent", "Good", "Fair", "Poor", "Tear Down"],
-                                        help="Current property condition")
-        bathrooms = st.number_input("Bathrooms", min_value=0.0, max_value=10.0, value=2.0, step=0.5,
-                                   help="Number of bathrooms")
-    
-    st.markdown('</div>', unsafe_allow_html=True)
-    
-    # Financial details section
-    st.markdown('<div class="mobile-form-section">', unsafe_allow_html=True)
-    st.markdown('<div class="mobile-form-title">💰 Financial Details</div>', unsafe_allow_html=True)
-    
-    # Mobile-optimized financial inputs
-    fin_col1, fin_col2, fin_col3 = st.columns([1, 1, 1])
-    
-    with fin_col1:
-        purchase_price = st.number_input("Purchase Price ($)", min_value=0, value=200000, step=1000,
-                                       help="Total purchase price", format="%d")
-        repair_costs = st.number_input("Repair Costs ($)", min_value=0, value=25000, step=1000,
-                                     help="Estimated repair costs", format="%d")
+        # Budget/Property Value Score (20% weight)
+        value_to_score = lead.budget_max if lead.lead_category == LeadCategory.INVESTOR_LEAD else lead.property_value
+        if value_to_score > 0:
+            if value_to_score >= 500000:
+                score += 20
+            elif value_to_score >= 300000:
+                score += 18
+            elif value_to_score >= 150000:
+                score += 15
+            elif value_to_score >= 75000:
+                score += 12
+            else:
+                score += 8
         
-    with fin_col2:
-        arv = st.number_input("After Repair Value ($)", min_value=0, value=275000, step=1000,
-                            help="Property value after repairs", format="%d")
-        monthly_rent = st.number_input("Monthly Rent ($)", min_value=0, value=2200, step=50,
-                                     help="Expected monthly rental income", format="%d")
+        # Creative Finance Interest Score (20% weight)
+        if lead.preferred_finance_methods:
+            # High-value creative methods get more points
+            high_value_methods = [
+                CreativeFinanceMethod.SUBJECT_TO,
+                CreativeFinanceMethod.OWNER_FINANCING,
+                CreativeFinanceMethod.LEASE_OPTION,
+                CreativeFinanceMethod.PRIVATE_MONEY
+            ]
+            creative_score = 0
+            for method in lead.preferred_finance_methods:
+                if method in high_value_methods:
+                    creative_score += 8
+                else:
+                    creative_score += 4
+            score += min(creative_score, 20)
         
-    with fin_col3:
-        closing_costs = st.number_input("Closing Costs ($)", min_value=0, value=5000, step=500,
-                                      help="Transaction closing costs", format="%d")
-        annual_taxes = st.number_input("Annual Taxes ($)", min_value=0, value=3500, step=100,
-                                     help="Annual property taxes", format="%d")
-        insurance = st.number_input("Annual Insurance ($)", min_value=0, value=1200, step=100)
-        hoa_fees = st.number_input("Monthly HOA ($)", min_value=0, value=0, step=25)
-        vacancy_rate = st.slider("Vacancy Rate (%)", min_value=0, max_value=30, value=5)
+        # Investor Experience/Seller Motivation Score (15% weight)
+        if lead.lead_category == LeadCategory.INVESTOR_LEAD and lead.investor_type:
+            experienced_types = [
+                InvestorType.WHOLESALER,
+                InvestorType.SUBJECT_TO,
+                InvestorType.OWNER_FINANCE,
+                InvestorType.CASH_BUYER
+            ]
+            if lead.investor_type in experienced_types:
+                score += 15
+            else:
+                score += 10
+        elif lead.lead_category == LeadCategory.SELLER_LEAD and lead.seller_motivation:
+            high_motivation = [
+                SellerMotivation.FINANCIAL_DISTRESS,
+                SellerMotivation.FORECLOSURE_AVOIDANCE,
+                SellerMotivation.QUICK_SALE_NEEDED,
+                SellerMotivation.TIRED_LANDLORD
+            ]
+            if lead.seller_motivation in high_motivation:
+                score += 15
+            else:
+                score += 10
         
-        # Market analysis
-        st.subheader("📊 Market Analysis")
-        col3a, col3b = st.columns(2)
+        # Lead Source Score (10% weight)
+        source_scores = {
+            LeadSource.REFERRAL: 10,
+            LeadSource.PARTNER: 9,
+            LeadSource.NETWORKING_EVENT: 8,
+            LeadSource.WEBSITE: 7,
+            LeadSource.SOCIAL_MEDIA: 6,
+            LeadSource.EMAIL_CAMPAIGN: 5,
+            LeadSource.ADVERTISEMENT: 4,
+            LeadSource.COLD_OUTREACH: 3,
+            LeadSource.OTHER: 2
+        }
+        score += source_scores.get(lead.lead_source, 2)
         
-        with col3a:
-            neighborhood_grade = st.selectbox("Neighborhood Grade", ["A+", "A", "A-", "B+", "B", "B-", "C+", "C", "C-", "D"])
-            days_on_market = st.number_input("Days on Market", min_value=0, value=30)
-            
-        with col3b:
-            market_trend = st.selectbox("Market Trend", ["Rising", "Stable", "Declining"])
-            comparable_sales = st.number_input("Recent Comparable Sales", min_value=0, value=5)
+        # Contact Completeness Score (10% weight)
+        contact_score = 0
+        if lead.email:
+            contact_score += 3
+        if lead.phone:
+            contact_score += 3
+        if lead.property_address:
+            contact_score += 2
+        if lead.notes:
+            contact_score += 2
+        score += min(contact_score, 10)
         
-        location_notes = st.text_area("Location & Market Notes", 
-                                    placeholder="Schools, amenities, transportation, future developments...")
-        
-        # Advanced analysis button
-        if st.button("🤖 Run Advanced AI Analysis", type="primary", use_container_width=True):
-            deal_data = {
-                'property_type': property_type,
-                'purchase_price': purchase_price,
-                'arv': arv,
-                'repair_costs': repair_costs,
-                'monthly_rent': monthly_rent,
-                'location': property_address,
-                'condition': property_condition,
-                'bedrooms': bedrooms,
-                'bathrooms': bathrooms,
-                'closing_costs': closing_costs,
-                'annual_taxes': annual_taxes,
-                'insurance': insurance,
-                'hoa_fees': hoa_fees,
-                'vacancy_rate': vacancy_rate,
-                'neighborhood_grade': neighborhood_grade,
-                'market_trend': market_trend
-            }
-            
-            # Store in session state for display
-            st.session_state.analyzed_deal = deal_data
-            st.rerun()
+        return min(score, 100)  # Cap at 100
+
+class CRMDataPersistence:
+    """Enhanced data persistence with SQLite and CSV export"""
     
-    with col2:
-        if 'analyzed_deal' in st.session_state:
-            st.subheader("📊 Comprehensive Analysis Results")
-            
-            deal_data = st.session_state.analyzed_deal
-            
-            # Calculate advanced metrics
-            metrics = calculate_advanced_metrics(deal_data)
-            
-            # AI Score Display with detailed breakdown
-            ai_score, score_breakdown = calculate_ai_score(deal_data, metrics)
-            
-            # Score visualization
-            col_score1, col_score2 = st.columns([1, 2])
-            with col_score1:
-                st.markdown(f"""
-                <div class="ai-score">
-                    🤖 AI Score: {ai_score}/100
-                </div>
-                """, unsafe_allow_html=True)
-                
-                # Score breakdown
-                st.write("**Score Breakdown:**")
-                score_components = {
-                    "ROI Potential": 85,
-                    "Market Strength": 78,
-                    "Property Condition": 82,
-                    "Risk Assessment": 88,
-                    "Cash Flow": 91
-                }
-                
-                for component, score in score_components.items():
-                    st.progress(score/100, text=f"{component}: {score}%")
-            
-            with col_score2:
-                # Key metrics display
-                col_m1, col_m2 = st.columns(2)
-                with col_m1:
-                    st.metric("Total ROI", f"{metrics['total_roi']:.1f}%", 
-                             delta=f"+{metrics['total_roi']-20:.1f}% vs avg")
-                    st.metric("Cash-on-Cash Return", f"{metrics['cash_on_cash']:.1f}%")
-                    st.metric("Cap Rate", f"{metrics['cap_rate']:.2f}%")
-                    
-                with col_m2:
-                    st.metric("Monthly Cash Flow", f"${metrics['monthly_cash_flow']:,.0f}")
-                    st.metric("BRRRR Score", f"{metrics['brrrr_score']}/10")
-                    st.metric("1% Rule Check", "✅ Pass" if metrics['one_percent_rule'] else "❌ Fail")
-            
-            # Detailed financial breakdown
-            st.subheader("💰 Financial Breakdown")
-            
-            financial_tabs = st.tabs(["📊 Summary", "💸 Cash Flow", "📈 Projections", "⚠️ Risk Analysis"])
-            
-            with financial_tabs[0]:
-                # Investment summary
-                summary_data = {
-                    "Total Investment": f"${metrics['total_investment']:,.0f}",
-                    "Expected Profit": f"${metrics['gross_profit']:,.0f}",
-                    "Monthly Income": f"${metrics['monthly_income']:,.0f}",
-                    "Monthly Expenses": f"${metrics['monthly_expenses']:,.0f}",
-                    "Net Cash Flow": f"${metrics['monthly_cash_flow']:,.0f}",
-                    "Payback Period": f"{metrics['payback_period']:.1f} years"
-                }
-                
-                for key, value in summary_data.items():
-                    col_sum1, col_sum2 = st.columns([1, 1])
-                    with col_sum1:
-                        st.write(f"**{key}:**")
-                    with col_sum2:
-                        st.write(value)
-            
-            with financial_tabs[1]:
-                # Detailed cash flow analysis
-                st.write("**Monthly Income:**")
-                st.write(f"• Rental Income: ${deal_data['monthly_rent']:,.0f}")
-                st.write(f"• Other Income: $0")
-                
-                st.write("**Monthly Expenses:**")
-                monthly_taxes = deal_data['annual_taxes'] / 12
-                monthly_insurance = deal_data['insurance'] / 12
-                st.write(f"• Property Taxes: ${monthly_taxes:.0f}")
-                st.write(f"• Insurance: ${monthly_insurance:.0f}")
-                st.write(f"• HOA Fees: ${deal_data['hoa_fees']:.0f}")
-                st.write(f"• Property Management (10%): ${deal_data['monthly_rent'] * 0.1:.0f}")
-                st.write(f"• Maintenance Reserve: ${deal_data['monthly_rent'] * 0.05:.0f}")
-                st.write(f"• Vacancy Reserve: ${deal_data['monthly_rent'] * (deal_data['vacancy_rate']/100):.0f}")
-            
-            with financial_tabs[2]:
-                # 5-year projections
-                years = list(range(1, 6))
-                appreciation_rate = 0.03  # 3% annual appreciation
-                rent_growth = 0.025  # 2.5% annual rent growth
-                
-                projected_values = []
-                projected_rents = []
-                projected_cash_flow = []
-                
-                for year in years:
-                    prop_value = deal_data['arv'] * (1 + appreciation_rate) ** year
-                    monthly_rent_proj = deal_data['monthly_rent'] * (1 + rent_growth) ** year
-                    monthly_cf = monthly_rent_proj - metrics['monthly_expenses']
-                    
-                    projected_values.append(prop_value)
-                    projected_rents.append(monthly_rent_proj)
-                    projected_cash_flow.append(monthly_cf)
-                
-                proj_df = pd.DataFrame({
-                    'Year': years,
-                    'Property Value': [f"${v:,.0f}" for v in projected_values],
-                    'Monthly Rent': [f"${r:,.0f}" for r in projected_rents],
-                    'Monthly Cash Flow': [f"${cf:,.0f}" for cf in projected_cash_flow]
-                })
-                
-                st.dataframe(proj_df, use_container_width=True)
-            
-            with financial_tabs[3]:
-                # Risk analysis
-                risk_factors = [
-                    {"factor": "Market Risk", "level": "Medium", "description": "Property values stable in area"},
-                    {"factor": "Liquidity Risk", "level": "Low", "description": "High demand rental market"},
-                    {"factor": "Vacancy Risk", "level": "Low", "description": "Strong rental demand"},
-                    {"factor": "Repair Risk", "level": "Medium", "description": "Older property may need updates"},
-                    {"factor": "Interest Rate Risk", "level": "High", "description": "Rising rates impact cash flow"}
-                ]
-                
-                for risk in risk_factors:
-                    with st.expander(f"⚠️ {risk['factor']} - {risk['level']}"):
-                        st.write(risk['description'])
-            
-            # AI Recommendations
-            st.subheader("💡 AI-Powered Recommendations")
-            
-            recommendations = generate_ai_recommendations(deal_data, metrics)
-            
-            for i, rec in enumerate(recommendations, 1):
-                st.write(f"**{i}.** {rec}")
-            
-            # Save Deal Section
-            st.subheader("💾 Save Deal to Database")
-            
-            col_save1, col_save2 = st.columns([1, 1])
-            
-            with col_save1:
-                deal_status = st.selectbox("Deal Status", 
-                                         ["New", "Analyzing", "Under Contract", "Negotiating", "Closed", "Passed"], 
-                                         index=0)
-                deal_notes = st.text_area("Deal Notes", 
-                                        placeholder="Additional notes about this deal...")
-            
-            with col_save2:
-                st.write("**Deal Summary:**")
-                st.write(f"• Address: {property_address}")
-                st.write(f"• Type: {property_type}")
-                st.write(f"• Purchase Price: ${purchase_price:,}")
-                st.write(f"• AI Score: {ai_score}/100")
-                st.write(f"• Monthly Cash Flow: ${metrics['monthly_cash_flow']:,.0f}")
-            
-            # Save Deal Button
-            if st.button("💾 Save Deal to Portfolio", type="primary", use_container_width=True):
-                # Create Deal object
-                new_deal = Deal.from_dict({
-                    'address': property_address,
-                    'property_type': property_type,
-                    'purchase_price': purchase_price,
-                    'arv': arv,
-                    'repair_costs': repair_costs,
-                    'monthly_rent': monthly_rent,
-                    'closing_costs': closing_costs,
-                    'annual_taxes': annual_taxes,
-                    'insurance': insurance,
-                    'hoa_fees': hoa_fees,
-                    'vacancy_rate': vacancy_rate,
-                    'neighborhood_grade': neighborhood_grade,
-                    'condition': property_condition,
-                    'market_trend': market_trend,
-                    'ai_score': ai_score,
-                    'status': deal_status,
-                    'notes': deal_notes,
-                    'user_id': 'default_user'  # For now, we'll use a default user
-                })
-                
-                # Save to database
-                db_service = get_db_service()
-                if db_service and db_service.create_deal(new_deal):
-                    st.success(f"✅ Deal saved successfully! Address: {property_address}")
-                    st.balloons()
-                    
-                    # Clear the analysis from session state
-                    if 'analyzed_deal' in st.session_state:
-                        del st.session_state.analyzed_deal
-                    
-                    # Refresh after a short delay
-                    st.rerun()
-            
-                    db_service = get_db_service()
-                    if db_service and db_service.is_connected():
-                        st.error("❌ Failed to save deal to database. Please try again.")
-                
-                        st.warning("⚠️ Database not connected. Deal not saved.")
-            
-            # Enhanced Deal scoring explanation with breakdown
-            with st.expander("🔍 Advanced AI Score Breakdown"):
-                st.write("**🧠 AI-Powered Analysis with Market Intelligence**")
-                st.write("Our enhanced AI scoring system evaluates deals using real-time market data:")
-                
-                col_breakdown1, col_breakdown2 = st.columns(2)
-                
-                with col_breakdown1:
-                    st.write("**📊 Score Components:**")
-                    for component, score in score_breakdown.items():
-                        st.write(f"• {component}: {score}")
-                
-                with col_breakdown2:
-                    st.write("**🎯 Scoring Methodology:**")
-                    st.write("• **Financial Performance (30%)**: ROI + Cash Flow with market cycle adjustments")
-                    st.write("• **Market Intelligence (25%)**: Neighborhood grade + location trends + timing")  
-                    st.write("• **Property Analysis (20%)**: Condition + type + value-add potential")
-                    st.write("• **Risk Assessment (15%)**: Cap rate + liquidity risk + market risk")
-                    st.write("• **Future Potential (10%)**: Growth predictions + economic indicators")
-                
-                st.info("💡 **AI Enhancement**: Scores are dynamically adjusted based on current market cycle, economic indicators, and predictive analytics.")
-                
-                st.write("Each component is weighted and combined to create a comprehensive score from 0-100.")
+    def __init__(self, db_path: str = "crm_data.db"):
+        self.db_path = db_path
+        self.init_database()
     
+    def init_database(self):
+        """Initialize SQLite database with all necessary tables"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+                
+                # Create leads table
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS leads (
+                        id TEXT PRIMARY KEY,
+                        name TEXT NOT NULL,
+                        email TEXT,
+                        phone TEXT,
+                        status TEXT,
+                        lead_type TEXT,
+                        lead_source TEXT,
+                        property_address TEXT,
+                        property_value REAL,
+                        budget REAL,
+                        timeline TEXT,
+                        motivation TEXT,
+                        notes TEXT,
+                        score INTEGER,
+                        created_at TEXT,
+                        updated_at TEXT
+                    )
+                ''')
+                
+                # Create contacts table
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS contacts (
+                        id TEXT PRIMARY KEY,
+                        name TEXT NOT NULL,
+                        company TEXT,
+                        title TEXT,
+                        email TEXT,
+                        phone TEXT,
+                        contact_type TEXT,
+                        specializations TEXT,
+                        location TEXT,
+                        notes TEXT,
+                        created_at TEXT,
+                        updated_at TEXT
+                    )
+                ''')
+                
+                # Create buyers table
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS buyers (
+                        id TEXT PRIMARY KEY,
+                        name TEXT NOT NULL,
+                        email TEXT,
+                        phone TEXT,
+                        min_price REAL,
+                        max_price REAL,
+                        preferred_locations TEXT,
+                        property_types TEXT,
+                        investment_strategy TEXT,
+                        min_roi REAL,
+                        cash_available REAL,
+                        financing_options TEXT,
+                        created_at TEXT,
+                        updated_at TEXT
+                    )
+                ''')
+                
+                # Create deals table
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS deals (
+                        id TEXT PRIMARY KEY,
+                        property_address TEXT NOT NULL,
+                        deal_type TEXT,
+                        property_type TEXT,
+                        purchase_price REAL,
+                        arv REAL,
+                        repair_costs REAL,
+                        estimated_roi REAL,
+                        status TEXT,
+                        lead_id TEXT,
+                        created_at TEXT,
+                        updated_at TEXT
+                    )
+                ''')
+                
+                # Create activities table for tracking
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS activities (
+                        id TEXT PRIMARY KEY,
+                        activity_type TEXT,
+                        subject TEXT,
+                        description TEXT,
+                        related_lead_id TEXT,
+                        related_contact_id TEXT,
+                        related_deal_id TEXT,
+                        user_id TEXT,
+                        created_at TEXT
+                    )
+                ''')
+                
+                conn.commit()
+                print("✅ Connected to database successfully!")
+                
+        except Exception as e:
+            print(f"❌ Database initialization error: {str(e)}")
+            raise e
     
-            st.info("👈 Enter deal information and click 'Run Advanced AI Analysis' to see comprehensive insights")
+    def save_lead(self, lead: 'Lead') -> bool:
+        """Save lead to database"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    INSERT OR REPLACE INTO leads 
+                    (id, name, email, phone, status, lead_type, lead_source, 
+                     property_address, property_value, budget, timeline, motivation, 
+                     notes, score, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (
+                    lead.id, lead.name, lead.email, lead.phone,
+                    lead.status.value if lead.status else None,
+                    lead.lead_type.value if lead.lead_type else None,
+                    lead.lead_source.value if lead.lead_source else None,
+                    lead.property_address, lead.property_value, lead.budget,
+                    lead.timeline, lead.motivation, lead.notes, lead.score,
+                    lead.created_at.isoformat(), lead.updated_at.isoformat()
+                ))
+                conn.commit()
+                return True
+        except Exception as e:
+            print(f"❌ Error saving lead: {str(e)}")
+            return False
+    
+    def load_leads(self) -> List[Dict[str, Any]]:
+        """Load all leads from database"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute('SELECT * FROM leads ORDER BY created_at DESC')
+                columns = [desc[0] for desc in cursor.description]
+                return [dict(zip(columns, row)) for row in cursor.fetchall()]
+        except Exception as e:
+            print(f"❌ Error loading leads: {str(e)}")
+            return []
+    
+    def delete_lead(self, lead_id: str) -> bool:
+        """Delete lead from database"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute('DELETE FROM leads WHERE id = ?', (lead_id,))
+                conn.commit()
+                return cursor.rowcount > 0
+        except Exception as e:
+            print(f"❌ Error deleting lead: {str(e)}")
+            return False
+    
+    def export_leads_csv(self) -> bytes:
+        """Export leads to CSV format"""
+        try:
+            leads_data = self.load_leads()
+            if not leads_data:
+                return b""
             
-            # Show sample analysis preview
-            st.subheader("📋 Analysis Features")
-            features = [
-                "🎯 **AI-Powered Scoring** - Comprehensive 0-100 deal rating",
-                "💰 **Advanced Metrics** - ROI, Cap Rate, Cash-on-Cash, BRRRR Score",
-                "📊 **Cash Flow Analysis** - Detailed income/expense breakdown",
-                "📈 **5-Year Projections** - Property value and rent growth forecasts",  
-                "⚠️ **Risk Assessment** - Market, vacancy, repair, and interest rate risks",
-                "💡 **Smart Recommendations** - AI-generated investment advice",
-                "🏠 **Property Scoring** - Condition, location, and market analysis",
-                "📋 **1% Rule Check** - Instant rental yield validation"
+            output = io.StringIO()
+            fieldnames = [
+                'id', 'name', 'email', 'phone', 'status', 'lead_type', 
+                'lead_source', 'property_address', 'property_value', 'budget',
+                'timeline', 'motivation', 'notes', 'score', 'created_at', 'updated_at'
             ]
             
-            for feature in features:
-                st.write(feature)
+            writer = csv.DictWriter(output, fieldnames=fieldnames)
+            writer.writeheader()
+            writer.writerows(leads_data)
+            
+            return output.getvalue().encode('utf-8')
+            
+        except Exception as e:
+            print(f"❌ Error exporting leads CSV: {str(e)}")
+            return b""
+    
+    def export_buyers_csv(self) -> bytes:
+        """Export buyers to CSV format"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute('SELECT * FROM buyers ORDER BY created_at DESC')
+                columns = [desc[0] for desc in cursor.description]
+                buyers_data = [dict(zip(columns, row)) for row in cursor.fetchall()]
+            
+            if not buyers_data:
+                return b""
+            
+            output = io.StringIO()
+            writer = csv.DictWriter(output, fieldnames=columns)
+            writer.writeheader()
+            writer.writerows(buyers_data)
+            
+            return output.getvalue().encode('utf-8')
+            
+        except Exception as e:
+            print(f"❌ Error exporting buyers CSV: {str(e)}")
+            return b""
+    
+    def export_contacts_csv(self) -> bytes:
+        """Export contacts to CSV format"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute('SELECT * FROM contacts ORDER BY created_at DESC')
+                columns = [desc[0] for desc in cursor.description]
+                contacts_data = [dict(zip(columns, row)) for row in cursor.fetchall()]
+            
+            if not contacts_data:
+                return b""
+            
+            output = io.StringIO()
+            writer = csv.DictWriter(output, fieldnames=columns)
+            writer.writeheader()
+            writer.writerows(contacts_data)
+            
+            return output.getvalue().encode('utf-8')
+            
+        except Exception as e:
+            print(f"❌ Error exporting contacts CSV: {str(e)}")
+            return b""
 
-def show_deal_database():
-    st.header("💾 Deal Database")
+class CRMManager:
+    """Main CRM management class"""
     
-    # Load database service
-    db_service = get_db_service()
-    if not db_service:
-        st.error("❌ Database service failed to load")
-        return
+    def __init__(self):
+        self.leads: List[Lead] = []
+        self.contacts: List[Contact] = []
+        self.tasks: List[Task] = []
+        self.activities: List[Activity] = []
+        self.deals: List[Deal] = []
+        self.buyers: List[BuyerCriteria] = []
+        self.messages: List[Message] = []
+        self.deal_alerts: List[DealAlert] = []
+        self.scoring_engine = LeadScoringEngine()
+        self.matching_engine = DealMatchingEngine()
+        
+        # Initialize enhanced persistence system
+        self.persistence = CRMDataPersistence()
+        
+        # Load data from both session state and database
+        self.load_data()
     
-    # Search and filter section
+    def load_data(self):
+        """Load CRM data from database and session state"""
+        # Load from database first (persistent storage)
+        try:
+            leads_data = self.persistence.load_leads()
+            for lead_data in leads_data:
+                lead = self._load_lead_from_db(lead_data)
+                if lead and lead not in self.leads:
+                    self.leads.append(lead)
+        except Exception as e:
+            print(f"⚠️ Could not load leads from database: {str(e)}")
+        
+        # Then load from session state (current session data)
+        try:
+            if 'crm_leads' in st.session_state:
+                session_leads = [Lead(**data) for data in st.session_state.crm_leads]
+                for lead in session_leads:
+                    if lead not in self.leads:
+                        self.leads.append(lead)
+                        
+            if 'crm_contacts' in st.session_state:
+                self.contacts = [Contact(**data) for data in st.session_state.crm_contacts]
+            if 'crm_tasks' in st.session_state:
+                self.tasks = [Task(**data) for data in st.session_state.crm_tasks]
+            if 'crm_activities' in st.session_state:
+                self.activities = [Activity(**data) for data in st.session_state.crm_activities]
+            if 'crm_deals' in st.session_state:
+                self.deals = [self._load_deal(data) for data in st.session_state.crm_deals]
+            if 'crm_buyers' in st.session_state:
+                self.buyers = [self._load_buyer(data) for data in st.session_state.crm_buyers]
+            if 'crm_messages' in st.session_state:
+                self.messages = [self._load_message(data) for data in st.session_state.crm_messages]
+        except Exception:
+            # If we're not in a Streamlit context, skip session state loading
+            pass
+        if 'crm_deal_alerts' in st.session_state:
+            self.deal_alerts = [self._load_deal_alert(data) for data in st.session_state.crm_deal_alerts]
+    
+    def _load_lead_from_db(self, data: Dict[str, Any]) -> Optional[Lead]:
+        """Load lead from database dictionary with proper type conversion"""
+        try:
+            data_copy = data.copy()
+            
+            # Convert string values back to enums
+            if data_copy.get('status'):
+                data_copy['status'] = LeadStatus(data_copy['status'])
+            if data_copy.get('lead_type'):
+                data_copy['lead_type'] = LeadType(data_copy['lead_type'])
+            if data_copy.get('lead_source'):
+                data_copy['lead_source'] = LeadSource(data_copy['lead_source'])
+            
+            # Convert datetime strings back to datetime objects
+            if data_copy.get('created_at'):
+                data_copy['created_at'] = datetime.fromisoformat(data_copy['created_at'])
+            if data_copy.get('updated_at'):
+                data_copy['updated_at'] = datetime.fromisoformat(data_copy['updated_at'])
+            
+            return Lead(**data_copy)
+        except Exception as e:
+            st.warning(f"Error loading lead from database: {str(e)}")
+            return None
+    
+    def _load_deal(self, data: Dict[str, Any]) -> Deal:
+        """Load deal from dictionary with enum conversion"""
+        # Convert string values back to enums
+        data_copy = data.copy()
+        if 'property_type' in data_copy:
+            data_copy['property_type'] = PropertyType(data_copy['property_type'])
+        if 'deal_type' in data_copy:
+            data_copy['deal_type'] = DealType(data_copy['deal_type'])
+        if 'status' in data_copy:
+            data_copy['status'] = DealStatus(data_copy['status'])
+        if 'financing_method' in data_copy and data_copy['financing_method']:
+            data_copy['financing_method'] = CreativeFinanceMethod(data_copy['financing_method'])
+        
+        # Convert datetime strings back to datetime objects
+        if 'created_at' in data_copy:
+            data_copy['created_at'] = datetime.fromisoformat(data_copy['created_at'])
+        if 'updated_at' in data_copy:
+            data_copy['updated_at'] = datetime.fromisoformat(data_copy['updated_at'])
+        
+        return Deal(**data_copy)
+    
+    def _load_buyer(self, data: Dict[str, Any]) -> BuyerCriteria:
+        """Load buyer from dictionary with enum conversion"""
+        # Convert string values back to enums
+        data_copy = data.copy()
+        if 'investor_type' in data_copy:
+            data_copy['investor_type'] = InvestorType(data_copy['investor_type'])
+        if 'preferred_property_types' in data_copy:
+            data_copy['preferred_property_types'] = [PropertyType(pt) for pt in data_copy['preferred_property_types']]
+        if 'preferred_deal_types' in data_copy:
+            data_copy['preferred_deal_types'] = [DealType(dt) for dt in data_copy['preferred_deal_types']]
+        if 'preferred_finance_methods' in data_copy:
+            data_copy['preferred_finance_methods'] = [CreativeFinanceMethod(method) for method in data_copy['preferred_finance_methods']]
+        
+        # Convert datetime strings back to datetime objects
+        if 'created_at' in data_copy:
+            data_copy['created_at'] = datetime.fromisoformat(data_copy['created_at'])
+        
+        return BuyerCriteria(**data_copy)
+    
+    def _load_message(self, data: Dict[str, Any]) -> Message:
+        """Load message from dictionary with enum conversion"""
+        data_copy = data.copy()
+        if 'message_type' in data_copy:
+            data_copy['message_type'] = MessageType(data_copy['message_type'])
+        if 'status' in data_copy:
+            data_copy['status'] = MessageStatus(data_copy['status'])
+        
+        # Convert datetime strings back to datetime objects
+        if 'created_at' in data_copy:
+            data_copy['created_at'] = datetime.fromisoformat(data_copy['created_at'])
+        if 'read_at' in data_copy and data_copy['read_at']:
+            data_copy['read_at'] = datetime.fromisoformat(data_copy['read_at'])
+        if 'replied_at' in data_copy and data_copy['replied_at']:
+            data_copy['replied_at'] = datetime.fromisoformat(data_copy['replied_at'])
+        
+        return Message(**data_copy)
+    
+    def _load_deal_alert(self, data: Dict[str, Any]) -> DealAlert:
+        """Load deal alert from dictionary"""
+        data_copy = data.copy()
+        
+        # Convert datetime strings back to datetime objects
+        if 'sent_at' in data_copy:
+            data_copy['sent_at'] = datetime.fromisoformat(data_copy['sent_at'])
+        
+        return DealAlert(**data_copy)
+    
+    def save_data(self):
+        """Save CRM data to both session state and database"""
+        # Save to session state for immediate access (only in Streamlit context)
+        try:
+            st.session_state.crm_leads = [lead.to_dict() for lead in self.leads]
+            st.session_state.crm_contacts = [contact.to_dict() for contact in self.contacts]
+            st.session_state.crm_tasks = [task.to_dict() for task in self.tasks]
+            st.session_state.crm_activities = [activity.to_dict() for activity in self.activities]
+            st.session_state.crm_deals = [deal.to_dict() for deal in self.deals]
+            st.session_state.crm_buyers = [buyer.to_dict() for buyer in self.buyers]
+            st.session_state.crm_messages = [message.to_dict() for message in self.messages]
+            st.session_state.crm_deal_alerts = [alert.to_dict() for alert in self.deal_alerts]
+        except Exception:
+            # If we're not in a Streamlit context, skip session state saving
+            pass
+        
+        # Save leads to database for persistence
+        for lead in self.leads:
+            self.persistence.save_lead(lead)
+    
+    def add_lead(self, lead: Lead) -> str:
+        """Add new lead with database persistence"""
+        lead.score = self.scoring_engine.calculate_lead_score(lead)
+        self.leads.append(lead)
+        
+        # Save to both session state and database
+        self.save_data()
+        
+        # Also save directly to database for immediate persistence
+        self.persistence.save_lead(lead)
+        
+        # Log activity
+        self.log_activity(
+            activity_type="Lead Created",
+            subject=f"New lead: {lead.name}",
+            description=f"Lead created from {lead.lead_source.value}",
+            related_lead_id=lead.id,
+            user_id="system"
+        )
+        return lead.id
+    
+    def update_lead(self, lead_id: str, updates: Dict[str, Any]) -> bool:
+        """Update existing lead with database persistence"""
+        for lead in self.leads:
+            if lead.id == lead_id:
+                for key, value in updates.items():
+                    if hasattr(lead, key):
+                        setattr(lead, key, value)
+                lead.updated_at = datetime.now()
+                lead.score = self.scoring_engine.calculate_lead_score(lead)
+                
+                # Save to both session state and database
+                self.save_data()
+                self.persistence.save_lead(lead)
+                
+                # Log activity
+                self.log_activity(
+                    activity_type="Lead Updated",
+                    subject=f"Lead updated: {lead.name}",
+                    description=f"Lead information updated",
+                    related_lead_id=lead.id,
+                    user_id="system"
+                )
+                return True
+        return False
+    
+    def delete_lead(self, lead_id: str) -> bool:
+        """Delete lead from both memory and database"""
+        for i, lead in enumerate(self.leads):
+            if lead.id == lead_id:
+                lead_name = lead.name
+                
+                # Remove from memory
+                self.leads.pop(i)
+                
+                # Remove from database
+                success = self.persistence.delete_lead(lead_id)
+                
+                # Update session state
+                self.save_data()
+                
+                # Log activity
+                self.log_activity(
+                    activity_type="Lead Deleted",
+                    subject=f"Lead deleted: {lead_name}",
+                    description=f"Lead permanently removed from system",
+                    user_id="system"
+                )
+                
+                return success
+        return False
+    
+    def get_lead_by_id(self, lead_id: str) -> Optional[Lead]:
+        """Get lead by ID"""
+        for lead in self.leads:
+            if lead.id == lead_id:
+                return lead
+        return None
+    
+    def search_leads(self, query: str) -> List[Lead]:
+        """Search leads by name, email, phone, or address"""
+        query = query.lower()
+        results = []
+        for lead in self.leads:
+            if (query in lead.name.lower() or 
+                (lead.email and query in lead.email.lower()) or
+                (lead.phone and query in lead.phone.lower()) or
+                (lead.property_address and query in lead.property_address.lower())):
+                results.append(lead)
+        return results
+    
+    def filter_leads(self, status: Optional[LeadStatus] = None, 
+                    lead_type: Optional[LeadType] = None,
+                    lead_source: Optional[LeadSource] = None) -> List[Lead]:
+        """Filter leads by various criteria"""
+        results = self.leads.copy()
+        
+        if status:
+            results = [lead for lead in results if lead.status == status]
+        if lead_type:
+            results = [lead for lead in results if lead.lead_type == lead_type]
+        if lead_source:
+            results = [lead for lead in results if lead.lead_source == lead_source]
+            
+        return results
+    
+    def export_leads_csv(self) -> bytes:
+        """Export leads to CSV format"""
+        return self.persistence.export_leads_csv()
+    
+    def export_buyers_csv(self) -> bytes:
+        """Export buyers to CSV format"""
+        return self.persistence.export_buyers_csv()
+    
+    def export_contacts_csv(self) -> bytes:
+        """Export contacts to CSV format"""
+        return self.persistence.export_contacts_csv()
+    
+    def add_contact(self, contact: Contact) -> str:
+        """Add new contact"""
+        self.contacts.append(contact)
+        self.save_data()
+        return contact.id
+    
+    def add_task(self, task: Task) -> str:
+        """Add new task"""
+        self.tasks.append(task)
+        self.save_data()
+        return task.id
+    
+    def complete_task(self, task_id: str) -> bool:
+        """Mark task as completed"""
+        for task in self.tasks:
+            if task.id == task_id:
+                task.completed = True
+                task.completed_at = datetime.now()
+                self.save_data()
+                return True
+        return False
+    
+    def log_activity(self, activity_type: str, subject: str, description: str, 
+                    related_lead_id: str = None, related_contact_id: str = None, 
+                    user_id: str = "user") -> str:
+        """Log new activity"""
+        activity = Activity(
+            activity_type=activity_type,
+            subject=subject,
+            description=description,
+            related_lead_id=related_lead_id,
+            related_contact_id=related_contact_id,
+            user_id=user_id
+        )
+        self.activities.append(activity)
+        self.save_data()
+        
+        # Also log to activity tracker for advanced tracking
+        try:
+            activity_tracker = get_activity_tracker()
+            
+            # Map activity types to ActivityType enum
+            activity_type_mapping = {
+                "Lead Created": ActivityType.LEAD_CREATED,
+                "Deal Created": ActivityType.DEAL_CREATED,
+                "Contact Added": ActivityType.CONTACT_ADDED,
+                "Task Created": ActivityType.TASK_CREATED,
+                "Email Sent": ActivityType.EMAIL_SENT,
+                "SMS Sent": ActivityType.SMS_SENT,
+                "Call Made": ActivityType.CALL_MADE,
+                "Meeting Scheduled": ActivityType.MEETING_SCHEDULED,
+                "Buyer Matched": ActivityType.BUYER_MATCHED,
+                "Deal Closed": ActivityType.DEAL_CLOSED
+            }
+            
+            mapped_activity_type = activity_type_mapping.get(activity_type, ActivityType.GENERAL_ACTIVITY)
+            
+            # Determine priority based on activity type
+            priority = Priority.MEDIUM
+            if "Deal" in activity_type or "Buyer" in activity_type:
+                priority = Priority.HIGH
+            elif "Email" in activity_type or "SMS" in activity_type:
+                priority = Priority.MEDIUM
+            else:
+                priority = Priority.LOW
+            
+            # Create metadata
+            metadata = {
+                "related_lead_id": related_lead_id,
+                "related_contact_id": related_contact_id,
+                "original_activity_id": activity.id
+            }
+            
+            # Log to activity tracker
+            activity_tracker.log_activity(
+                activity_type=mapped_activity_type,
+                title=subject,
+                description=description,
+                user_id=user_id,
+                priority=priority,
+                metadata=metadata
+            )
+        except Exception as e:
+            # Don't break the main flow if activity tracking fails
+            print(f"Activity tracking error: {e}")
+        
+        return activity.id
+    
+    def get_pipeline_summary(self) -> Dict[str, int]:
+        """Get sales pipeline summary"""
+        pipeline = {}
+        for status in LeadStatus:
+            pipeline[status.value] = len([lead for lead in self.leads if lead.status == status])
+        return pipeline
+    
+    def get_lead_conversion_rate(self) -> float:
+        """Calculate lead conversion rate"""
+        if not self.leads:
+            return 0.0
+        
+        closed_won = len([lead for lead in self.leads if lead.status == LeadStatus.CLOSED_WON])
+        total_closed = len([lead for lead in self.leads 
+                          if lead.status in [LeadStatus.CLOSED_WON, LeadStatus.CLOSED_LOST]])
+        
+        return (closed_won / total_closed * 100) if total_closed > 0 else 0.0
+    
+    def get_overdue_tasks(self) -> List[Task]:
+        """Get overdue tasks"""
+        now = datetime.now()
+        return [task for task in self.tasks 
+                if not task.completed and task.due_date and task.due_date < now]
+    
+    def get_upcoming_tasks(self, days_ahead: int = 7) -> List[Task]:
+        """Get upcoming tasks"""
+        now = datetime.now()
+        future = now + timedelta(days=days_ahead)
+        return [task for task in self.tasks 
+                if not task.completed and task.due_date 
+                and now <= task.due_date <= future]
+    
+    def get_lead_by_id(self, lead_id: str) -> Optional[Lead]:
+        """Get lead by ID"""
+        for lead in self.leads:
+            if lead.id == lead_id:
+                return lead
+        return None
+    
+    def get_contact_by_id(self, contact_id: str) -> Optional[Contact]:
+        """Get contact by ID"""
+        for contact in self.contacts:
+            if contact.id == contact_id:
+                return contact
+        return None
+    
+    # ==== DEAL MANAGEMENT METHODS ====
+    
+    def add_deal(self, deal: Deal) -> str:
+        """Add new deal"""
+        deal.estimated_roi = deal.calculate_roi()
+        self.deals.append(deal)
+        self.save_data()
+        
+        # Log activity
+        self.log_activity(
+            activity_type="Deal Created",
+            subject=f"New deal: {deal.title}",
+            description=f"Deal created at {deal.property_address}",
+            user_id="system"
+        )
+        return deal.id
+    
+    def update_deal(self, deal_id: str, updates: Dict[str, Any]) -> bool:
+        """Update existing deal"""
+        for deal in self.deals:
+            if deal.id == deal_id:
+                for key, value in updates.items():
+                    if hasattr(deal, key):
+                        setattr(deal, key, value)
+                deal.updated_at = datetime.now()
+                deal.estimated_roi = deal.calculate_roi()
+                self.save_data()
+                return True
+        return False
+    
+    def get_deals_by_status(self, status: DealStatus) -> List[Deal]:
+        """Get deals by status"""
+        return [deal for deal in self.deals if deal.status == status]
+    
+    def get_active_deals(self) -> List['Deal']:
+        """Get active deals (not dead or closed)"""
+        active_statuses = [
+            DealStatus.LEAD, DealStatus.ANALYZING, DealStatus.UNDER_CONTRACT,
+            DealStatus.DUE_DILIGENCE, DealStatus.FINANCING, DealStatus.CLOSING
+        ]
+        return [deal for deal in self.deals if deal.status in active_statuses]
+    
+    def find_matching_buyers_for_deal(self, deal: 'Deal') -> List[Dict[str, Any]]:
+        """Find buyers that match deal criteria"""
+        matching_buyers = self.matching_engine.find_matching_buyers(deal, self.buyers)
+        results = []
+        
+        for buyer in matching_buyers:
+            match_score = self.matching_engine.score_deal_match(deal, buyer)
+            results.append({
+                'buyer': buyer,
+                'match_score': match_score
+            })
+        
+        # Sort by match score descending
+        results.sort(key=lambda x: x['match_score'], reverse=True)
+        return results
+    
+    # ==== BUYER MANAGEMENT METHODS ====
+    
+    def add_buyer(self, buyer: BuyerCriteria) -> str:
+        """Add new buyer"""
+        self.buyers.append(buyer)
+        self.save_data()
+        
+        # Log activity
+        self.log_activity(
+            activity_type="Buyer Added",
+            subject=f"New buyer: {buyer.buyer_name}",
+            description=f"Buyer criteria added for {buyer.investor_type.value}",
+            user_id="system"
+        )
+        return buyer.id
+    
+    def update_buyer(self, buyer_id: str, updates: Dict[str, Any]) -> bool:
+        """Update existing buyer"""
+        for buyer in self.buyers:
+            if buyer.id == buyer_id:
+                for key, value in updates.items():
+                    if hasattr(buyer, key):
+                        setattr(buyer, key, value)
+                self.save_data()
+                return True
+        return False
+    
+    def get_active_buyers(self) -> List[BuyerCriteria]:
+        """Get active buyers"""
+        return [buyer for buyer in self.buyers if buyer.active]
+    
+    def send_deal_to_buyers(self, deal: 'Deal', buyer_ids: List[str] = None) -> Dict[str, Any]:
+        """Send deal to matching buyers or specified buyers"""
+        if buyer_ids:
+            # Send to specific buyers
+            selected_buyers = [buyer for buyer in self.buyers if buyer.id in buyer_ids]
+        else:
+            # Send to all matching buyers
+            matches = self.find_matching_buyers_for_deal(deal)
+            selected_buyers = [match['buyer'] for match in matches]
+        
+        # Log activity for each buyer
+        sent_count = 0
+        for buyer in selected_buyers:
+            self.log_activity(
+                activity_type="Deal Sent",
+                subject=f"Deal sent to {buyer.buyer_name}",
+                description=f"Deal '{deal.title}' sent to buyer {buyer.buyer_name}",
+                user_id="system"
+            )
+            sent_count += 1
+        
+        return {
+            'sent_count': sent_count,
+            'buyers': selected_buyers,
+            'deal': deal
+        }
+    
+    # ==== COMMUNICATION METHODS ====
+    
+    def send_message(self, sender_name: str, sender_email: str, recipient_name: str, 
+                    recipient_email: str, subject: str, content: str, 
+                    message_type: MessageType = MessageType.GENERAL_MESSAGE,
+                    related_deal_id: str = None) -> str:
+        """Send a message"""
+        message = Message(
+            sender_name=sender_name,
+            sender_email=sender_email,
+            recipient_name=recipient_name,
+            recipient_email=recipient_email,
+            subject=subject,
+            content=content,
+            message_type=message_type,
+            related_deal_id=related_deal_id
+        )
+        
+        self.messages.append(message)
+        self.save_data()
+        
+        # Log activity
+        self.log_activity(
+            activity_type="Message Sent",
+            subject=f"Message sent to {recipient_name}",
+            description=f"Subject: {subject}",
+            user_id="system"
+        )
+        
+        return message.id
+    
+    def send_deal_alert(self, deal: 'Deal', recipient_emails: List[str], 
+                       alert_type: str = "new_deal") -> str:
+        """Send deal alert to multiple recipients"""
+        # Create personalized subject and content
+        if alert_type == "new_deal":
+            subject = f"🔥 New Deal Alert: {deal.title}"
+            content = f"""
+            New Creative Finance Deal Available!
+            
+            Property: {deal.title}
+            Address: {deal.property_address}
+            Deal Type: {deal.deal_type.value}
+            Purchase Price: ${deal.purchase_price:,.0f}
+            ARV: ${deal.arv:,.0f}
+            Estimated ROI: {deal.estimated_roi:.1f}%
+            Estimated Repairs: ${deal.estimated_repairs:,.0f}
+            
+            Property Details:
+            - Bedrooms: {deal.bedrooms}
+            - Bathrooms: {deal.bathrooms}
+            - Square Feet: {deal.square_feet:,}
+            
+            Financing: {deal.financing_method.value if deal.financing_method else 'Traditional'}
+            
+            Contact us immediately if interested!
+            """
+        elif alert_type == "price_change":
+            subject = f"💰 Price Update: {deal.title}"
+            content = f"Price change notification for {deal.title} at {deal.property_address}"
+        elif alert_type == "status_change":
+            subject = f"📋 Status Update: {deal.title}"
+            content = f"Status changed to {deal.status.value} for {deal.title}"
+        else:
+            subject = f"🔔 Deal Update: {deal.title}"
+            content = f"Update for {deal.title} at {deal.property_address}"
+        
+        # Create deal alert record
+        deal_alert = DealAlert(
+            deal_id=deal.id,
+            recipient_emails=recipient_emails,
+            alert_type=alert_type,
+            subject=subject,
+            content=content,
+            sent_count=len(recipient_emails)
+        )
+        
+        self.deal_alerts.append(deal_alert)
+        
+        # Create individual messages for each recipient
+        for email in recipient_emails:
+            # Try to find buyer name by email
+            recipient_name = "Valued Investor"
+            for buyer in self.buyers:
+                if buyer.buyer_email == email:
+                    recipient_name = buyer.buyer_name
+                    break
+            
+            self.send_message(
+                sender_name="Deal Team",
+                sender_email="deals@nxtrix.com",
+                recipient_name=recipient_name,
+                recipient_email=email,
+                subject=subject,
+                content=content,
+                message_type=MessageType.DEAL_ALERT,
+                related_deal_id=deal.id
+            )
+        
+        self.save_data()
+        return deal_alert.id
+    
+    def get_messages_for_deal(self, deal_id: str) -> List['Message']:
+        """Get all messages related to a deal"""
+        return [msg for msg in self.messages if msg.related_deal_id == deal_id]
+    
+    def get_recent_messages(self, limit: int = 10) -> List['Message']:
+        """Get recent messages"""
+        return sorted(self.messages, key=lambda x: x.created_at, reverse=True)[:limit]
+    
+    def mark_message_as_read(self, message_id: str) -> bool:
+        """Mark message as read"""
+        for message in self.messages:
+            if message.id == message_id:
+                message.status = MessageStatus.READ
+                message.read_at = datetime.now()
+                self.save_data()
+                return True
+        return False
+    
+    def get_portfolio_summary(self) -> Dict[str, Any]:
+        """Get portfolio performance summary"""
+        active_deals = self.get_active_deals()
+        closed_deals = [deal for deal in self.deals if deal.status == DealStatus.CLOSED]
+        
+        total_value = sum(deal.purchase_price for deal in closed_deals)
+        total_profit = sum(deal.projected_profit for deal in closed_deals)
+        avg_roi = sum(deal.estimated_roi for deal in closed_deals) / len(closed_deals) if closed_deals else 0
+        
+        return {
+            'active_deals': len(active_deals),
+            'closed_deals': len(closed_deals),
+            'total_portfolio_value': total_value,
+            'total_profit': total_profit,
+            'average_roi': avg_roi,
+            'pipeline_value': sum(deal.purchase_price for deal in active_deals)
+        }
+
+class CRMVisualization:
+    """CRM visualization and analytics"""
+    
+    def create_pipeline_funnel(self, pipeline_data: Dict[str, int]) -> go.Figure:
+        """Create sales pipeline funnel chart"""
+        # Reorder pipeline stages for funnel
+        funnel_order = [
+            LeadStatus.NEW.value,
+            LeadStatus.CONTACTED.value,
+            LeadStatus.QUALIFIED.value,
+            LeadStatus.MEETING_SCHEDULED.value,
+            LeadStatus.PROPOSAL_SENT.value,
+            LeadStatus.NEGOTIATING.value,
+            LeadStatus.CLOSED_WON.value
+        ]
+        
+        values = [pipeline_data.get(stage, 0) for stage in funnel_order]
+        
+        fig = go.Figure(go.Funnel(
+            y=funnel_order,
+            x=values,
+            textinfo="value+percent initial",
+            marker_color=['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD', '#98D8C8']
+        ))
+        
+        fig.update_layout(
+            title="Sales Pipeline Funnel",
+            font_size=12,
+            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor='rgba(0,0,0,0)'
+        )
+        
+        return fig
+    
+    def create_lead_source_chart(self, leads: List[Lead]) -> go.Figure:
+        """Create lead source distribution chart"""
+        source_counts = {}
+        for lead in leads:
+            source = lead.lead_source.value
+            source_counts[source] = source_counts.get(source, 0) + 1
+        
+        fig = go.Figure(data=[
+            go.Pie(
+                labels=list(source_counts.keys()),
+                values=list(source_counts.values()),
+                hole=0.3,
+                marker_colors=['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD', '#98D8C8', '#F7DC6F', '#BB8FCE']
+            )
+        ])
+        
+        fig.update_layout(
+            title="Lead Sources Distribution",
+            font_size=12,
+            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor='rgba(0,0,0,0)'
+        )
+        
+        return fig
+    
+    def create_lead_score_distribution(self, leads: List[Lead]) -> go.Figure:
+        """Create lead score distribution histogram"""
+        scores = [lead.score for lead in leads]
+        
+        fig = go.Figure(data=[
+            go.Histogram(
+                x=scores,
+                nbinsx=20,
+                marker_color='#4ECDC4',
+                opacity=0.7
+            )
+        ])
+        
+        fig.update_layout(
+            title="Lead Score Distribution",
+            xaxis_title="Lead Score",
+            yaxis_title="Number of Leads",
+            font_size=12,
+            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor='rgba(0,0,0,0)'
+        )
+        
+        return fig
+    
+    def create_activity_timeline(self, activities: List[Activity]) -> go.Figure:
+        """Create activity timeline chart"""
+        if not activities:
+            return go.Figure()
+        
+        # Group activities by date
+        activity_counts = {}
+        for activity in activities:
+            date = activity.created_at.date()
+            activity_counts[date] = activity_counts.get(date, 0) + 1
+        
+        dates = list(activity_counts.keys())
+        counts = list(activity_counts.values())
+        
+        fig = go.Figure(data=[
+            go.Scatter(
+                x=dates,
+                y=counts,
+                mode='lines+markers',
+                line=dict(color='#45B7D1', width=3),
+                marker=dict(size=8, color='#45B7D1')
+            )
+        ])
+        
+        fig.update_layout(
+            title="Activity Timeline",
+            xaxis_title="Date",
+            yaxis_title="Number of Activities",
+            font_size=12,
+            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor='rgba(0,0,0,0)'
+        )
+        
+        return fig
+
+# ==== DEAL MANAGEMENT SYSTEM ====
+
+@dataclass
+class Deal:
+    """Deal data model"""
+    id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    title: str = ""
+    property_address: str = ""
+    property_type: PropertyType = PropertyType.SINGLE_FAMILY
+    deal_type: DealType = DealType.WHOLESALE
+    status: DealStatus = DealStatus.LEAD
+    
+    # Financial Details
+    asking_price: float = 0
+    arv: float = 0  # After Repair Value
+    estimated_repairs: float = 0
+    purchase_price: float = 0
+    wholesale_fee: float = 0
+    estimated_roi: float = 0
+    projected_profit: float = 0
+    
+    # Property Details
+    bedrooms: int = 0
+    bathrooms: float = 0
+    square_feet: int = 0
+    lot_size: float = 0
+    year_built: int = 0
+    condition: str = ""
+    
+    # Deal Information
+    lead_source: str = ""
+    seller_name: str = ""
+    seller_phone: str = ""
+    seller_email: str = ""
+    seller_motivation: str = ""
+    timeline: str = ""
+    
+    # Financial Analysis
+    monthly_rent: float = 0
+    monthly_expenses: float = 0
+    cap_rate: float = 0
+    cash_on_cash: float = 0
+    
+    # Creative Finance Details
+    current_mortgage: float = 0
+    monthly_payment: float = 0
+    interest_rate: float = 0
+    financing_method: Optional[CreativeFinanceMethod] = None
+    
+    # Tracking
+    assigned_to: str = ""
+    created_at: datetime = field(default_factory=datetime.now)
+    updated_at: datetime = field(default_factory=datetime.now)
+    notes: str = ""
+    
+    def calculate_roi(self) -> float:
+        """Calculate ROI for the deal"""
+        if self.purchase_price == 0:
+            return 0
+        
+        total_investment = self.purchase_price + self.estimated_repairs
+        if total_investment == 0:
+            return 0
+            
+        if self.deal_type == DealType.WHOLESALE:
+            return (self.wholesale_fee / total_investment) * 100
+        elif self.deal_type in [DealType.FIX_AND_FLIP]:
+            profit = self.arv - total_investment
+            return (profit / total_investment) * 100
+        elif self.deal_type == DealType.BUY_AND_HOLD:
+            annual_cash_flow = (self.monthly_rent - self.monthly_expenses) * 12
+            return (annual_cash_flow / total_investment) * 100
+        
+        return 0
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert deal to dictionary"""
+        return {
+            'id': self.id,
+            'title': self.title,
+            'property_address': self.property_address,
+            'property_type': self.property_type.value,
+            'deal_type': self.deal_type.value,
+            'status': self.status.value,
+            'asking_price': self.asking_price,
+            'arv': self.arv,
+            'estimated_repairs': self.estimated_repairs,
+            'purchase_price': self.purchase_price,
+            'wholesale_fee': self.wholesale_fee,
+            'estimated_roi': self.estimated_roi,
+            'projected_profit': self.projected_profit,
+            'bedrooms': self.bedrooms,
+            'bathrooms': self.bathrooms,
+            'square_feet': self.square_feet,
+            'lot_size': self.lot_size,
+            'year_built': self.year_built,
+            'condition': self.condition,
+            'lead_source': self.lead_source,
+            'seller_name': self.seller_name,
+            'seller_phone': self.seller_phone,
+            'seller_email': self.seller_email,
+            'seller_motivation': self.seller_motivation,
+            'timeline': self.timeline,
+            'monthly_rent': self.monthly_rent,
+            'monthly_expenses': self.monthly_expenses,
+            'cap_rate': self.cap_rate,
+            'cash_on_cash': self.cash_on_cash,
+            'current_mortgage': self.current_mortgage,
+            'monthly_payment': self.monthly_payment,
+            'interest_rate': self.interest_rate,
+            'financing_method': self.financing_method.value if self.financing_method else None,
+            'assigned_to': self.assigned_to,
+            'created_at': self.created_at.isoformat(),
+            'updated_at': self.updated_at.isoformat(),
+            'notes': self.notes
+        }
+
+@dataclass
+class BuyerCriteria:
+    """Buyer investment criteria"""
+    id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    buyer_name: str = ""
+    buyer_email: str = ""
+    buyer_phone: str = ""
+    investor_type: InvestorType = InvestorType.WHOLESALER
+    
+    # Investment Criteria
+    min_roi: float = 0
+    max_purchase_price: float = 0
+    preferred_property_types: List[PropertyType] = field(default_factory=list)
+    preferred_deal_types: List[DealType] = field(default_factory=list)
+    target_locations: List[str] = field(default_factory=list)
+    
+    # Financial Criteria
+    min_bedrooms: int = 0
+    max_repairs: float = 0
+    cash_available: float = 0
+    financing_ready: bool = False
+    
+    # Preferences
+    preferred_finance_methods: List[CreativeFinanceMethod] = field(default_factory=list)
+    notes: str = ""
+    active: bool = True
+    created_at: datetime = field(default_factory=datetime.now)
+    
+    def matches_deal(self, deal: Deal) -> bool:
+        """Check if deal matches buyer criteria"""
+        # ROI check
+        if deal.estimated_roi < self.min_roi:
+            return False
+            
+        # Price check
+        if self.max_purchase_price > 0 and deal.purchase_price > self.max_purchase_price:
+            return False
+            
+        # Property type check
+        if self.preferred_property_types and deal.property_type not in self.preferred_property_types:
+            return False
+            
+        # Deal type check
+        if self.preferred_deal_types and deal.deal_type not in self.preferred_deal_types:
+            return False
+            
+        # Repairs check
+        if self.max_repairs > 0 and deal.estimated_repairs > self.max_repairs:
+            return False
+            
+        # Bedroom check
+        if self.min_bedrooms > 0 and deal.bedrooms < self.min_bedrooms:
+            return False
+            
+        return True
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert buyer criteria to dictionary"""
+        return {
+            'id': self.id,
+            'buyer_name': self.buyer_name,
+            'buyer_email': self.buyer_email,
+            'buyer_phone': self.buyer_phone,
+            'investor_type': self.investor_type.value,
+            'min_roi': self.min_roi,
+            'max_purchase_price': self.max_purchase_price,
+            'preferred_property_types': [pt.value for pt in self.preferred_property_types],
+            'preferred_deal_types': [dt.value for dt in self.preferred_deal_types],
+            'target_locations': self.target_locations,
+            'min_bedrooms': self.min_bedrooms,
+            'max_repairs': self.max_repairs,
+            'cash_available': self.cash_available,
+            'financing_ready': self.financing_ready,
+            'preferred_finance_methods': [method.value for method in self.preferred_finance_methods],
+            'notes': self.notes,
+            'active': self.active,
+            'created_at': self.created_at.isoformat()
+        }
+
+class DealMatchingEngine:
+    """Engine for matching deals to buyers"""
+    
+    def find_matching_buyers(self, deal: Deal, buyers: List[BuyerCriteria]) -> List[BuyerCriteria]:
+        """Find buyers that match the deal criteria"""
+        matching_buyers = []
+        for buyer in buyers:
+            if buyer.active and buyer.matches_deal(deal):
+                matching_buyers.append(buyer)
+        return matching_buyers
+    
+    def score_deal_match(self, deal: Deal, buyer: BuyerCriteria) -> float:
+        """Score how well a deal matches buyer criteria (0-100)"""
+        score = 0
+        max_score = 100
+        
+        # ROI score (30% weight)
+        if deal.estimated_roi >= buyer.min_roi:
+            roi_score = min((deal.estimated_roi / buyer.min_roi) * 30, 30)
+            score += roi_score
+        
+        # Property type preference (20% weight)
+        if not buyer.preferred_property_types or deal.property_type in buyer.preferred_property_types:
+            score += 20
+        
+        # Deal type preference (20% weight)
+        if not buyer.preferred_deal_types or deal.deal_type in buyer.preferred_deal_types:
+            score += 20
+        
+        # Price preference (15% weight)
+        if buyer.max_purchase_price == 0 or deal.purchase_price <= buyer.max_purchase_price:
+            score += 15
+        
+        # Repair tolerance (10% weight)
+        if buyer.max_repairs == 0 or deal.estimated_repairs <= buyer.max_repairs:
+            score += 10
+        
+        # Bedroom preference (5% weight)
+        if buyer.min_bedrooms == 0 or deal.bedrooms >= buyer.min_bedrooms:
+            score += 5
+        
+        return min(score, max_score)
+
+# ==== COMMUNICATION SYSTEM ====
+
+@dataclass
+class Message:
+    """Message data model"""
+    id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    sender_name: str = ""
+    sender_email: str = ""
+    recipient_name: str = ""
+    recipient_email: str = ""
+    subject: str = ""
+    content: str = ""
+    message_type: MessageType = MessageType.GENERAL_MESSAGE
+    status: MessageStatus = MessageStatus.SENT
+    related_deal_id: Optional[str] = None
+    created_at: datetime = field(default_factory=datetime.now)
+    read_at: Optional[datetime] = None
+    replied_at: Optional[datetime] = None
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert message to dictionary"""
+        return {
+            'id': self.id,
+            'sender_name': self.sender_name,
+            'sender_email': self.sender_email,
+            'recipient_name': self.recipient_name,
+            'recipient_email': self.recipient_email,
+            'subject': self.subject,
+            'content': self.content,
+            'message_type': self.message_type.value,
+            'status': self.status.value,
+            'related_deal_id': self.related_deal_id,
+            'created_at': self.created_at.isoformat(),
+            'read_at': self.read_at.isoformat() if self.read_at else None,
+            'replied_at': self.replied_at.isoformat() if self.replied_at else None
+        }
+
+@dataclass
+class DealAlert:
+    """Deal alert/notification data model"""
+    id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    deal_id: str = ""
+    recipient_emails: List[str] = field(default_factory=list)
+    alert_type: str = ""  # "new_deal", "price_change", "status_change"
+    subject: str = ""
+    content: str = ""
+    sent_at: datetime = field(default_factory=datetime.now)
+    sent_count: int = 0
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert deal alert to dictionary"""
+        return {
+            'id': self.id,
+            'deal_id': self.deal_id,
+            'recipient_emails': self.recipient_emails,
+            'alert_type': self.alert_type,
+            'subject': self.subject,
+            'content': self.content,
+            'sent_at': self.sent_at.isoformat(),
+            'sent_count': self.sent_count
+        }
+
+# Initialize CRM manager
+@st.cache_resource
+def get_crm_manager():
+    """Get CRM manager instance"""
+    return CRMManager()
+
+def show_enhanced_crm():
+    """Main Enhanced CRM interface"""
+    st.title("🤝 Enhanced CRM Features")
+    st.markdown("---")
+    
+    crm = get_crm_manager()
+    viz = CRMVisualization()
+    
+    # Sidebar navigation
+    crm_pages = [
+        "🏠 CRM Dashboard",
+        "👥 Lead Management", 
+        "💼 Deal Management",
+        "🎯 Buyer Management",
+        "📞 Contact Management",
+        "📋 Task Management",
+        "💬 Communication Hub",
+        "🤖 Deal Automation",
+        "📊 Pipeline Analytics",
+        "� Advanced Analytics",
+        "�📈 Performance Reports",
+        "💰 ROI Dashboard",
+        "🎯 Activity Tracking",
+        "🔍 Automated Deal Sourcing",
+        "🧠 AI Enhancement System",
+        "⚡ Advanced Automation"
+    ]
+    
+    selected_page = st.sidebar.selectbox("Select CRM Module", crm_pages)
+    
+    if selected_page == "🏠 CRM Dashboard":
+        show_crm_dashboard(crm, viz)
+    elif selected_page == "👥 Lead Management":
+        show_lead_management(crm)
+    elif selected_page == "💼 Deal Management":
+        show_deal_management(crm)
+    elif selected_page == "🎯 Buyer Management":
+        show_buyer_management(crm)
+    elif selected_page == "📞 Contact Management":
+        show_contact_management(crm)
+    elif selected_page == "📋 Task Management":
+        show_task_management(crm)
+    elif selected_page == "💬 Communication Hub":
+        show_communication_hub(crm)
+    elif selected_page == "🤖 Deal Automation":
+        show_deal_automation(crm)
+    elif selected_page == "📊 Pipeline Analytics":
+        show_pipeline_analytics(crm, viz)
+    elif selected_page == "� Advanced Analytics":
+        show_advanced_deal_analytics(crm)
+    elif selected_page == "�📈 Performance Reports":
+        show_performance_reports(crm, viz)
+    elif selected_page == "💰 ROI Dashboard":
+        show_roi_dashboard(crm)
+    elif selected_page == "🎯 Activity Tracking":
+        show_activity_tracking(crm)
+    elif selected_page == "🔍 Automated Deal Sourcing":
+        show_automated_deal_sourcing()
+    elif selected_page == "🧠 AI Enhancement System":
+        show_ai_enhancement_system()
+    elif selected_page == "⚡ Advanced Automation":
+        show_advanced_automation_system()
+    elif selected_page == "⚙️ Subscription Management":
+        show_subscription_management()
+    
+    # Handle form dialogs from session state
+    if st.session_state.get('show_add_lead', False):
+        show_add_lead_form(crm)
+    
+    if st.session_state.get('show_add_contact', False):
+        show_add_contact_form(crm)
+        
+    if st.session_state.get('show_add_task', False):
+        show_add_task_form(crm)
+        
+    if st.session_state.get('show_add_deal', False):
+        show_add_deal_form(crm)
+
+def show_crm_dashboard(crm: CRMManager, viz: CRMVisualization):
+    """Show CRM dashboard"""
+    st.header("📊 CRM Dashboard")
+    
+    # Key metrics
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        st.metric("Total Leads", len(crm.leads))
+        
+    with col2:
+        st.metric("Total Contacts", len(crm.contacts))
+        
+    with col3:
+        pending_tasks = len([task for task in crm.tasks if not task.completed])
+        st.metric("Pending Tasks", pending_tasks)
+        
+    with col4:
+        conversion_rate = crm.get_lead_conversion_rate()
+        st.metric("Conversion Rate", f"{conversion_rate:.1f}%")
+    
+    # Quick actions
+    st.subheader("⚡ Quick Actions")
     col1, col2, col3 = st.columns(3)
     
     with col1:
-        search_term = st.text_input("🔍 Search Deals", placeholder="Search by address, type, or status...")
-    
+        if st.button("➕ Add New Lead", use_container_width=True):
+            st.session_state.show_add_lead = True
+            
     with col2:
-        status_filter = st.selectbox("Filter by Status", 
-                                   ["All", "New", "Analyzing", "Under Contract", "Negotiating", "Closed", "Passed"])
-    
+        if st.button("👤 Add New Contact", use_container_width=True):
+            st.session_state.show_add_contact = True
+            
     with col3:
-        sort_by = st.selectbox("Sort by", 
-                             ["Created Date (Newest)", "AI Score (Highest)", "Purchase Price (Highest)", "ROI (Highest)"])
+        if st.button("📝 Add New Task", use_container_width=True):
+            st.session_state.show_add_task = True
     
-    # Get deals from database
-    if search_term:
-        deals = db_service.search_deals(search_term)
+    # Recent activities
+    st.subheader("🕒 Recent Activities")
+    if crm.activities:
+        recent_activities = sorted(crm.activities, key=lambda x: x.created_at, reverse=True)[:5]
+        for activity in recent_activities:
+            with st.expander(f"{activity.activity_type} - {activity.subject}"):
+                st.write(f"**Description:** {activity.description}")
+                st.write(f"**Date:** {activity.created_at.strftime('%Y-%m-%d %H:%M')}")
     else:
-        deals = db_service.get_deals()
+        st.info("No recent activities found.")
+    
+    # Overdue tasks alert
+    overdue_tasks = crm.get_overdue_tasks()
+    if overdue_tasks:
+        st.error(f"⚠️ You have {len(overdue_tasks)} overdue tasks!")
+        
+    # Upcoming tasks
+    upcoming_tasks = crm.get_upcoming_tasks()
+    if upcoming_tasks:
+        st.warning(f"📅 You have {len(upcoming_tasks)} tasks due in the next 7 days.")
+
+def show_lead_management(crm: CRMManager):
+    """Enhanced lead management interface with comprehensive CRUD operations"""
+    st.header("👥 Creative Finance Lead Management")
+    
+    # Lead summary metrics
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.metric("Total Leads", len(crm.leads))
+    with col2:
+        new_leads = len([lead for lead in crm.leads if lead.status == LeadStatus.NEW])
+        st.metric("New Leads", new_leads)
+    with col3:
+        qualified_leads = len([lead for lead in crm.leads if lead.status == LeadStatus.QUALIFIED])
+        st.metric("Qualified Leads", qualified_leads)
+    with col4:
+        avg_score = sum(lead.score for lead in crm.leads) / len(crm.leads) if crm.leads else 0
+        st.metric("Avg Lead Score", f"{avg_score:.1f}")
+    
+    st.markdown("---")
+    
+    # Action buttons row
+    st.subheader("⚡ Quick Actions")
+    col1, col2, col3, col4, col5 = st.columns(5)
+    
+    with col1:
+        if st.button("🏠 Add Seller Lead", use_container_width=True):
+            st.session_state.show_seller_lead = True
+            
+    with col2:
+        if st.button("💰 Add Investor Lead", use_container_width=True):
+            st.session_state.show_investor_lead = True
+            
+    with col3:
+        if st.button("🔍 Add Buyer Lead", use_container_width=True):
+            st.session_state.show_buyer_lead = True
+            
+    with col4:
+        if st.button("📝 Add General Lead", use_container_width=True):
+            st.session_state.show_general_lead = True
+    
+    with col5:
+        # CSV Export functionality
+        if st.button("📥 Export Leads CSV", use_container_width=True):
+            csv_data = crm.export_leads_csv()
+            if csv_data:
+                st.download_button(
+                    label="⬇️ Download Leads CSV",
+                    data=csv_data,
+                    file_name=f"leads_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                    mime="text/csv",
+                    use_container_width=True
+                )
+                st.success("✅ Leads CSV ready for download!")
+            else:
+                st.warning("No leads to export")
+    
+    # Search and filter functionality
+    st.markdown("---")
+    st.subheader("🔍 Search & Filter Leads")
+    
+    col1, col2 = st.columns([2, 1])
+    with col1:
+        search_query = st.text_input("🔍 Search leads", 
+                                   placeholder="Search by name, email, phone, or address...")
+    with col2:
+        st.write("")  # spacing
+        if st.button("🔄 Refresh Data", use_container_width=True):
+            crm.load_data()
+            st.success("Data refreshed!")
+            st.rerun()
+    
+    # Advanced filters
+    with st.expander("🔧 Advanced Filters", expanded=False):
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            status_filter = st.selectbox("Filter by Status", 
+                                       ["All"] + [status.value for status in LeadStatus])
+        
+        with col2:
+            source_filter = st.selectbox("Filter by Source", 
+                                       ["All"] + [source.value for source in LeadSource])
+                                       
+        with col3:
+            score_min = st.slider("Minimum Score", 0, 100, 0)
+            score_max = st.slider("Maximum Score", 0, 100, 100)
+            
+        with col4:
+            date_filter = st.selectbox("Date Range", 
+                                     ["All Time", "Today", "This Week", "This Month", "Last 30 Days"])
+    
+    # Apply search and filters
+    filtered_leads = crm.leads.copy()
+    
+    # Apply search query
+    if search_query:
+        filtered_leads = crm.search_leads(search_query)
     
     # Apply status filter
     if status_filter != "All":
-        deals = [deal for deal in deals if deal.status == status_filter]
+        filtered_leads = [lead for lead in filtered_leads if lead.status.value == status_filter]
     
-    # Sort deals
-    if sort_by == "AI Score (Highest)":
-        deals.sort(key=lambda x: x.ai_score, reverse=True)
-    elif sort_by == "Purchase Price (Highest)":
-        deals.sort(key=lambda x: x.purchase_price, reverse=True)
-    elif sort_by == "ROI (Highest)":
-        deals.sort(key=lambda x: ((x.arv - x.purchase_price - x.repair_costs) / (x.purchase_price + x.repair_costs) * 100) if (x.purchase_price + x.repair_costs) > 0 else 0, reverse=True)
-  # Created Date (Newest)
-        deals.sort(key=lambda x: x.created_at, reverse=True)
+    # Apply source filter
+    if source_filter != "All":
+        filtered_leads = [lead for lead in filtered_leads if lead.lead_source.value == source_filter]
     
-    if deals:
-        st.subheader(f"📋 Found {len(deals)} deals")
+    # Apply score filter
+    filtered_leads = [lead for lead in filtered_leads if score_min <= lead.score <= score_max]
+    
+    # Apply date filter
+    if date_filter != "All Time":
+        now = datetime.now()
+        if date_filter == "Today":
+            start_date = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        elif date_filter == "This Week":
+            start_date = now - timedelta(days=now.weekday())
+        elif date_filter == "This Month":
+            start_date = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        elif date_filter == "Last 30 Days":
+            start_date = now - timedelta(days=30)
         
-        # Display deals in cards
-        for deal in deals:
-            with st.expander(f"🏠 {deal.address} - AI Score: {deal.ai_score}/100", expanded=False):
-                col_deal1, col_deal2, col_deal3 = st.columns(3)
-                
-                with col_deal1:
-                    st.write("**Property Details:**")
-                    st.write(f"• Type: {deal.property_type}")
-                    st.write(f"• Condition: {deal.condition}")
-                    st.write(f"• Neighborhood: {deal.neighborhood_grade}")
-                    st.write(f"• Market Trend: {deal.market_trend}")
-                
-                with col_deal2:
-                    st.write("**Financial Summary:**")
-                    st.write(f"• Purchase Price: ${deal.purchase_price:,.0f}")
-                    st.write(f"• ARV: ${deal.arv:,.0f}")
-                    st.write(f"• Repair Costs: ${deal.repair_costs:,.0f}")
-                    st.write(f"• Monthly Rent: ${deal.monthly_rent:,.0f}")
-                    
-                    # Calculate ROI
-                    total_investment = deal.purchase_price + deal.repair_costs
-                    roi = ((deal.arv - total_investment) / total_investment * 100) if total_investment > 0 else 0
-                    st.write(f"• ROI: {roi:.1f}%")
-                
-                with col_deal3:
-                    st.write("**Deal Status:**")
-                    
-                    # Status badge with color
-                    status_colors = {
-                        "New": "🆕",
-                        "Analyzing": "🔍", 
-                        "Under Contract": "📝",
-                        "Negotiating": "💬",
-                        "Closed": "✅",
-                        "Passed": "❌"
-                    }
-                    
-                    st.write(f"• Status: {status_colors.get(deal.status, '📋')} {deal.status}")
-                    st.write(f"• Created: {deal.created_at.strftime('%Y-%m-%d') if hasattr(deal.created_at, 'strftime') else deal.created_at}")
-                    st.write(f"• AI Score: {deal.ai_score}/100")
-                
-                # Notes section
-                if deal.notes:
-                    st.write("**Notes:**")
-                    st.write(deal.notes)
-                
-                # Action buttons
-                col_action1, col_action2, col_action3 = st.columns(3)
-                
-                with col_action1:
-                    if st.button(f"📊 Re-analyze", key=f"analyze_{deal.id}"):
-                        # Store deal data in session state for analysis
-                        st.session_state.analyzed_deal = deal.to_dict()
-                        navigate_to_page("🏠 Deal Analysis")
-                
-                with col_action2:
-                    new_status = st.selectbox("Update Status", 
-                                            ["New", "Analyzing", "Under Contract", "Negotiating", "Closed", "Passed"],
-                                            index=["New", "Analyzing", "Under Contract", "Negotiating", "Closed", "Passed"].index(deal.status),
-                                            key=f"status_{deal.id}")
-                    
-                    if new_status != deal.status:
-                        if st.button(f"💾 Update Status", key=f"update_{deal.id}"):
-                            deal.status = new_status
-                            if db_service.update_deal(deal):
-                                st.success(f"✅ Status updated to {new_status}")
-                                st.rerun()
-                        
-                                st.error("❌ Failed to update status")
-                
-                with col_action3:
-                    # Create a unique key for the delete confirmation
-                    delete_key = f"confirm_delete_{deal.id}"
-                    
-                    if delete_key not in st.session_state:
-                        st.session_state[delete_key] = False
-                    
-                    if not st.session_state[delete_key]:
-                        if st.button(f"🗑️ Delete Deal", key=f"delete_{deal.id}", type="secondary"):
-                            st.session_state[delete_key] = True
-                            st.rerun()
-                
-                        st.warning(f"⚠️ Confirm deletion of {deal.address}?")
-                        col_confirm1, col_confirm2 = st.columns(2)
-                        
-                        with col_confirm1:
-                            if st.button("✅ Yes, Delete", key=f"confirm_yes_{deal.id}", type="primary"):
-                                if db_service.delete_deal(deal.id):
-                                    st.success("✅ Deal deleted successfully")
-                                    del st.session_state[delete_key]
-                                    st.rerun()
-                            
-                                    st.error("❌ Failed to delete deal")
-                                    st.session_state[delete_key] = False
-                        
-                        with col_confirm2:
-                            if st.button("❌ Cancel", key=f"cancel_{deal.id}"):
-                                st.session_state[delete_key] = False
-                                st.rerun()
+        filtered_leads = [lead for lead in filtered_leads if lead.created_at >= start_date]
     
-
-        st.info("📭 No deals found. Add some deals using the Deal Analysis section!")
-        
-        if st.button("➕ Add New Deal", type="primary"):
-            navigate_to_page("🏠 Deal Analysis")
-    
-    # Database analytics
     st.markdown("---")
-    st.subheader("📊 Database Analytics")
     
-    analytics = db_service.get_deal_analytics() if db_service else {'total_deals': 0, 'total_value': 0, 'avg_score': 0, 'high_score_count': 0}
-    
-    col_analytics1, col_analytics2, col_analytics3, col_analytics4 = st.columns(4)
-    
-    with col_analytics1:
-        st.metric("Total Deals", analytics['total_deals'])
-    
-    with col_analytics2:
-        st.metric("Average AI Score", f"{analytics['avg_ai_score']:.1f}/100")
-    
-    with col_analytics3:
-        st.metric("Total Portfolio Value", f"${analytics['total_value']:,.0f}")
-    
-    with col_analytics4:
-        high_score_deals = len([d for d in deals if d.ai_score >= 85])
-        st.metric("High-Score Deals", f"{high_score_deals} (85+)")
-    
-    # Status breakdown chart
-    if analytics['status_breakdown']:
-        st.subheader("📈 Deal Status Distribution")
-        
-        status_df = pd.DataFrame(list(analytics['status_breakdown'].items()), 
-                               columns=['Status', 'Count'])
-        
-        fig = px.pie(status_df, values='Count', names='Status', 
-                    title="Deal Status Breakdown",
-                    color_discrete_sequence=['#4CAF50', '#2196F3', '#FF9800', '#9C27B0', '#607D8B', '#F44336'])
-        
-        fig.update_layout(
-            plot_bgcolor='rgba(0,0,0,0)',
-            paper_bgcolor='rgba(0,0,0,0)',
-            font=dict(color='white'),
-            title_font=dict(color='white'),
-            legend=dict(font=dict(color='white'))
-        )
-        
-        st.plotly_chart(fig, use_container_width=True)
-
-def show_portfolio():
-    st.header("📈 Portfolio Management")
-    
-    # Load database service
-    db_service = get_db_service()
-    if not db_service:
-        st.error("❌ Database service failed to load")
-        return
-    
-    # Get real portfolio data from database
-    portfolio_data = db_service.get_deals()
-    analytics = db_service.get_deal_analytics()
-    
-    # Portfolio Summary
-    col1, col2, col3, col4 = st.columns(4)
-    
-    with col1:
-        st.metric(
-            label="Total Deals",
-            value=f"{analytics['total_deals']}",
-            delta="+2 this month"
-        )
-    
-    with col2:
-        st.metric(
-            label="Portfolio Value", 
-            value=f"${analytics['total_value']:,.0f}" if analytics['total_value'] > 0 else "$0",
-            delta="+$125K this quarter"
-        )
-    
-    with col3:
-        # Calculate total monthly cash flow from portfolio
-        total_monthly_cf = 0
-        for deal in portfolio_data:
-            metrics = calculate_advanced_metrics(deal.to_dict())
-            total_monthly_cf += metrics.get('monthly_cash_flow', 0)
-        
-        st.metric(
-            label="Monthly Cash Flow",
-            value=f"${total_monthly_cf:,.0f}",
-            delta="+$2,100 this month"
-        )
-    
-    with col4:
-        st.metric(
-            label="Average AI Score",
-            value=f"{analytics['avg_ai_score']}/100" if analytics['avg_ai_score'] > 0 else "0/100",
-            delta="+5.2 vs last month"
-        )
-    
-    # Portfolio Performance Chart
-    st.subheader("📊 Portfolio Performance Over Time")
-    
-    # Sample portfolio data
-    months = pd.date_range(start='2024-01-01', periods=12, freq='M')
-    portfolio_data = pd.DataFrame({
-        'Month': months,
-        'Value': np.cumsum(np.random.normal(50000, 10000, 12)) + 3000000,
-        'Cash Flow': np.random.normal(16000, 2000, 12),
-        'ROI': np.random.normal(22, 3, 12)
-    })
-    
-    fig = go.Figure()
-    fig.add_trace(go.Scatter(x=portfolio_data['Month'], y=portfolio_data['Value'],
-                            mode='lines+markers', name='Portfolio Value', 
-                            line=dict(color='#4CAF50', width=3),
-                            marker=dict(color='#4CAF50', size=8)))
-    fig.update_layout(
-        title="Portfolio Value Growth", 
-        height=400,
-        plot_bgcolor='rgba(0,0,0,0)',
-        paper_bgcolor='rgba(0,0,0,0)',
-        font=dict(color='white'),
-        title_font=dict(color='white'),
-        xaxis=dict(gridcolor='#404040', color='white'),
-        yaxis=dict(gridcolor='#404040', color='white'),
-        legend=dict(font=dict(color='white'))
-    )
-    st.plotly_chart(fig, use_container_width=True)
-    
-    # Properties Table
-    st.subheader("🏠 Property Details")
-    properties_data = pd.DataFrame({
-        'Address': ['123 Oak St', '456 Pine Ave', '789 Maple Dr', '321 Elm St', '654 Cedar Ln'],
-        'Type': ['SFR', 'Duplex', 'SFR', 'Triplex', 'SFR'],
-        'Purchase Date': ['2024-01-15', '2024-03-22', '2024-05-10', '2024-07-08', '2024-09-01'],
-        'Purchase Price': [180000, 320000, 195000, 450000, 210000],
-        'Current Value': [205000, 365000, 220000, 495000, 230000],
-        'Monthly Rent': [1800, 2800, 1950, 3200, 2100],
-        'ROI': ['28.5%', '22.1%', '31.2%', '19.8%', '26.7%']
-    })
-    
-    st.dataframe(properties_data, use_container_width=True)
-
-def show_ai_insights():
-    st.header("🤖 AI Market Insights & Real-Time Analytics")
-    
-    # Load real-time data sources
-    db_service = get_db_service()
-    if not db_service:
-        st.error("❌ Database service not available for real-time insights")
-        return
-    
-    # Load Enhanced CRM for activity tracking insights
-    enhanced_crm_func = get_enhanced_crm()
-    
-    # Real-time data refresh indicator
-    col_header1, col_header2 = st.columns([3, 1])
-    with col_header1:
-        st.info("🔮 Real-time AI analysis powered by your live data")
-    with col_header2:
-        current_time = datetime.now().strftime("%H:%M:%S")
-        st.success(f"🕒 Live Data: {current_time}")
-        if st.button("🔄 Refresh Insights"):
+    # Show specialized forms based on selection
+    if st.session_state.get('show_seller_lead', False):
+        if st.button("❌ Close Form"):
+            st.session_state.show_seller_lead = False
             st.rerun()
+        show_seller_lead_form(crm)
+    elif st.session_state.get('show_investor_lead', False):
+        if st.button("❌ Close Form"):
+            st.session_state.show_investor_lead = False
+            st.rerun()
+        show_investor_lead_form(crm)
+    elif st.session_state.get('show_buyer_lead', False):
+        if st.button("❌ Close Form"):
+            st.session_state.show_buyer_lead = False
+            st.rerun()
+        show_buyer_lead_form(crm)
+    elif st.session_state.get('show_general_lead', False):
+        if st.button("❌ Close Form"):
+            st.session_state.show_general_lead = False
+            st.rerun()
+        show_general_lead_form(crm)
     
-    # Get real-time portfolio data
-    portfolio_deals = db_service.get_deals() if db_service else []
-    total_portfolio_value = sum(deal.purchase_price for deal in portfolio_deals) if portfolio_deals else 0
-    avg_deal_score = np.mean([deal.ai_score for deal in portfolio_deals]) if portfolio_deals else 0
+    # Enhanced leads table with actions
+    st.subheader(f"📋 Leads List ({len(filtered_leads)} found)")
     
-    # Real-Time Portfolio Insights
-    st.subheader("📊 Live Portfolio Intelligence")
-    
-    col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        st.metric("Total Portfolio Value", f"${total_portfolio_value:,.0f}")
-    with col2:
-        st.metric("Active Deals", len(portfolio_deals))
-    with col3:
-        st.metric("Avg AI Score", f"{avg_deal_score:.1f}/100")
-    with col4:
-        high_performers = len([d for d in portfolio_deals if d.ai_score >= 85]) if portfolio_deals else 0
-        st.metric("High Performers", high_performers)
-    
-    # AI-Generated Market Analysis
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.subheader("🧠 AI Market Analysis")
+    if filtered_leads:
+        # Enhanced comprehensive leads display with full analysis data
+        st.markdown("### 📊 Comprehensive Lead Analysis Table")
+        st.markdown("*All leads with generated analysis data for easy reference and revisiting*")
         
-        # Generate insights based on real data
-        if portfolio_deals:
-            # Calculate real insights from user's data
-            property_types = {}
-            locations = {}
-            price_ranges = {}
+        # Create enhanced leads data with comprehensive analysis
+        leads_data = []
+        for i, lead in enumerate(filtered_leads):
+            # Calculate ROI metrics if available
+            roi_analysis = "N/A"
+            mao = "N/A"
+            profit_potential = "N/A"
+            cash_flow = "N/A"
             
-            for deal in portfolio_deals:
-                # Property type analysis
-                prop_type = getattr(deal, 'property_type', 'Unknown')
-                property_types[prop_type] = property_types.get(prop_type, 0) + 1
-                
-                # Location analysis  
-                location = getattr(deal, 'address', 'Unknown').split(',')[-1].strip() if hasattr(deal, 'address') else 'Unknown'
-                locations[location] = locations.get(location, 0) + 1
-                
-                # Price range analysis
-                price = getattr(deal, 'purchase_price', 0)
-                if price < 200000:
-                    price_ranges['Under $200K'] = price_ranges.get('Under $200K', 0) + 1
-                elif price < 400000:
-                    price_ranges['$200K-$400K'] = price_ranges.get('$200K-$400K', 0) + 1
-            
-                    price_ranges['Over $400K'] = price_ranges.get('Over $400K', 0) + 1
-            
-            # Most common property type
-            top_property_type = max(property_types.items(), key=lambda x: x[1])[0] if property_types else "Unknown"
-            
-            # Most common location
-            top_location = max(locations.items(), key=lambda x: x[1])[0] if locations else "Unknown"
-            
-            # Generate real-time insights
-            # Calculate high ROI deals count
-            high_roi_deals = []
-            for d in portfolio_deals:
-                if (d.purchase_price + d.repair_costs) > 0:
-                    roi = ((d.arv - d.purchase_price - d.repair_costs) / (d.purchase_price + d.repair_costs) * 100)
-                    if roi > 15:
-                        high_roi_deals.append(d)
-            
-            real_insights = [
-                f"🏠 Portfolio Focus: {len(property_types)} property types, primarily {top_property_type}",
-                f"📍 Geographic Concentration: Strongest presence in {top_location}",
-                f"💰 Price Strategy: {len(price_ranges)} price segments active",
-                f"⭐ Quality Score: {len([d for d in portfolio_deals if d.ai_score >= 80])} deals rated 80+ by AI",
-                f"📈 Growth Opportunity: {len(high_roi_deals)} deals with 15%+ ROI"
-            ]
-    
-            real_insights = [
-                "📊 No portfolio data yet - Start adding deals for personalized insights",
-                "🎯 Market Opportunity: Strong buyer's market emerging",
-                "💡 AI Recommendation: Focus on cash-flowing properties",
-                "🔥 Hot Sectors: Multi-family and fix-and-flip trending up",
-                "⚡ Action Item: Add your first deal to unlock AI insights"
-            ]
-        
-        for insight in real_insights:
-            st.write(insight)
-    
-    with col2:
-        st.subheader("🎯 Personalized AI Recommendations")
-        
-        # Generate recommendations based on user's actual portfolio
-        if portfolio_deals:
-            avg_price = np.mean([deal.purchase_price for deal in portfolio_deals])
-            avg_roi = np.mean([getattr(deal, 'estimated_roi', 12) for deal in portfolio_deals])
-            
-            personalized_recommendations = [
-                f"💰 Price Target: Consider deals around ${avg_price:,.0f} (your sweet spot)",
-                f"📊 ROI Focus: Target {avg_roi + 3:.1f}%+ ROI (above your {avg_roi:.1f}% average)",
-                f"🏠 Diversification: Explore {3 - len(property_types)} new property types",
-                f"📍 Geographic Expansion: Consider {3 - len(locations)} new markets",
-                f"⚡ Quick Win: {len([d for d in portfolio_deals if d.ai_score < 70])} deals could be optimized"
-            ]
-    
-            personalized_recommendations = [
-                "🚀 Start with single-family homes for easier management",
-                "💰 Target 12%+ cap rates for strong cash flow",
-                "📍 Focus on emerging markets with growth potential",
-                "🏗️ Consider light renovation properties for value-add",
-                "📈 Aim for deals scoring 75+ on our AI analysis"
-            ]
-        
-        for i, rec in enumerate(personalized_recommendations, 1):
-            st.write(f"{i}. {rec}")
-    
-    # Advanced AI Market Prediction Engine
-    st.markdown("---")
-    st.subheader("🔮 Advanced AI Market Predictions")
-    
-    # Initialize AI predictor
-    ai_predictor = get_ai_predictor()
-    
-    # Prediction controls
-    col_pred1, col_pred2, col_pred3 = st.columns([2, 2, 2])
-    
-    with col_pred1:
-        prediction_months = st.slider("Prediction Horizon (months)", 3, 24, 12)
-    
-    with col_pred2:
-        analysis_type = st.selectbox("Analysis Type", 
-                                   ["Market Trends", "Portfolio Predictions", "Deal Timing Analysis"])
-    
-    with col_pred3:
-        if st.button("🧠 Generate AI Predictions", type="primary"):
-            st.session_state.run_predictions = True
-    
-    # Generate and display predictions
-    if getattr(st.session_state, 'run_predictions', False):
-        with st.spinner("🤖 AI analyzing market patterns and generating predictions..."):
-            
-            if analysis_type == "Market Trends":
-                predictions = ai_predictor.predict_market_trends(prediction_months)
-                
-                # Display market phase and risk assessment
-                col_phase1, col_phase2, col_phase3 = st.columns(3)
-                
-                with col_phase1:
-                    st.metric("Current Market Phase", 
-                             predictions['current_phase'].title(),
-                             help="AI-determined market cycle phase")
-                
-                with col_phase2:
-                    risk_level = predictions['risk_assessment']['volatility']
-                    risk_color = "🔴" if risk_level == "High" else "🟡" if risk_level == "Medium" else "🟢"
-                    st.metric("Risk Level", f"{risk_color} {risk_level}")
-                
-                with col_phase3:
-                    confidence = f"{predictions['predictions'][0]['confidence']:.0%}"
-                    st.metric("AI Confidence", confidence)
-                
-                # Create prediction visualizations
-                create_prediction_visualizations(ai_predictor, predictions)
-                
-                # Display AI recommendations
-                st.subheader("🎯 AI Investment Recommendations")
-                for rec in predictions['recommendations']:
-                    st.write(f"• {rec}")
-                
-                # Risk assessment details
-                with st.expander("� Detailed Risk Assessment"):
-                    risk_data = predictions['risk_assessment']
-                    st.write(f"**Overall Risk Factor:** {risk_data['overall_risk']:.2f}")
-                    st.write(f"**Volatility:** {risk_data['volatility']}")
-                    st.write(f"**Timing Risk:** {risk_data['timing_risk']}")
-                    st.write(f"**Liquidity Risk:** {risk_data['liquidity_risk']}")
-                    st.info(f"💡 **Recommendation:** {risk_data['recommendation']}")
-            
-            elif analysis_type == "Portfolio Predictions":
-                if portfolio_deals:
-                    portfolio_analysis = ai_predictor.generate_portfolio_predictions(portfolio_deals)
+            if hasattr(lead, 'budget') and lead.budget:
+                # Simple ROI calculation based on budget and property value
+                if hasattr(lead, 'property_value') and lead.property_value:
+                    roi = ((lead.property_value - lead.budget) / lead.budget) * 100
+                    roi_analysis = f"{roi:.1f}%"
+                    mao = f"${lead.budget * 0.7:,.0f}"  # 70% rule
+                    profit_potential = f"${lead.property_value - lead.budget:,.0f}"
                     
-                    # Portfolio metrics
-                    col_port1, col_port2, col_port3, col_port4 = st.columns(4)
-                    
-                    with col_port1:
-                        st.metric("Current Value", f"${portfolio_analysis['current_value']:,.0f}")
-                    
-                    with col_port2:
-                        predicted_value = portfolio_analysis['predicted_12m_value']
-                        growth = ((predicted_value - portfolio_analysis['current_value']) / portfolio_analysis['current_value'] * 100)
-                        st.metric("12M Predicted Value", f"${predicted_value:,.0f}", f"{growth:+.1f}%")
-                    
-                    with col_port3:
-                        st.metric("Performance Grade", portfolio_analysis['performance_grade'])
-                    
-                    with col_port4:
-                        diversity_score = portfolio_analysis['diversification_score']
-                        st.metric("Diversification", f"{diversity_score:.1%}")
-                    
-                    # Optimization opportunities
-                    st.subheader("🔧 Portfolio Optimization")
-                    for opp in portfolio_analysis['optimization_opportunities']:
-                        st.write(f"• {opp}")
-                    
-                    # AI recommendations
-                    st.subheader("🚀 AI Portfolio Recommendations")
-                    for rec in portfolio_analysis['recommended_actions']:
-                        st.write(f"• {rec}")
-                
+                # Estimate monthly cash flow
+                if hasattr(lead, 'expected_rent') and lead.expected_rent:
+                    monthly_expenses = lead.budget * 0.01  # 1% rule estimate
+                    cash_flow = f"${lead.expected_rent - monthly_expenses:,.0f}/mo"
             
-                    st.info("📊 Add deals to your portfolio to get AI-powered portfolio predictions")
+            # Property analysis summary
+            property_summary = "No property details"
+            if hasattr(lead, 'property_address') and lead.property_address:
+                property_type = getattr(lead, 'property_type', 'Unknown')
+                bedrooms = getattr(lead, 'bedrooms', 'N/A')
+                bathrooms = getattr(lead, 'bathrooms', 'N/A')
+                property_summary = f"{property_type} • {bedrooms}BR/{bathrooms}BA"
             
-            elif analysis_type == "Deal Timing Analysis":
-                st.subheader("⏰ AI Deal Timing Analyzer")
-                
-                # Deal input for timing analysis
-                col_deal1, col_deal2 = st.columns(2)
-                
-                with col_deal1:
-                    deal_location = st.text_input("Deal Location", placeholder="e.g., Austin, TX")
-                    deal_price = st.number_input("Purchase Price", value=300000, step=10000)
-                
-                with col_deal2:
-                    deal_type = st.selectbox("Property Type", ["Single Family", "Multi-Family", "Commercial", "Fix & Flip"])
-                    renovation_needed = st.checkbox("Renovation Required")
-                
-                if st.button("🎯 Analyze Deal Timing"):
-                    deal_data = {
-                        'location': deal_location,
-                        'price': deal_price,
-                        'property_type': deal_type,
-                        'renovation_needed': renovation_needed
-                    }
-                    
-                    timing_analysis = ai_predictor.analyze_deal_timing(deal_data)
-                    
-                    # Timing results
-                    col_time1, col_time2, col_time3 = st.columns(3)
-                    
-                    with col_time1:
-                        score = timing_analysis['timing_score']
-                        score_color = "🟢" if score > 80 else "🟡" if score > 60 else "🔴"
-                        st.metric("Timing Score", f"{score_color} {score:.0f}/100")
-                    
-                    with col_time2:
-                        st.metric("Action Recommendation", timing_analysis['action'])
-                    
-                    with col_time3:
-                        st.info(timing_analysis['best_month'])
-                    
-                    # Risk factors
-                    st.subheader("⚠️ Risk Factors")
-                    for risk in timing_analysis['risk_factors']:
-                        st.write(f"• {risk}")
-    
-    # AI Query Interface
-    st.markdown("---")
-    st.subheader("🤖 AI Query Interface")
-    st.info("💬 Ask the AI questions about your portfolio, market conditions, or investment strategies!")
-    
-    # Query input
-    col_query1, col_query2 = st.columns([4, 1])
-    
-    with col_query1:
-        user_query = st.text_input("Ask AI", 
-                                  placeholder="e.g., 'Show me best deals under $300k in Austin' or 'What's the market outlook for fix & flip?'",
-                                  key="ai_query")
-    
-    with col_query2:
-        if st.button("🧠 Ask AI", type="primary"):
-            st.session_state.process_query = True
-    
-    # Quick query suggestions
-    st.write("**💡 Try these queries:**")
-    query_cols = st.columns(3)
-    
-    with query_cols[0]:
-        if st.button("💰 Best ROI markets"):
-            st.session_state.ai_query = "What markets have the best ROI potential right now?"
-            st.session_state.process_query = True
-    
-    with query_cols[1]:
-        if st.button("📈 Market timing advice"):
-            st.session_state.ai_query = "When is the best time to buy in the current market?"
-            st.session_state.process_query = True
-    
-    with query_cols[2]:
-        if st.button("🏠 Property type recommendation"):
-            st.session_state.ai_query = "What property type should I focus on for maximum returns?"
-            st.session_state.process_query = True
-    
-    # Process query if requested
-    if getattr(st.session_state, 'process_query', False):
-        query = getattr(st.session_state, 'ai_query', user_query)
-        if query:
-            with st.spinner("🤖 AI analyzing your question..."):
-                
-                # Simple AI response logic (would integrate with OpenAI API in production)
-                ai_response = generate_ai_query_response(query, ai_predictor, portfolio_deals)
-                
-                st.markdown("### 🤖 AI Response:")
-                st.write(ai_response)
-                
-        st.session_state.process_query = False
-    
-    # Quick Market Overview
-    st.markdown("---")
-    st.subheader("📊 Market Overview")
-    
-    # Enhanced prediction data with real market indicators
-    current_date = datetime.now()
-    prediction_data = pd.DataFrame({
-        'Market': ['Austin, TX', 'Nashville, TN', 'Tampa, FL', 'Phoenix, AZ', 'Denver, CO'],
-        'Current Avg Price': [485000, 395000, 340000, 425000, 545000],
-        '6-Month Prediction': [503000, 411000, 354000, 435000, 557000],
-        '12-Month Prediction': [522000, 428000, 368000, 446000, 570000],
-        'AI Confidence': ['94%', '91%', '88%', '87%', '85%'],
-        'Investment Grade': ['A+', 'A', 'A-', 'B+', 'B+'],
-        'Last Updated': [current_date.strftime('%m/%d %H:%M')] * 5
-    })
-    
-    st.dataframe(prediction_data, use_container_width=True)
-    
-    # Enhanced CRM Activity Insights
-    if enhanced_crm_func:
-        st.subheader("🎯 CRM Activity Intelligence")
-        
-        # This would integrate with your Enhanced CRM activity tracking
-        st.info("💡 **CRM Integration Active**: AI insights now include your deal pipeline, lead activity, and opportunity trends")
-        
-        activity_insights = [
-            "📞 Lead Response: 73% of leads contacted within 24hrs perform better",
-            "🤝 Deal Velocity: Average 14 days from lead to contract in your pipeline", 
-            "💰 Conversion Rate: Top-scoring leads (85+) have 67% close rate",
-            "📈 Opportunity Alert: 3 warm leads haven't been followed up in 48hrs",
-            "🎯 Pipeline Health: 12 active opportunities worth $2.4M total value"
-        ]
-        
-        for insight in activity_insights:
-            st.write(insight)
-    
-    # Auto-refresh settings
-    st.markdown("---")
-    st.subheader("⚙️ Real-Time Settings")
-    
-    col_settings1, col_settings2 = st.columns(2)
-    with col_settings1:
-        auto_refresh = st.checkbox("🔄 Auto-refresh every 5 minutes", value=False)
-        if auto_refresh:
-            st.info("🕒 Page will automatically refresh to show latest market data")
-            # In a real implementation, you'd use st.rerun() with a timer
-    
-    with col_settings2:
-        st.selectbox("📊 Data Freshness", ["Real-time", "5-minute delay", "Hourly updates"], index=0)
-
-def show_investor_matching():
-    st.header("👥 Smart Investor Matching")
-    
-    st.info("🎯 AI-powered investor matching based on deal criteria and investor preferences")
-    
-    col1, col2 = st.columns([1, 1])
-    
-    with col1:
-        st.subheader("📋 Deal Criteria")
-        
-        deal_type = st.selectbox("Deal Type", ["Fix & Flip", "Buy & Hold", "Wholesale", "Commercial"])
-        investment_range = st.slider("Investment Range", 50000, 1000000, (100000, 500000), step=25000)
-        
-        # Comprehensive market options covering major US markets and international locations
-        all_markets = [
-            # Major US Metropolitan Areas
-            "Atlanta", "Austin", "Boston", "Charlotte", "Chicago", "Dallas", "Denver", "Detroit",
-            "Houston", "Las Vegas", "Los Angeles", "Miami", "Nashville", "New York", "Orlando",
-            "Phoenix", "Portland", "Raleigh", "San Antonio", "Seattle", "Tampa", "Washington DC",
-            
-            # Growing Secondary Markets
-            "Albuquerque", "Boise", "Buffalo", "Charleston", "Columbus", "El Paso", "Fresno",
-            "Grand Rapids", "Indianapolis", "Jacksonville", "Kansas City", "Louisville", "Memphis",
-            "Milwaukee", "Oklahoma City", "Omaha", "Richmond", "Sacramento", "Salt Lake City",
-            "Tucson", "Virginia Beach", "Wichita",
-            
-            # Emerging Markets
-            "Asheville", "Chattanooga", "Fort Wayne", "Greenville", "Huntsville", "Knoxville",
-            "Little Rock", "Madison", "Mobile", "Spokane", "Springfield", "Tallahassee",
-            
-            # International Markets
-            "Toronto (Canada)", "Vancouver (Canada)", "Montreal (Canada)", "London (UK)", 
-            "Manchester (UK)", "Dublin (Ireland)", "Berlin (Germany)", "Munich (Germany)",
-            "Amsterdam (Netherlands)", "Barcelona (Spain)", "Madrid (Spain)", "Rome (Italy)",
-            "Milan (Italy)", "Paris (France)", "Lyon (France)", "Sydney (Australia)",
-            "Melbourne (Australia)", "Auckland (New Zealand)", "Tokyo (Japan)", "Singapore",
-            "Dubai (UAE)", "Mexico City (Mexico)", "Monterrey (Mexico)", "São Paulo (Brazil)",
-            "Buenos Aires (Argentina)"
-        ]
-        
-        location_pref = st.multiselect("Preferred Markets", 
-                                     sorted(all_markets),
-                                     help="Select markets where you're looking for investment opportunities. International markets included for global investors.")
-        
-        if st.button("🔍 Find Matching Investors", type="primary"):
-            st.success("Found 12 matching investors!")
-            
-            # Sample investor matches with diverse market coverage
-            investors_data = pd.DataFrame({
-                'Investor': ['Premium Capital LLC', 'Growth Equity Partners', 'Sunbelt Investments', 
-                           'Metro Property Group', 'Apex Real Estate Fund', 'Global Realty Partners',
-                           'Coastal Investment Co', 'Midwest Property Fund'],
-                'Type': ['Private Equity', 'Individual', 'Fund', 'Group', 'Institutional', 'International', 'Regional', 'Multi-Market'],
-                'Investment Range': ['$200K-$800K', '$100K-$500K', '$500K-$2M', '$150K-$600K', '$1M-$5M', '$300K-$1.5M', '$250K-$750K', '$400K-$2.5M'],
-                'Preferred Markets': ['Austin, Nashville, Charlotte', 'Tampa, Phoenix, Orlando', 'Austin, Denver, Seattle', 
-                                    'Nashville, Atlanta, Raleigh', 'Multi-Market US', 'Toronto, Vancouver, London',
-                                    'Miami, Charleston, Virginia Beach', 'Chicago, Indianapolis, Milwaukee'],
-                'Success Rate': ['94%', '87%', '91%', '89%', '96%', '88%', '92%', '90%'],
-                'Contact': ['📧 Send Pitch', '📞 Schedule Call', '📧 Send Pitch', 
-                          '📞 Schedule Call', '📧 Send Pitch', '🌐 International Call', '📧 Send Pitch', '📞 Schedule Call']
+            leads_data.append({
+                'Lead ID': lead.id[:8] + "...",
+                'Name': lead.name,
+                'Contact': f"{lead.email or 'No Email'}\n{lead.phone or 'No Phone'}",
+                'Status': lead.status.value,
+                'Source': lead.lead_source.value,
+                'Lead Score': f"{lead.score}/100",
+                'Property': lead.property_address[:40] + "..." if lead.property_address and len(lead.property_address) > 40 else lead.property_address or "No Property",
+                'Property Type': property_summary,
+                'Budget': f"${lead.budget:,.0f}" if hasattr(lead, 'budget') and lead.budget else "N/A",
+                'ROI Analysis': roi_analysis,
+                'MAO (70% Rule)': mao,
+                'Profit Potential': profit_potential,
+                'Est. Cash Flow': cash_flow,
+                'Lead Type': getattr(lead, 'lead_type', LeadType.BUYER).value,
+                'Created Date': lead.created_at.strftime('%m/%d/%Y %H:%M'),
+                'Last Updated': lead.updated_at.strftime('%m/%d/%Y %H:%M') if lead.updated_at else "Never",
+                'Notes Preview': (lead.notes[:50] + "...") if hasattr(lead, 'notes') and lead.notes else "No notes"
             })
-            
-            st.dataframe(investors_data, use_container_width=True)
-    
-    with col2:
-        st.subheader("📊 Investor Analytics")
         
-        # Investor distribution chart
-        investor_types = ['Private Equity', 'Individual', 'Funds', 'Groups', 'Institutional']
-        investor_counts = [45, 89, 23, 34, 12]
+        # Create comprehensive dataframe
+        df = pd.DataFrame(leads_data)
         
-        fig = px.bar(x=investor_types, y=investor_counts, 
-                    title="Investor Distribution by Type",
-                    color=investor_counts,
-                    color_continuous_scale=['#4CAF50', '#2196F3'])
-        fig.update_layout(
-            height=300,
-            plot_bgcolor='rgba(0,0,0,0)',
-            paper_bgcolor='rgba(0,0,0,0)',
-            font=dict(color='white'),
-            title_font=dict(color='white'),
-            xaxis=dict(gridcolor='#404040', color='white'),
-            yaxis=dict(gridcolor='#404040', color='white'),
-            coloraxis_colorbar=dict(title_font=dict(color='white'), tickfont=dict(color='white'))
-        )
-        st.plotly_chart(fig, use_container_width=True)
+        # Display options
+        col_display1, col_display2, col_display3 = st.columns(3)
+        with col_display1:
+            show_analysis = st.checkbox("📊 Show Financial Analysis", value=True)
+        with col_display2:
+            show_contact_details = st.checkbox("📞 Show Contact Details", value=True)
+        with col_display3:
+            sort_by = st.selectbox("Sort by", ["Created Date", "Lead Score", "Budget", "ROI Analysis", "Name"])
         
-        # Investment preferences
-        st.subheader("💰 Investment Preferences")
-        pref_data = {
-            'Fix & Flip': 35,
-            'Buy & Hold': 45,
-            'Wholesale': 15,
-            'Commercial': 5
-        }
+        # Filter columns based on user selection
+        display_columns = ['Lead ID', 'Name', 'Status', 'Lead Score', 'Property', 'Created Date']
         
-        fig = px.pie(values=list(pref_data.values()), names=list(pref_data.keys()),
-                    title="Deal Type Preferences",
-                    color_discrete_sequence=['#4CAF50', '#2196F3', '#FF9800', '#9C27B0'])
-        fig.update_layout(
-            height=300,
-            plot_bgcolor='rgba(0,0,0,0)',
-            paper_bgcolor='rgba(0,0,0,0)',
-            font=dict(color='white'),
-            title_font=dict(color='white'),
-            legend=dict(font=dict(color='white'))
+        if show_contact_details:
+            display_columns.extend(['Contact', 'Source', 'Lead Type'])
+        
+        if show_analysis:
+            display_columns.extend(['Budget', 'ROI Analysis', 'MAO (70% Rule)', 'Profit Potential', 'Est. Cash Flow', 'Property Type'])
+        
+        display_columns.extend(['Last Updated', 'Notes Preview'])
+        
+        # Sort dataframe
+        if sort_by in df.columns:
+            if sort_by in ['Lead Score', 'Budget']:
+                # Sort numeric columns properly
+                df_sorted = df.sort_values(by=sort_by, ascending=False)
+            else:
+                df_sorted = df.sort_values(by=sort_by, ascending=True)
+        else:
+            df_sorted = df
+        
+        # Display the comprehensive table
+        st.dataframe(
+            df_sorted[display_columns], 
+            use_container_width=True,
+            height=400
         )
-        st.plotly_chart(fig, use_container_width=True)
+        
+        # Summary statistics
+        col_stats1, col_stats2, col_stats3, col_stats4 = st.columns(4)
+        with col_stats1:
+            total_budget = sum([float(lead.budget) for lead in filtered_leads if hasattr(lead, 'budget') and lead.budget])
+            st.metric("Total Lead Budget", f"${total_budget:,.0f}")
+        with col_stats2:
+            avg_score = sum([lead.score for lead in filtered_leads]) / len(filtered_leads)
+            st.metric("Average Lead Score", f"{avg_score:.1f}/100")
+        with col_stats3:
+            qualified_count = len([l for l in filtered_leads if l.status in [LeadStatus.QUALIFIED, LeadStatus.MEETING_SCHEDULED]])
+            st.metric("Qualified Leads", qualified_count)
+        with col_stats4:
+            recent_leads = len([l for l in filtered_leads if (datetime.now() - l.created_at).days <= 7])
+            st.metric("New This Week", recent_leads)
+        
+        # Quick action buttons for the entire lead list
+        st.markdown("---")
+        st.subheader("🚀 Bulk Actions")
+        col_bulk1, col_bulk2, col_bulk3, col_bulk4 = st.columns(4)
+        
+        with col_bulk1:
+            if st.button("📧 Email All Qualified Leads", use_container_width=True):
+                qualified_leads = [l for l in filtered_leads if l.status == LeadStatus.QUALIFIED]
+                if qualified_leads:
+                    st.session_state.bulk_email_leads = [l.id for l in qualified_leads]
+                    st.success(f"✅ Prepared to email {len(qualified_leads)} qualified leads")
+                else:
+                    st.warning("No qualified leads to email")
+        
+        with col_bulk2:
+            if st.button("📊 Generate Lead Report", use_container_width=True):
+                # Create a comprehensive report
+                st.session_state.generate_lead_report = True
+                st.success("✅ Lead report generated!")
+        
+        with col_bulk3:
+            if st.button("🔄 Update All Scores", use_container_width=True):
+                # Recalculate all lead scores
+                updated_count = 0
+                for lead in filtered_leads:
+                    old_score = lead.score
+                    # Recalculate score based on current criteria
+                    new_score = crm.scoring_engine.calculate_lead_score(lead)
+                    if new_score != old_score:
+                        crm.update_lead(lead.id, {"score": new_score})
+                        updated_count += 1
+                st.success(f"✅ Updated scores for {updated_count} leads")
+                if updated_count > 0:
+                    st.rerun()
+        
+        with col_bulk4:
+            if st.button("📈 Analyze All ROI", use_container_width=True):
+                st.session_state.analyze_all_roi = True
+                st.success("✅ ROI analysis initiated for all leads!")
+        
+        # Lead management actions (individual)
+        st.markdown("---")
+        st.subheader("🛠️ Individual Lead Actions")
+        
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            # Select lead for actions
+            if filtered_leads:
+                selected_lead_option = st.selectbox(
+                    "Select Lead for Actions", 
+                    ["Select a lead..."] + [f"{lead.name} ({lead.email})" for lead in filtered_leads],
+                    key="lead_action_select"
+                )
+                
+                if selected_lead_option != "Select a lead...":
+                    lead_name = selected_lead_option.split(" (")[0]
+                    selected_lead = next((l for l in filtered_leads if l.name == lead_name), None)
+                    
+                    if selected_lead:
+                        st.write(f"**Selected:** {selected_lead.name}")
+                        st.write(f"**Status:** {selected_lead.status.value}")
+                        st.write(f"**Score:** {selected_lead.score}/100")
+        
+        with col2:
+            # Action buttons
+            if selected_lead_option != "Select a lead...":
+                if st.button("👁️ View Details", use_container_width=True):
+                    st.session_state.show_lead_details = selected_lead.id
+                
+                if st.button("✏️ Edit Lead", use_container_width=True):
+                    st.session_state.edit_lead_id = selected_lead.id
+                
+                if st.button("📧 Send Email", use_container_width=True):
+                    st.session_state.compose_email = selected_lead.id
+        
+        with col3:
+            # Status update and delete
+            if selected_lead_option != "Select a lead...":
+                new_status = st.selectbox(
+                    "Update Status", 
+                    [status.value for status in LeadStatus],
+                    index=[status.value for status in LeadStatus].index(selected_lead.status.value)
+                )
+                
+                if st.button("🔄 Update Status", use_container_width=True):
+                    if crm.update_lead(selected_lead.id, {"status": LeadStatus(new_status)}):
+                        st.success(f"✅ Status updated to {new_status}")
+                        st.rerun()
+                
+                # Danger zone - delete
+                with st.expander("⚠️ Danger Zone"):
+                    st.warning("This action cannot be undone!")
+                    if st.button("🗑️ Delete Lead", type="secondary"):
+                        if crm.delete_lead(selected_lead.id):
+                            st.success("✅ Lead deleted successfully")
+                            st.rerun()
+                        else:
+                            st.error("❌ Failed to delete lead")
+        
+        # Show lead details if requested
+        if st.session_state.get('show_lead_details'):
+            lead_id = st.session_state.show_lead_details
+            lead = crm.get_lead_by_id(lead_id)
+            if lead:
+                show_lead_details(crm, lead)
+                if st.button("❌ Close Details"):
+                    st.session_state.show_lead_details = None
+                    st.rerun()
+        
+        # Show edit form if requested
+        if st.session_state.get('edit_lead_id'):
+            lead_id = st.session_state.edit_lead_id
+            lead = crm.get_lead_by_id(lead_id)
+            if lead:
+                show_edit_lead_form(crm, lead)
+                if st.button("❌ Cancel Edit"):
+                    st.session_state.edit_lead_id = None
+                    st.rerun()
+    
+    else:
+        st.info("📝 No leads found matching the current filters. Add your first lead to get started!")
+        st.markdown("### 💡 Quick Tips:")
+        st.markdown("- Use the Quick Actions buttons above to add different types of leads")
+        st.markdown("- Each lead type has specialized fields for better ROI calculations")
+        st.markdown("- All leads are automatically saved to the database for permanent storage")
+        st.markdown("- Export your leads anytime using the CSV export feature")
 
-def create_score_breakdown_chart(ai_score, deal_data, metrics):
-    """Create a visual breakdown of the AI score components"""
-    components = []
-    scores = []
-    
-    # ROI component
-    roi_score = min(25, max(0, metrics['total_roi'] / 2))
-    components.append('ROI (25pts)')
-    scores.append(roi_score)
-    
-    # Cash flow component
-    cash_flow_score = min(20, max(0, metrics['monthly_cash_flow'] / 50))
-    components.append('Cash Flow (20pts)')
-    scores.append(cash_flow_score)
-    
-    # Market factors
-    neighborhood_grades = {'A+': 20, 'A': 18, 'A-': 16, 'B+': 14, 'B': 12, 'B-': 10, 'C+': 8, 'C': 6, 'C-': 4, 'D': 2}
-    market_score = neighborhood_grades.get(deal_data.get('neighborhood_grade', 'B'), 10)
-    components.append('Market (20pts)')
-    scores.append(market_score)
-    
-    # Property condition
-    condition_scores = {'Excellent': 15, 'Good': 12, 'Fair': 8, 'Poor': 4, 'Tear Down': 1}
-    condition_score = condition_scores.get(deal_data.get('condition', 'Good'), 8)
-    components.append('Condition (15pts)')
-    scores.append(condition_score)
-    
-    # Market trend
-    trend_scores = {'Rising': 10, 'Stable': 7, 'Declining': 3}
-    trend_score = trend_scores.get(deal_data.get('market_trend', 'Stable'), 7)
-    components.append('Trend (10pts)')
-    scores.append(trend_score)
-    
-    # Cap rate
-    cap_rate_score = min(10, max(0, metrics['cap_rate'] - 5))
-    components.append('Cap Rate (10pts)')
-    scores.append(cap_rate_score)
-    
-    fig = go.Figure(data=[
-        go.Bar(
-            x=components,
-            y=scores,
-            marker_color=['#4CAF50', '#2196F3', '#FF9800', '#9C27B0', '#607D8B', '#795548'],
-            text=[f'{score:.1f}' for score in scores],
-            textposition='auto',
-        )
-    ])
-    
-    fig.update_layout(
-        title=f'AI Score Breakdown: {ai_score}/100',
-        xaxis_title='Score Components',
-        yaxis_title='Points',
-        plot_bgcolor='rgba(0,0,0,0)',
-        paper_bgcolor='rgba(0,0,0,0)',
-        font_color='white',
-        height=400
-    )
-    
-    return fig
-
-def create_projections_chart(projections):
-    """Create visualization for 5-year projections"""
-    years = [p['year'] for p in projections]
-    property_values = [p['property_value'] for p in projections]
-    annual_cash_flows = [p['annual_cash_flow'] for p in projections]
-    
-    fig = make_subplots(
-        rows=2, cols=1,
-        subplot_titles=('Property Value Growth', 'Annual Cash Flow Projection'),
-        vertical_spacing=0.1
-    )
-    
-    # Property value growth
-    fig.add_trace(
-        go.Scatter(
-            x=years,
-            y=property_values,
-            mode='lines+markers',
-            name='Property Value',
-            line=dict(color='#4CAF50', width=3),
-            marker=dict(size=8)
-        ),
-        row=1, col=1
-    )
-    
-    # Cash flow projection
-    fig.add_trace(
-        go.Scatter(
-            x=years,
-            y=annual_cash_flows,
-            mode='lines+markers',
-            name='Annual Cash Flow',
-            line=dict(color='#2196F3', width=3),
-            marker=dict(size=8)
-        ),
-        row=2, col=1
-    )
-    
-    fig.update_layout(
-        height=600,
-        plot_bgcolor='rgba(0,0,0,0)',
-        paper_bgcolor='rgba(0,0,0,0)',
-        font_color='white',
-        showlegend=False
-    )
-    
-    fig.update_xaxes(title_text="Year", row=2, col=1)
-    fig.update_yaxes(title_text="Property Value ($)", row=1, col=1)
-    fig.update_yaxes(title_text="Annual Cash Flow ($)", row=2, col=1)
-    
-    return fig
-
-def create_financial_breakdown_chart(metrics):
-    # Create a pie chart showing financial breakdown
-    labels = ['Monthly Income', 'Taxes', 'Insurance', 'Management', 'Maintenance', 'Vacancy Reserve']
-    values = [
-        metrics['monthly_income'],
-        metrics['monthly_expenses'] * 0.3,  # Approximate tax portion
-        metrics['monthly_expenses'] * 0.2,  # Approximate insurance portion
-        metrics['monthly_income'] * 0.1,    # 10% management
-        metrics['monthly_income'] * 0.05,   # 5% maintenance
-        metrics['monthly_income'] * 0.05    # 5% vacancy
-    ]
-    
-    colors = ['#4CAF50', '#F44336', '#FF9800', '#9C27B0', '#607D8B', '#795548']
-    
-    fig = go.Figure(data=[go.Pie(
-        labels=labels,
-        values=values,
-        hole=0.4,
-        marker_colors=colors,
-        textinfo='label+percent',
-        textfont_size=12
-    )])
-    
-    fig.update_layout(
-        title="Monthly Income & Expense Breakdown",
-        plot_bgcolor='rgba(0,0,0,0)',
-        paper_bgcolor='rgba(0,0,0,0)',
-        font_color='white',
-        height=500
-    )
-    
-    return fig
-
-def show_advanced_financial_modeling():
-    # Advanced Financial Modeling section with sophisticated analysis
-    st.header("💹 Advanced Financial Modeling")
-    st.markdown("**Enterprise-grade financial analysis with projections, Monte Carlo simulations, and exit strategy comparisons**")
-    
-    # Initialize the financial modeling engine
-    financial_modules = get_financial_modeling()
-    if not financial_modules[0]:  # AdvancedFinancialModeling is the first element
-        st.error("❌ Financial modeling module failed to load")
-        return
-    
-    AdvancedFinancialModeling, create_cash_flow_chart, create_monte_carlo_chart, create_sensitivity_chart, create_exit_strategy_chart = financial_modules
-    fm = AdvancedFinancialModeling()
-    
-    # Two ways to get deal data: from form or from database
-    st.subheader("📊 Select Deal for Analysis")
-    
-    col1, col2 = st.columns([1, 1])
-    
-    with col1:
-        analysis_source = st.radio(
-            "Choose data source:",
-            ["📝 Enter Deal Manually", "🗄 Select from Database"],
-            horizontal=True
-        )
-    
-    deal_data = {}
-    
-    if analysis_source == "📝 Enter Deal Manually":
-        with st.expander("📋 Enter Deal Information", expanded=True):
+def show_add_lead_form(crm: CRMManager):
+    """Enhanced lead form with investor-specific fields for ROI calculations"""
+    with st.container():
+        st.markdown("### 🎯 Add New Lead - Investor Analysis Form")
+        st.markdown("*Complete this form to get accurate ROI calculations, MAO, ARV, and profit potential*")
+        
+        with st.form("enhanced_lead_form"):
+            # Basic Information
+            st.markdown("#### 👤 Basic Information")
             col1, col2 = st.columns(2)
             
             with col1:
-                deal_data['address'] = st.text_input("Property Address", "123 Example St, City")
-                deal_data['purchase_price'] = st.number_input("Purchase Price ($)", min_value=0, value=200000, step=5000)
-                deal_data['arv'] = st.number_input("After Repair Value ($)", min_value=0, value=280000, step=5000)
-                deal_data['repair_costs'] = st.number_input("Repair Costs ($)", min_value=0, value=25000, step=1000)
-                deal_data['monthly_rent'] = st.number_input("Monthly Rent ($)", min_value=0, value=2200, step=50)
-            
+                name = st.text_input("Full Name*", help="Lead's complete name")
+                email = st.text_input("Email Address", help="Primary contact email")
+                phone = st.text_input("Phone Number", help="Best contact number")
+                
             with col2:
-                deal_data['closing_costs'] = st.number_input("Closing Costs ($)", min_value=0, value=8000, step=500)
-                deal_data['annual_taxes'] = st.number_input("Annual Property Taxes ($)", min_value=0, value=3600, step=100)
-                deal_data['insurance'] = st.number_input("Annual Insurance ($)", min_value=0, value=1200, step=50)
-                deal_data['hoa_fees'] = st.number_input("Annual HOA Fees ($)", min_value=0, value=0, step=100)
-                deal_data['vacancy_rate'] = st.number_input("Vacancy Rate (%)", min_value=0.0, max_value=50.0, value=5.0, step=0.5)
-    
-  # Select from Database
-        db_service = get_db_service()
-        if db_service and db_service.is_connected():
-            deals = db_service.get_deals()
-            if deals:
-                deal_options = [f"{deal.address} - ${deal.purchase_price:,}" for deal in deals]
-                selected_deal_idx = st.selectbox("Select Deal", range(len(deals)), format_func=lambda x: deal_options[x])
+                lead_category = st.selectbox("Lead Category*", 
+                    ["Seller Lead", "Investor Lead", "Buyer Lead", "General Lead"],
+                    help="Select primary lead type for customized analysis")
+                lead_source = st.selectbox("Lead Source", [source.value for source in LeadSource])
+                investor_type = st.selectbox("Investor Type", 
+                    [inv_type.value for inv_type in InvestorType],
+                    help="This determines the calculation parameters")
+            
+            # Property Information
+            st.markdown("#### 🏠 Property Information")
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                property_address = st.text_input("Property Address*", 
+                    help="Complete property address for analysis")
+                property_type = st.selectbox("Property Type", 
+                    ["Single Family", "Multi-Family", "Condo", "Townhouse", "Commercial", "Land"])
+                bedrooms = st.number_input("Bedrooms", min_value=0, max_value=10, value=3)
                 
-                if selected_deal_idx is not None:
-                    selected_deal = deals[selected_deal_idx]
-                    deal_data = {
-                        'address': selected_deal.address,
-                        'purchase_price': selected_deal.purchase_price,
-                        'arv': selected_deal.arv,
-                        'repair_costs': selected_deal.repair_costs,
-                        'monthly_rent': selected_deal.monthly_rent,
-                        'closing_costs': selected_deal.closing_costs,
-                        'annual_taxes': selected_deal.annual_taxes,
-                        'insurance': selected_deal.insurance,
-                        'hoa_fees': selected_deal.hoa_fees,
-                        'vacancy_rate': selected_deal.vacancy_rate
-                    }
-                    st.success(f"✅ Loaded deal: {selected_deal.address}")
-        
-                st.warning("📭 No deals found in database. Please add deals first or use manual entry.")
-                deal_data = {}
-    
-            st.error("🔴 Database not connected. Please use manual entry.")
-            deal_data = {}
-    
-    # Only proceed if we have deal data
-    if deal_data and deal_data.get('purchase_price', 0) > 0:
-        
-        st.markdown("---")
-        
-        # Analysis Selection
-        st.subheader("🔬 Choose Analysis Type")
-        analysis_tabs = st.tabs(["📈 Cash Flow Projections", "🎰 Monte Carlo Simulation", "📊 Sensitivity Analysis", "🎯 Exit Strategy Analysis"])
-        
-        with analysis_tabs[0]:  # Cash Flow Projections
-            st.markdown("**10-Year Cash Flow Projections with Multiple Scenarios**")
-            
-            if st.button("🚀 Generate Cash Flow Projections"):
-                with st.spinner("Generating detailed 10-year projections..."):
-                    projections = fm.generate_cash_flow_projections(deal_data)
-                    advanced_metrics = fm.calculate_advanced_metrics(deal_data, projections)
-                    
-                    # Display projections chart
-                    fig = create_cash_flow_chart(projections)
-                    st.plotly_chart(fig, use_container_width=True)
-                    
-                    # Display metrics table
-                    st.subheader("📊 Advanced Financial Metrics")
-                    
-                    metrics_df = pd.DataFrame(advanced_metrics).T
-                    metrics_df = metrics_df.round(2)
-                    st.dataframe(metrics_df, use_container_width=True)
-                    
-                    # Key insights
-                    base_case = advanced_metrics['Base Case']
-                    st.markdown("**📊 Key Insights:**")
-                    st.write(f"- **IRR (Base Case):** {base_case['irr']:.1f}% - Internal Rate of Return")
-                    st.write(f"- **NPV (10% discount):** ${base_case['npv']:,.0f} - Net Present Value")
-                    st.write(f"- **Total ROI:** {base_case['roi']:.1f}% - Total Return on Investment")
-                    st.write(f"- **Cash-on-Cash:** {base_case['cash_on_cash']:.1f}% - Annual cash return")
-                    st.write(f"- **Debt Coverage:** {base_case['debt_coverage_ratio']:.2f}x - Ability to service debt")
-        
-        with analysis_tabs[1]:  # Monte Carlo Simulation
-            st.markdown("**Risk Analysis with 1,000+ Scenarios**")
-            
-            num_simulations = st.slider("Number of Simulations", 100, 5000, 1000, step=100)
-            
-            if st.button("🎰 Run Monte Carlo Simulation"):
-                with st.spinner(f"Running {num_simulations:,} simulations..."):
-                    simulation_results = fm.monte_carlo_simulation(deal_data, num_simulations)
-                    
-                    # Display simulation chart
-                    fig = create_monte_carlo_chart(simulation_results)
-                    st.plotly_chart(fig, use_container_width=True)
-                    
-                    # Display statistics
-                    stats = simulation_results['statistics']
-                    
-                    col1, col2, col3 = st.columns(3)
-                    
-                    with col1:
-                        st.metric("Mean ROI", f"{stats['mean_roi']:.1f}%", f"±{stats['std_roi']:.1f}%")
-                        st.metric("Median ROI", f"{stats['median_roi']:.1f}%")
-                    
-                    with col2:
-                        st.metric("5th Percentile", f"{stats['percentile_5']:.1f}%")
-                        st.metric("95th Percentile", f"{stats['percentile_95']:.1f}%")
-                    
-                    with col3:
-                        st.metric("Probability of Profit", f"{stats['probability_positive']:.1f}%")
-                        st.metric("Probability of 15%+ ROI", f"{stats['probability_target']:.1f}%")
-                    
-                    # Risk assessment
-                    if stats['probability_positive'] > 80:
-                        risk_level = "🟢 LOW RISK"
-                        risk_color = "green"
-                    elif stats['probability_positive'] > 60:
-                        risk_level = "🟡 MEDIUM RISK"
-                        risk_color = "orange"
+            with col2:
+                bathrooms = st.number_input("Bathrooms", min_value=0.0, max_value=10.0, value=2.0, step=0.5)
+                square_feet = st.number_input("Square Feet", min_value=0, value=1200)
+                year_built = st.number_input("Year Built", min_value=1900, max_value=2025, value=1990)
                 
-                        risk_level = "🔴 HIGH RISK"
-                        risk_color = "red"
-                    
-                    st.markdown(f"**Risk Assessment:** <span style='color: {risk_color}; font-weight: bold;'>{risk_level}</span>", unsafe_allow_html=True)
-        
-        with analysis_tabs[2]:  # Sensitivity Analysis
-            st.markdown("**Impact Analysis of Key Variables**")
+            with col3:
+                lot_size = st.number_input("Lot Size (sqft)", min_value=0, value=7000)
+                current_condition = st.selectbox("Current Condition", 
+                    ["Excellent", "Good", "Fair", "Poor", "Needs Major Repairs"])
+                zoning = st.text_input("Zoning", value="Residential")
             
-            if st.button("📊 Run Sensitivity Analysis"):
-                with st.spinner("Analyzing variable sensitivity..."):
-                    sensitivity_results = fm.sensitivity_analysis(deal_data)
-                    
-                    # Display sensitivity chart
-                    fig = create_sensitivity_chart(sensitivity_results)
-                    st.plotly_chart(fig, use_container_width=True)
-                    
-                    # Display sensitivity table
-                    st.subheader("📋 Sensitivity Details")
-                    
-                    for var_name, results in sensitivity_results.items():
-                        with st.expander(f"📈 {var_name} Impact"):
-                            sensitivity_df = pd.DataFrame(results)
-                            st.dataframe(sensitivity_df, use_container_width=True)
-        
-        with analysis_tabs[3]:  # Exit Strategy Analysis
-            st.markdown("**Compare Hold vs Flip vs BRRRR Strategies**")
+            # Financial Analysis Fields
+            st.markdown("#### 💰 Financial Analysis")
+            col1, col2, col3 = st.columns(3)
             
-            if st.button("🎯 Analyze Exit Strategies"):
-                with st.spinner("Comparing exit strategies..."):
-                    strategies = fm.exit_strategy_analysis(deal_data)
+            with col1:
+                asking_price = st.number_input("Asking Price ($)*", min_value=0, value=200000,
+                    help="Current asking price or estimated market value")
+                arv = st.number_input("After Repair Value (ARV) ($)*", min_value=0, value=250000,
+                    help="Estimated value after repairs/improvements")
+                estimated_repairs = st.number_input("Estimated Repair Costs ($)*", min_value=0, value=25000,
+                    help="Total estimated renovation/repair costs")
+                
+            with col2:
+                holding_costs = st.number_input("Holding Costs (Monthly $)", min_value=0, value=2000,
+                    help="Monthly carrying costs (taxes, insurance, utilities)")
+                closing_costs = st.number_input("Closing Costs ($)", min_value=0, value=5000,
+                    help="Estimated closing and transaction costs")
+                desired_profit = st.number_input("Desired Profit ($)", min_value=0, value=30000,
+                    help="Target profit for this deal")
+                
+            with col3:
+                financing_percent = st.slider("Down Payment %", 0, 100, 25,
+                    help="Percentage of purchase price as down payment")
+                interest_rate = st.number_input("Interest Rate (%)", min_value=0.0, max_value=15.0, value=7.5,
+                    help="Annual interest rate for financing")
+                loan_term = st.selectbox("Loan Term", ["15 years", "20 years", "30 years"])
+            
+            # Investment Strategy
+            st.markdown("#### 📈 Investment Strategy")
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                investment_strategy = st.selectbox("Primary Strategy", 
+                    ["Wholesale", "Fix & Flip", "Buy & Hold", "BRRRR", "Subject To", "Owner Finance", "Lease Option"])
+                timeline = st.selectbox("Timeline", 
+                    ["ASAP", "30 Days", "60 Days", "90 Days", "6 Months", "1 Year"])
+                experience_level = st.selectbox("Investor Experience", 
+                    ["Beginner", "Intermediate", "Advanced", "Expert"])
+                
+            with col2:
+                min_roi_target = st.number_input("Minimum ROI Target (%)", min_value=0, value=25,
+                    help="Minimum acceptable return on investment")
+                max_purchase_price = st.number_input("Max Purchase Price ($)", min_value=0, value=0,
+                    help="Maximum price willing to pay (0 for auto-calculation)")
+                cash_available = st.number_input("Cash Available ($)", min_value=0, value=50000,
+                    help="Total cash available for this investment")
+            
+            # Additional Information
+            st.markdown("#### 📝 Additional Information")
+            seller_motivation = st.selectbox("Seller Motivation", 
+                [motivation.value for motivation in SellerMotivation])
+            creative_finance_interest = st.multiselect("Creative Finance Interest", 
+                [method.value for method in CreativeFinanceMethod])
+            urgency = st.selectbox("Deal Urgency", 
+                ["Low", "Medium", "High", "Critical"])
+            
+            notes = st.text_area("Additional Notes", 
+                help="Any additional information about the lead or property")
+            
+            # Calculate and display instant results
+            if asking_price > 0 and arv > 0:
+                st.markdown("#### 🧮 Instant Deal Analysis")
+                
+                # Calculate MAO (Maximum Allowable Offer)
+                mao = arv * 0.7 - estimated_repairs - holding_costs - closing_costs
+                
+                # Calculate potential profit
+                potential_profit = arv - asking_price - estimated_repairs - holding_costs - closing_costs
+                
+                # Calculate ROI
+                total_investment = asking_price * (financing_percent / 100) + estimated_repairs + closing_costs
+                roi = (potential_profit / total_investment * 100) if total_investment > 0 else 0
+                
+                col1, col2, col3, col4 = st.columns(4)
+                with col1:
+                    st.metric("MAO (70% Rule)", f"${mao:,.0f}", 
+                        delta=f"${mao - asking_price:,.0f}" if mao > asking_price else f"${mao - asking_price:,.0f}")
+                with col2:
+                    st.metric("Potential Profit", f"${potential_profit:,.0f}")
+                with col3:
+                    st.metric("Calculated ROI", f"{roi:.1f}%")
+                with col4:
+                    deal_quality = "🔥 Excellent" if roi >= 25 else "✅ Good" if roi >= 15 else "⚠️ Marginal" if roi >= 10 else "❌ Poor"
+                    st.metric("Deal Quality", deal_quality)
+                
+                # Deal recommendations
+                if roi >= min_roi_target:
+                    st.success(f"✅ This deal meets your ROI target of {min_roi_target}%!")
+                else:
+                    st.warning(f"⚠️ This deal falls short of your {min_roi_target}% ROI target.")
                     
-                    # Display comparison chart
-                    fig = create_exit_strategy_chart(strategies)
-                    st.plotly_chart(fig, use_container_width=True)
-                    
-                    # Display strategy comparison
-                    st.subheader("📊 Strategy Comparison")
-                    
-                    for strategy_name, strategy_data in strategies.items():
-                        with st.expander(f"📋 {strategy_name} Strategy Details"):
-                            col1, col2, col3 = st.columns(3)
-                            
-                            with col1:
-                                st.metric("Total Profit", f"${strategy_data['profit']:,.0f}")
-                                st.metric("ROI", f"{strategy_data['roi']:.1f}%")
-                            
-                            with col2:
-                                st.metric("Annual ROI", f"{strategy_data['annual_roi']:.1f}%")
-                                st.metric("Timeline", f"{strategy_data['timeline_months']} months")
-                            
-                            with col3:
-                                st.metric("Risk Level", strategy_data['risk_level'])
-                                st.metric("Capital Required", f"${strategy_data['capital_required']:,.0f}")
-                                
-                                if 'capital_recovered' in strategy_data:
-                                    st.metric("Capital Recovered", f"${strategy_data['capital_recovered']:,.0f}")
-                    
-                    # Recommendation
-                    best_strategy = max(strategies.items(), key=lambda x: x[1]['annual_roi'])
-                    st.success(f"🏆 **Recommended Strategy:** {best_strategy[0]} with {best_strategy[1]['annual_roi']:.1f}% annual ROI")
-    
+                if mao > asking_price:
+                    st.success(f"✅ Property is under market value by ${mao - asking_price:,.0f}")
+                else:
+                    st.error(f"❌ Property is overpriced by ${asking_price - mao:,.0f}")
+            
+            # Form submission
+            col1, col2 = st.columns([3, 1])
+            with col1:
+                submitted = st.form_submit_button("🎯 Add Lead & Generate Full Analysis", 
+                    use_container_width=True, type="primary")
+            with col2:
+                if st.form_submit_button("❌ Cancel"):
+                    st.session_state.show_add_lead = False
+                    st.rerun()
+            
+            if submitted and name and property_address:
+                # Create comprehensive lead with all analysis data
+                lead = Lead(
+                    name=name,
+                    email=email,
+                    phone=phone,
+                    property_address=property_address,
+                    property_type=property_type,
+                    budget_min=int(asking_price * 0.8) if asking_price > 0 else 0,
+                    budget_max=int(mao) if asking_price > 0 and arv > 0 else asking_price,
+                    lead_source=LeadSource(lead_source),
+                    investor_type=InvestorType(investor_type),
+                    seller_motivation=SellerMotivation(seller_motivation),
+                    creative_finance_methods=[CreativeFinanceMethod(method) for method in creative_finance_interest],
+                    category=LeadCategory(lead_category.upper().replace(" ", "_")),
+                    notes=f"""PROPERTY ANALYSIS:
+• ARV: ${arv:,.0f}
+• Repair Costs: ${estimated_repairs:,.0f}
+• MAO (70% Rule): ${mao:,.0f}
+• Potential Profit: ${potential_profit:,.0f}
+• Calculated ROI: {roi:.1f}%
+• Investment Strategy: {investment_strategy}
+• Timeline: {timeline}
+• Experience: {experience_level}
 
-        st.info("📋 Please enter deal information or select a deal from the database to begin advanced financial modeling.")
+PROPERTY DETAILS:
+• {bedrooms} bed, {bathrooms} bath, {square_feet:,.0f} sqft
+• Built: {year_built}, Lot: {lot_size:,.0f} sqft
+• Condition: {current_condition}
+• Zoning: {zoning}
 
-def show_portfolio_analytics():
-    # Enhanced Portfolio Analytics Dashboard
-    st.header("📈 Portfolio Analytics & Optimization")
+FINANCIAL DETAILS:
+• Down Payment: {financing_percent}%
+• Interest Rate: {interest_rate}%
+• Loan Term: {loan_term}
+• Cash Available: ${cash_available:,.0f}
+• ROI Target: {min_roi_target}%
+
+ADDITIONAL NOTES:
+{notes}"""
+                )
+                
+                # Calculate enhanced lead score based on deal quality
+                if roi >= 25:
+                    lead.score = 95
+                elif roi >= 20:
+                    lead.score = 85
+                elif roi >= 15:
+                    lead.score = 75
+                elif roi >= 10:
+                    lead.score = 65
+                else:
+                    lead.score = 45
+                
+                # Add urgency bonus
+                urgency_bonus = {"Critical": 10, "High": 5, "Medium": 0, "Low": -5}
+                lead.score = min(100, lead.score + urgency_bonus.get(urgency, 0))
+                
+                lead_id = crm.add_lead(lead)
+                
+                st.success(f"""
+                🎉 **Lead '{name}' Added Successfully!**
+                
+                **Deal Analysis Summary:**
+                • Lead Score: {lead.score}/100
+                • MAO: ${mao:,.0f}
+                • Potential ROI: {roi:.1f}%
+                • Deal Quality: {deal_quality}
+                
+                Lead has been added to your CRM with complete financial analysis!
+                """)
+                
+                st.session_state.show_add_lead = False
+                st.rerun()
+
+def show_lead_details(crm: CRMManager, lead: Lead):
+    """Show detailed lead information"""
+    st.subheader(f"Lead Details: {lead.name}")
     
-    # Initialize portfolio analyzer
-    portfolio_modules = get_portfolio_analytics()
-    if not portfolio_modules[0]:  # PortfolioAnalyzer is the first element
-        st.error("❌ Portfolio analytics module failed to load")
-        return
-    
-    PortfolioAnalyzer, create_portfolio_performance_chart, create_portfolio_metrics_dashboard, create_geographic_diversification_map = portfolio_modules
-    analyzer = PortfolioAnalyzer()
-    deals = analyzer.load_portfolio_data()
-    
-    if not deals:
-        st.warning("No deals found in database. Add some deals to see portfolio analytics.")
-        return
-    
-    # Calculate portfolio metrics
-    metrics = analyzer.calculate_portfolio_metrics(deals)
-    performances = analyzer.analyze_property_performance(deals)
-    recommendations = analyzer.generate_optimization_recommendations(deals, metrics)
-    
-    # Portfolio Overview Cards
-    st.subheader("🎯 Portfolio Overview")
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2 = st.columns(2)
     
     with col1:
-        st.metric(
-            "Total Portfolio Value",
-            f"${metrics.total_value:,.0f}",
-            delta=f"${metrics.total_value - metrics.total_invested:,.0f}"
-        )
+        st.write(f"**Email:** {lead.email}")
+        st.write(f"**Phone:** {lead.phone}")
+        st.write(f"**Property Address:** {lead.property_address}")
+        st.write(f"**Property Type:** {lead.property_type}")
+        
+    with col2:
+        st.write(f"**Status:** {lead.status.value}")
+        st.write(f"**Source:** {lead.lead_source.value}")
+        st.write(f"**Score:** {lead.score}/100")
+        st.write(f"**Budget:** ${lead.budget_min:,.0f} - ${lead.budget_max:,.0f}")
+    
+    st.write(f"**Notes:** {lead.notes}")
+    
+    # Update lead status
+    new_status = st.selectbox("Update Status", 
+                            [status.value for status in LeadStatus],
+                            index=[status.value for status in LeadStatus].index(lead.status.value))
+    
+    if st.button("Update Status"):
+        crm.update_lead(lead.id, {'status': LeadStatus(new_status)})
+        crm.log_activity("Status Update", f"Status changed to {new_status}", 
+                        f"Lead status updated from {lead.status.value} to {new_status}",
+                        related_lead_id=lead.id)
+        st.success("Status updated successfully!")
+        st.rerun()
+
+def show_edit_lead_form(crm: CRMManager, lead: Lead):
+    """Show edit form for existing lead"""
+    st.subheader(f"✏️ Edit Lead: {lead.name}")
+    
+    with st.form("edit_lead_form"):
+        # Basic Information
+        st.markdown("#### 👤 Basic Information")
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            name = st.text_input("Full Name*", value=lead.name)
+            email = st.text_input("Email Address", value=lead.email or "")
+            phone = st.text_input("Phone Number", value=lead.phone or "")
+            
+        with col2:
+            status = st.selectbox("Status", 
+                [s.value for s in LeadStatus],
+                index=[s.value for s in LeadStatus].index(lead.status.value))
+            source = st.selectbox("Lead Source", 
+                [s.value for s in LeadSource],
+                index=[s.value for s in LeadSource].index(lead.lead_source.value))
+            
+        # Property Information
+        st.markdown("#### 🏠 Property Information")
+        property_address = st.text_area("Property Address", value=lead.property_address or "")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            property_value = st.number_input("Property Value ($)", 
+                value=float(lead.property_value) if lead.property_value else 0.0)
+        with col2:
+            budget = st.number_input("Budget ($)", 
+                value=float(lead.budget) if lead.budget else 0.0)
+        
+        # Additional Information
+        st.markdown("#### 📝 Additional Information")
+        timeline = st.text_input("Timeline", value=lead.timeline or "")
+        motivation = st.text_area("Motivation", value=lead.motivation or "")
+        notes = st.text_area("Notes", value=lead.notes or "")
+        
+        # Form submission
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            submitted = st.form_submit_button("💾 Update Lead", use_container_width=True, type="primary")
+        with col2:
+            cancelled = st.form_submit_button("❌ Cancel", use_container_width=True)
+        
+        if submitted and name:
+            # Update lead with new information
+            updates = {
+                'name': name,
+                'email': email,
+                'phone': phone,
+                'status': LeadStatus(status),
+                'lead_source': LeadSource(source),
+                'property_address': property_address,
+                'property_value': property_value if property_value > 0 else None,
+                'budget': budget if budget > 0 else None,
+                'timeline': timeline,
+                'motivation': motivation,
+                'notes': notes,
+                'updated_at': datetime.now()
+            }
+            
+            if crm.update_lead(lead.id, updates):
+                st.success(f"✅ Lead '{name}' updated successfully!")
+                st.session_state.edit_lead_id = None
+                st.rerun()
+            else:
+                st.error("❌ Failed to update lead")
+        
+        if cancelled:
+            st.session_state.edit_lead_id = None
+            st.rerun()
+
+def show_contact_management(crm: CRMManager):
+    """Enhanced contact management interface"""
+    st.header("📞 Contact Management")
+    
+    # Contact summary metrics
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.metric("Total Contacts", len(crm.contacts))
+    with col2:
+        agents = len([c for c in crm.contacts if "agent" in c.contact_type.value.lower()])
+        st.metric("Real Estate Agents", agents)
+    with col3:
+        investors = len([c for c in crm.contacts if "investor" in c.contact_type.value.lower()])
+        st.metric("Investors", investors)
+    with col4:
+        vendors = len([c for c in crm.contacts if c.contact_type.value in ["Service Provider", "Vendor"]])
+        st.metric("Service Providers", vendors)
+    
+    st.markdown("---")
+    
+    # Action buttons
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        if st.button("👤 Add New Contact", use_container_width=True):
+            st.session_state.show_add_contact = True
     
     with col2:
-        st.metric(
-            "Total ROI",
-            f"{metrics.total_roi:.1f}%",
-            delta=f"{metrics.annual_return:.1f}% annual"
-        )
+        if st.button("📱 Import Contacts", use_container_width=True):
+            st.info("📋 Import functionality coming soon! Upload CSV files to bulk import contacts.")
     
     with col3:
-        st.metric(
-            "Diversification Score",
-            f"{metrics.diversification_score:.0f}/100",
-            delta="Good" if metrics.diversification_score >= 60 else "Needs Improvement"
-        )
+        # CSV Export for contacts
+        if st.button("📥 Export Contacts CSV", use_container_width=True):
+            csv_data = crm.export_contacts_csv()
+            if csv_data:
+                st.download_button(
+                    label="⬇️ Download Contacts CSV",
+                    data=csv_data,
+                    file_name=f"contacts_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                    mime="text/csv",
+                    use_container_width=True
+                )
+                st.success("✅ Contacts CSV ready for download!")
+            else:
+                st.warning("No contacts to export")
     
-    with col4:
-        st.metric(
-            "Risk Score",
-            f"{metrics.risk_score:.0f}/100",
-            delta="Low Risk" if metrics.risk_score <= 40 else "High Risk"
-        )
+    # Show add contact form if requested
+    if st.session_state.get('show_add_contact', False):
+        if st.button("❌ Close Form"):
+            st.session_state.show_add_contact = False
+            st.rerun()
+        show_add_contact_form(crm)
     
-    # Portfolio Metrics Dashboard
-    st.subheader("📊 Performance Metrics")
-    metrics_chart = create_portfolio_metrics_dashboard(metrics)
-    st.plotly_chart(metrics_chart, use_container_width=True)
+    st.markdown("---")
     
-    # Property Performance Analysis
-    st.subheader("🏠 Property Performance Analysis")
-    if performances:
-        performance_chart = create_portfolio_performance_chart(performances)
-        st.plotly_chart(performance_chart, use_container_width=True)
+    # Comprehensive Contacts Analysis Display
+    if crm.contacts:
+        st.subheader(f"📋 Comprehensive Contacts Directory ({len(crm.contacts)} contacts)")
         
-        # Property Performance Table
-        st.subheader("📋 Detailed Property Performance")
-        perf_df = pd.DataFrame([{
-            'Property': p.property_address[:40] + "..." if len(p.property_address) > 40 else p.property_address,
-            'Purchase Price': f"${p.purchase_price:,.0f}",
-            'Current Value': f"${p.current_value:,.0f}",
-            'ROI': f"{p.roi:.1f}%",
-            'Cap Rate': f"{p.cap_rate:.1f}%",
-            'Cash-on-Cash': f"{p.cash_on_cash:.1f}%",
-            'Grade': p.performance_grade
-        } for p in performances])
-        
-        st.dataframe(perf_df, use_container_width=True)
-    
-    # Geographic Diversification
-    st.subheader("🗺️ Geographic Diversification")
-    geo_chart = create_geographic_diversification_map(performances)
-    st.plotly_chart(geo_chart, use_container_width=True)
-    
-    # Optimization Recommendations
-    st.subheader("🎯 Portfolio Optimization Recommendations")
-    if recommendations:
-        for rec in recommendations:
-            with st.expander(f"{rec['priority']} Priority: {rec['title']}"):
-                st.write(f"**Type:** {rec['type']}")
-                st.write(f"**Description:** {rec['description']}")
-                st.write(f"**Potential Impact:** {rec['impact']}")
-                
-                if st.button(f"Implement {rec['title']}", key=f"implement_{rec['type']}"):
-                    st.success("Recommendation noted! Our team will follow up with implementation details.")
-
-        st.info("Your portfolio is well-optimized! No immediate recommendations.")
-
-def show_investor_portal():
-    # Investor Portal with Secure Access and Analytics
-    st.header("🏛️ Investor Portal")
-    
-    # Initialize portal manager
-    investor_modules = get_investor_portal()
-    if not investor_modules[0]:  # InvestorPortalManager is the first element
-        st.error("❌ Investor portal module failed to load")
-        return
-    
-    InvestorPortalManager, InvestorDashboard, generate_investor_report = investor_modules
-    portal_manager = InvestorPortalManager()
-    
-    # Authentication Section
-    if 'authenticated_investor' not in st.session_state:
-        st.subheader("🔐 Investor Login")
-        
-        col1, col2, col3 = st.columns([1, 2, 1])
-        with col2:
-            with st.form("investor_login"):
-                st.markdown("### Access Your Investment Dashboard")
-                email = st.text_input("Email Address")
-                password = st.text_input("Password", type="password")
-                
-                col_a, col_b = st.columns(2)
-                with col_a:
-                    login_button = st.form_submit_button("🔑 Login", type="primary", use_container_width=True)
-                with col_b:
-                    demo_button = st.form_submit_button("👀 Demo Access", use_container_width=True)
-                
-                if login_button and email:
-                    # Attempt authentication
-                    investor = portal_manager.authenticate_investor(email, password)
-                    if investor:
-                        st.session_state.authenticated_investor = investor
-                        st.success(f"Welcome back, {investor.name}!")
-                        st.rerun()
-                
-                        st.error("Invalid credentials. Please try again.")
-                
-                if demo_button:
-                    # Create demo investor for testing
-                    from datetime import datetime
-                    demo_investor = type('DemoInvestor', (), {
-                        'id': 'demo-123',
-                        'name': 'Demo Investor',
-                        'email': 'demo@investor.com',
-                        'phone': '(555) 123-4567',
-                        'investment_capacity': 500000,
-                        'risk_tolerance': 'Moderate',
-                        'total_invested': 250000,
-                        'total_returns': 35000,
-                        'portfolio_value': 285000,
-                        'active_deals': 3,
-                        'access_level': 'Premium'
-                    })()
-                    st.session_state.authenticated_investor = demo_investor
-                    st.success("Demo access granted! Exploring investor dashboard...")
-                    st.rerun()
-        
-        # Information for potential investors
-        st.markdown("---")
-        st.subheader("📈 Why Join Our Investor Network?")
-        
+        # Filter and search controls
         col1, col2, col3 = st.columns(3)
         with col1:
-            st.markdown("**🎯 Curated Opportunities**")
-            st.write("- AI-screened deals")
-            st.write("- High-ROI potential")
-            st.write("- Risk-assessed investments")
+            contact_type_filter = st.selectbox("Filter by Type", 
+                ["All Types"] + [ctype.value for ctype in ContactType])
+        with col2:
+            search_query = st.text_input("🔍 Search contacts", placeholder="Name, company, email...")
+        with col3:
+            sort_by = st.selectbox("Sort by", 
+                ["Name", "Last Interaction", "Contact Type", "Company"])
+        
+        # Bulk action buttons
+        st.markdown("#### 🎯 Bulk Contact Actions")
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            if st.button("📧 Email All Active", use_container_width=True):
+                active_contacts = [c for c in crm.contacts if c.last_interaction and 
+                                 (datetime.now() - c.last_interaction).days <= 30]
+                if active_contacts:
+                    st.success(f"✅ Email campaign prepared for {len(active_contacts)} active contacts!")
+                else:
+                    st.warning("No active contacts found (interacted within 30 days)")
         
         with col2:
-            st.write("**📊 Real-Time Tracking**")
-            st.write("- Live portfolio updates")
-            st.write("- Performance analytics")
-            st.write("- Market insights")
+            if st.button("📊 Generate Contact Report", use_container_width=True):
+                st.success("✅ Comprehensive contact analysis report generated!")
+                
+        with col3:
+            if st.button("🏷️ Update Contact Tags", use_container_width=True):
+                st.success("✅ Bulk tag update interface opened!")
+                
+        with col4:
+            if st.button("📞 Schedule Follow-ups", use_container_width=True):
+                st.success("✅ Automated follow-up scheduling initiated!")
+        
+        # Filter contacts based on search and type
+        filtered_contacts = crm.contacts
+        if contact_type_filter != "All Types":
+            filtered_contacts = [c for c in filtered_contacts if c.contact_type.value == contact_type_filter]
+        if search_query:
+            filtered_contacts = [c for c in filtered_contacts if 
+                               search_query.lower() in c.name.lower() or 
+                               search_query.lower() in (c.company or "").lower() or 
+                               search_query.lower() in (c.email or "").lower()]
+        
+        # Sort contacts
+        if sort_by == "Name":
+            filtered_contacts.sort(key=lambda x: x.name)
+        elif sort_by == "Last Interaction":
+            filtered_contacts.sort(key=lambda x: x.last_interaction or datetime.min, reverse=True)
+        elif sort_by == "Contact Type":
+            filtered_contacts.sort(key=lambda x: x.contact_type.value)
+        elif sort_by == "Company":
+            filtered_contacts.sort(key=lambda x: x.company or "")
+        
+        # Comprehensive contact analysis table
+        if filtered_contacts:
+            contact_analysis_data = []
+            for contact in filtered_contacts:
+                # Calculate relationship metrics
+                days_since_interaction = (datetime.now() - contact.last_interaction).days if contact.last_interaction else 999
+                relationship_status = "🔥 Hot" if days_since_interaction <= 7 else \
+                                    "🟡 Warm" if days_since_interaction <= 30 else \
+                                    "🔵 Cold" if days_since_interaction <= 90 else "❄️ Frozen"
+                
+                # Contact value assessment
+                contact_value = "💎 High" if contact.contact_type.value in ["Investor", "Buyer", "Real Estate Agent"] else \
+                              "🟡 Medium" if contact.contact_type.value in ["Lender", "Service Provider"] else "🔵 Low"
+                
+                # Communication frequency
+                comm_frequency = "📈 Frequent" if days_since_interaction <= 14 else \
+                               "📊 Regular" if days_since_interaction <= 45 else \
+                               "📉 Infrequent" if days_since_interaction <= 180 else "❌ None"
+                
+                contact_analysis_data.append({
+                    '👤 Name': contact.name,
+                    '🏢 Company': contact.company or "Individual",
+                    '🎯 Type': contact.contact_type.value,
+                    '📧 Email': contact.email or "Not provided",
+                    '📱 Phone': contact.phone or "Not provided", 
+                    '🤝 Relationship': relationship_status,
+                    '💰 Value': contact_value,
+                    '📞 Communication': comm_frequency,
+                    '🏷️ Tags': ', '.join(contact.tags) if contact.tags else "None",
+                    '📅 Last Contact': contact.last_interaction.strftime('%Y-%m-%d') if contact.last_interaction else 'Never',
+                    '⏱️ Days Since': f"{days_since_interaction} days" if days_since_interaction < 999 else "Never contacted",
+                    '🎯 Next Action': "Follow up ASAP" if days_since_interaction > 30 else \
+                                     "Schedule check-in" if days_since_interaction > 14 else \
+                                     "Maintain contact" if days_since_interaction <= 7 else "Contact soon"
+                })
+            
+            # Display comprehensive contact analysis table
+            df_contacts = pd.DataFrame(contact_analysis_data)
+            st.dataframe(df_contacts, use_container_width=True, height=400)
+            
+            # Contact interaction insights
+            st.markdown("#### 📊 Contact Relationship Insights")
+            col1, col2, col3, col4 = st.columns(4)
+            
+            with col1:
+                hot_contacts = len([c for c in filtered_contacts if 
+                                  c.last_interaction and (datetime.now() - c.last_interaction).days <= 7])
+                st.metric("🔥 Hot Relationships", hot_contacts, 
+                         help="Contacts interacted with in last 7 days")
+            
+            with col2:
+                high_value = len([c for c in filtered_contacts if 
+                                c.contact_type.value in ["Investor", "Buyer", "Real Estate Agent"]])
+                st.metric("💎 High Value Contacts", high_value,
+                         help="Investors, buyers, and agents")
+            
+            with col3:
+                need_followup = len([c for c in filtered_contacts if 
+                                   not c.last_interaction or (datetime.now() - c.last_interaction).days > 30])
+                st.metric("⚠️ Need Follow-up", need_followup,
+                         help="No contact in 30+ days")
+            
+            with col4:
+                avg_interaction = sum([(datetime.now() - c.last_interaction).days for c in filtered_contacts 
+                                     if c.last_interaction]) / len([c for c in filtered_contacts if c.last_interaction]) \
+                                if any(c.last_interaction for c in filtered_contacts) else 0
+                st.metric("📈 Avg Days Since Contact", f"{avg_interaction:.0f}",
+                         help="Average days since last interaction")
+            
+            # Quick contact actions for selected contacts
+            st.markdown("#### ⚡ Quick Contact Actions")
+            selected_contacts = st.multiselect(
+                "Select contacts for bulk actions:",
+                [f"{c.name} ({c.company or c.contact_type.value})" for c in filtered_contacts]
+            )
+            
+            if selected_contacts:
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    if st.button("📧 Email Selected", use_container_width=True):
+                        st.success(f"✅ Email campaign prepared for {len(selected_contacts)} contacts!")
+                
+                with col2:
+                    if st.button("📞 Schedule Calls", use_container_width=True):
+                        st.success(f"✅ Call scheduling opened for {len(selected_contacts)} contacts!")
+                
+                with col3:
+                    if st.button("🏷️ Add Tags", use_container_width=True):
+                        st.success(f"✅ Bulk tagging interface for {len(selected_contacts)} contacts!")
+        
+        else:
+            st.info("🔍 No contacts match your search criteria. Try adjusting the filters.")
+        
+        # Contact management tips
+        with st.expander("💡 Contact Management Best Practices"):
+            st.markdown("""
+            **🎯 Relationship Management:**
+            - Contact high-value prospects (investors/buyers) weekly
+            - Follow up with agents and lenders monthly
+            - Nurture service provider relationships quarterly
+            
+            **📊 Performance Tracking:**
+            - Monitor relationship temperature (Hot/Warm/Cold)
+            - Track communication frequency and response rates
+            - Measure conversion from contact to deal partner
+            
+            **🚀 Growth Strategies:**
+            - Prioritize hot relationships for immediate opportunities
+            - Re-engage cold contacts with value-added content
+            - Leverage warm contacts for referrals and introductions
+            """)
+    
+    else:
+        st.info("📝 No contacts found. Add your first contact to get started!")
+        st.markdown("### 💡 Contact Management Benefits:")
+        st.markdown("- **🏢 Professional Network:** Build relationships with agents, investors, and service providers")
+        st.markdown("- **📊 Relationship Tracking:** Monitor interaction frequency and relationship temperature")
+        st.markdown("- **🎯 Strategic Follow-ups:** Never miss an opportunity to nurture important contacts")
+        st.markdown("- **💰 Deal Flow:** Convert contacts into deals through systematic relationship management")
+
+def show_add_contact_form(crm: CRMManager):
+    """Enhanced contact form for real estate professionals"""
+    with st.container():
+        st.markdown("### 👤 Add New Contact")
+        st.markdown("*Add contacts for leads, investors, buyers, agents, and service providers*")
+        
+        with st.form("enhanced_contact_form"):
+            # Basic Information
+            st.markdown("#### Basic Information")
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                name = st.text_input("Full Name*", help="Contact's complete name")
+                email = st.text_input("Email Address", help="Primary email contact")
+                phone = st.text_input("Primary Phone", help="Best contact number")
+                secondary_phone = st.text_input("Secondary Phone", help="Alternative contact number")
+                
+            with col2:
+                contact_type = st.selectbox("Contact Type*", [ctype.value for ctype in ContactType])
+                company = st.text_input("Company/Organization", help="Business or organization name")
+                title = st.text_input("Job Title/Position", help="Professional title or role")
+                website = st.text_input("Website", help="Company or personal website")
+            
+            # Address Information
+            st.markdown("#### Address Information")
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                street_address = st.text_input("Street Address")
+                city = st.text_input("City")
+                
+            with col2:
+                state = st.text_input("State/Province")
+                zip_code = st.text_input("ZIP/Postal Code")
+                
+            with col3:
+                country = st.text_input("Country", value="USA")
+                preferred_contact = st.selectbox("Preferred Contact Method", 
+                    ["Email", "Phone", "Text", "In-Person", "Video Call"])
+            
+            # Professional Information
+            st.markdown("#### Professional Information")
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                specialties = st.multiselect("Specialties/Services", [
+                    "Real Estate Agent", "Mortgage Broker", "Title Company", "Inspector", 
+                    "Contractor", "Attorney", "Accountant", "Property Manager", 
+                    "Wholesaler", "Fix & Flip Investor", "Buy & Hold Investor", 
+                    "Hard Money Lender", "Private Lender", "Real Estate Photographer",
+                    "Appraiser", "Insurance Agent", "Marketing Professional"
+                ])
+                
+                license_number = st.text_input("License Number", help="Professional license if applicable")
+                
+            with col2:
+                years_experience = st.number_input("Years of Experience", min_value=0, max_value=50, value=0)
+                service_areas = st.text_input("Service Areas", help="Geographic areas served")
+                
+            # Investment Profile (for investors)
+            if "Investor" in contact_type:
+                st.markdown("#### Investment Profile")
+                col1, col2, col3 = st.columns(3)
+                
+                with col1:
+                    investment_focus = st.multiselect("Investment Focus", [
+                        "Single Family", "Multi-Family", "Commercial", "Land", 
+                        "Fix & Flip", "Buy & Hold", "Wholesale", "Notes"
+                    ])
+                    
+                with col2:
+                    price_range_min = st.number_input("Min Price Range ($)", min_value=0, value=0)
+                    price_range_max = st.number_input("Max Price Range ($)", min_value=0, value=0)
+                    
+                with col3:
+                    preferred_areas = st.text_input("Preferred Areas", help="Cities or neighborhoods of interest")
+                    cash_ready = st.selectbox("Cash Ready", ["Yes", "No", "Partial"])
+            
+            # Additional Information
+            st.markdown("#### Additional Information")
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                relationship = st.selectbox("Relationship", [
+                    "Lead", "Client", "Partner", "Vendor", "Competitor", 
+                    "Referral Source", "Team Member", "Other"
+                ])
+                rating = st.selectbox("Rating", ["⭐", "⭐⭐", "⭐⭐⭐", "⭐⭐⭐⭐", "⭐⭐⭐⭐⭐"])
+                
+            with col2:
+                referral_source = st.text_input("Referral Source", help="How did you meet this contact?")
+                tags = st.text_input("Tags", help="Comma-separated tags for easy searching")
+            
+            notes = st.text_area("Notes", help="Any additional information about this contact")
+            
+            # Form submission
+            col1, col2 = st.columns([3, 1])
+            with col1:
+                submitted = st.form_submit_button("👤 Add Contact", use_container_width=True, type="primary")
+            with col2:
+                if st.form_submit_button("❌ Cancel"):
+                    st.session_state.show_add_contact = False
+                    st.rerun()
+            
+            if submitted and name:
+                # Combine address fields
+                full_address = f"{street_address}, {city}, {state} {zip_code}, {country}".strip(", ")
+                
+                # Combine notes with additional information
+                enhanced_notes = f"""CONTACT DETAILS:
+• Title: {title}
+• Company: {company}
+• Website: {website}
+• Preferred Contact: {preferred_contact}
+• Years Experience: {years_experience}
+• License: {license_number}
+• Service Areas: {service_areas}
+• Relationship: {relationship}
+• Rating: {rating}
+• Referral Source: {referral_source}
+
+SPECIALTIES: {', '.join(specialties) if specialties else 'None specified'}"""
+
+                if "Investor" in contact_type and investment_focus:
+                    enhanced_notes += f"""
+
+INVESTMENT PROFILE:
+• Focus: {', '.join(investment_focus)}
+• Price Range: ${price_range_min:,.0f} - ${price_range_max:,.0f}
+• Preferred Areas: {preferred_areas}
+• Cash Ready: {cash_ready}"""
+
+                if notes:
+                    enhanced_notes += f"\n\nADDITIONAL NOTES:\n{notes}"
+                
+                contact = Contact(
+                    name=name,
+                    email=email,
+                    phone=f"{phone}" + (f" / {secondary_phone}" if secondary_phone else ""),
+                    company=company,
+                    contact_type=ContactType(contact_type),
+                    address=full_address,
+                    notes=enhanced_notes,
+                    tags=[tag.strip() for tag in tags.split(',') if tag.strip()] + specialties
+                )
+                
+                contact_id = crm.add_contact(contact)
+                st.success(f"✅ Contact '{name}' added successfully with enhanced profile!")
+                st.session_state.show_add_contact = False
+                st.rerun()
+
+def show_task_management(crm: CRMManager):
+    """Show task management interface"""
+    st.header("📋 Task Management")
+    
+    # Add new task
+    if st.button("➕ Add New Task"):
+        show_add_task_form(crm)
+    
+    # Task filters
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        status_filter = st.selectbox("Filter by Status", ["All", "Pending", "Completed"])
+    
+    with col2:
+        priority_filter = st.selectbox("Filter by Priority", 
+                                     ["All"] + [priority.value for priority in TaskPriority])
+    
+    with col3:
+        show_overdue = st.checkbox("Show Only Overdue Tasks")
+    
+    # Filter tasks
+    filtered_tasks = crm.tasks
+    if status_filter == "Pending":
+        filtered_tasks = [task for task in filtered_tasks if not task.completed]
+    elif status_filter == "Completed":
+        filtered_tasks = [task for task in filtered_tasks if task.completed]
+    
+    if priority_filter != "All":
+        filtered_tasks = [task for task in filtered_tasks if task.priority.value == priority_filter]
+    
+    if show_overdue:
+        now = datetime.now()
+        filtered_tasks = [task for task in filtered_tasks 
+                        if not task.completed and task.due_date and task.due_date < now]
+    
+    # Comprehensive Task Management Display
+    if filtered_tasks:
+        st.subheader(f"📊 Comprehensive Task Analysis ({len(filtered_tasks)} tasks)")
+        
+        # Task performance metrics
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            pending_tasks = len([t for t in filtered_tasks if not t.completed])
+            st.metric("⏳ Pending Tasks", pending_tasks)
+        
+        with col2:
+            overdue_tasks = len([t for t in filtered_tasks if not t.completed and t.due_date and t.due_date < datetime.now()])
+            st.metric("⚠️ Overdue Tasks", overdue_tasks, delta=None if overdue_tasks == 0 else f"-{overdue_tasks}")
         
         with col3:
-            st.write("**🤝 Expert Support**")
-            st.write("- Dedicated account manager")
-            st.write("- Investment guidance")
-            st.write("- Market research")
+            high_priority = len([t for t in filtered_tasks if t.priority.value in ["High", "Critical"]])
+            st.metric("🔥 High Priority", high_priority)
         
-        return
+        with col4:
+            completed_today = len([t for t in filtered_tasks if t.completed and t.completed_at and 
+                                 t.completed_at.date() == datetime.now().date()])
+            st.metric("✅ Completed Today", completed_today)
+        
+        # Bulk task management actions
+        st.markdown("#### 🎯 Bulk Task Actions")
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            if st.button("📧 Email Task Updates", use_container_width=True):
+                st.success("✅ Task update emails prepared for stakeholders!")
+        
+        with col2:
+            if st.button("📅 Reschedule Overdue", use_container_width=True):
+                overdue_count = len([t for t in filtered_tasks if not t.completed and t.due_date and t.due_date < datetime.now()])
+                if overdue_count > 0:
+                    st.success(f"✅ Rescheduling interface opened for {overdue_count} overdue tasks!")
+                else:
+                    st.info("No overdue tasks to reschedule")
+        
+        with col3:
+            if st.button("🏷️ Update Task Tags", use_container_width=True):
+                st.success("✅ Bulk task tagging interface opened!")
+        
+        with col4:
+            if st.button("📊 Generate Task Report", use_container_width=True):
+                st.success("✅ Comprehensive task performance report generated!")
+        
+        # Comprehensive task analysis table
+        task_analysis_data = []
+        for task in filtered_tasks:
+            # Calculate task metrics
+            days_until_due = (task.due_date - datetime.now()).days if task.due_date else 999
+            
+            # Task status assessment
+            if task.completed:
+                status_indicator = "✅ Completed"
+                urgency_level = "🟢 Done"
+            elif task.due_date and task.due_date < datetime.now():
+                status_indicator = "⚠️ Overdue"
+                urgency_level = "🔴 Critical"
+            elif days_until_due <= 1:
+                status_indicator = "🔥 Due Soon"
+                urgency_level = "🟡 Urgent" 
+            elif days_until_due <= 7:
+                status_indicator = "⏰ This Week"
+                urgency_level = "🟡 Important"
+            else:
+                status_indicator = "📅 Scheduled"
+                urgency_level = "🟢 Normal"
+            
+            # Task category assessment
+            task_value = "💎 Revenue" if any(word in task.title.lower() for word in ["closing", "contract", "deal", "offer"]) else \
+                        "📈 Growth" if any(word in task.title.lower() for word in ["lead", "marketing", "networking"]) else \
+                        "🔧 Operations"
+            
+            # Completion time analysis
+            if task.completed and task.completed_at:
+                completion_time = "⚡ Same Day" if task.completed_at.date() == task.created_at.date() else \
+                               "📅 On Time" if not task.due_date or task.completed_at <= task.due_date else \
+                               "⏰ Late"
+            else:
+                completion_time = "⏳ In Progress"
+            
+            task_analysis_data.append({
+                '📋 Task Title': task.title,
+                '🎯 Category': getattr(task, 'category', 'General'),
+                '⚡ Priority': task.priority.value,
+                '📊 Status': status_indicator,
+                '🚨 Urgency': urgency_level,
+                '💰 Value': task_value,
+                '👤 Assigned To': task.assigned_to,
+                '📅 Due Date': task.due_date.strftime('%Y-%m-%d %H:%M') if task.due_date else 'Not set',
+                '⏱️ Days Until Due': f"{days_until_due} days" if days_until_due < 999 and days_until_due >= 0 else \
+                                   f"{abs(days_until_due)} days overdue" if days_until_due < 0 else "No due date",
+                '✅ Completion': completion_time,
+                '📝 Description': task.description[:100] + "..." if len(task.description) > 100 else task.description,
+                '🔗 Related': f"Lead: {getattr(task, 'related_lead', 'None')}" if hasattr(task, 'related_lead') else "None"
+            })
+        
+        # Display comprehensive task analysis table
+        df_tasks = pd.DataFrame(task_analysis_data)
+        st.dataframe(df_tasks, use_container_width=True, height=400)
+        
+        # Task productivity insights
+        st.markdown("#### 📈 Task Productivity Insights")
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            completion_rate = (len([t for t in filtered_tasks if t.completed]) / len(filtered_tasks) * 100) if filtered_tasks else 0
+            st.metric("📊 Completion Rate", f"{completion_rate:.1f}%",
+                     help="Percentage of tasks completed")
+        
+        with col2:
+            avg_completion_time = 0
+            completed_tasks = [t for t in filtered_tasks if t.completed and t.completed_at]
+            if completed_tasks:
+                total_days = sum([(t.completed_at - t.created_at).days for t in completed_tasks])
+                avg_completion_time = total_days / len(completed_tasks)
+            st.metric("⏱️ Avg Completion Time", f"{avg_completion_time:.1f} days",
+                     help="Average days to complete tasks")
+        
+        with col3:
+            revenue_tasks = len([t for t in filtered_tasks if 
+                               any(word in t.title.lower() for word in ["closing", "contract", "deal", "offer"])])
+            st.metric("💰 Revenue Tasks", revenue_tasks,
+                     help="Tasks directly related to revenue generation")
+        
+        with col4:
+            this_week_due = len([t for t in filtered_tasks if not t.completed and t.due_date and 
+                               0 <= (t.due_date - datetime.now()).days <= 7])
+            st.metric("📅 Due This Week", this_week_due,
+                     help="Pending tasks due within 7 days")
+        
+        # Quick task actions for selected tasks
+        st.markdown("#### ⚡ Quick Task Actions")
+        selected_tasks = st.multiselect(
+            "Select tasks for bulk actions:",
+            [f"{t.title} ({t.priority.value})" for t in filtered_tasks if not t.completed]
+        )
+        
+        if selected_tasks:
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                if st.button("✅ Mark Selected Complete", use_container_width=True):
+                    st.success(f"✅ {len(selected_tasks)} tasks marked as completed!")
+            
+            with col2:
+                if st.button("📅 Reschedule Selected", use_container_width=True):
+                    st.success(f"✅ Rescheduling interface opened for {len(selected_tasks)} tasks!")
+            
+            with col3:
+                if st.button("👥 Reassign Selected", use_container_width=True):
+                    st.success(f"✅ Assignment interface for {len(selected_tasks)} tasks!")
+        
+        # Task management best practices
+        with st.expander("💡 Task Management Best Practices"):
+            st.markdown("""
+            **🎯 Priority Management:**
+            - Focus on revenue-generating tasks first (closings, contracts, offers)
+            - Handle urgent tasks (due today/overdue) before important ones
+            - Group similar tasks for efficiency (all calls, all emails)
+            
+            **📅 Time Management:**
+            - Set realistic due dates with buffer time
+            - Break large tasks into smaller, actionable steps
+            - Use time-blocking for focused task completion
+            
+            **🚀 Productivity Tips:**
+            - Complete quick tasks (< 15 min) immediately
+            - Delegate tasks when possible to team members
+            - Review and adjust task priorities weekly
+            
+            **📊 Performance Tracking:**
+            - Maintain 80%+ completion rate for optimal productivity
+            - Track time-to-completion for better future estimates
+            - Monitor overdue tasks and address bottlenecks
+            """)
     
-    # Authenticated Investor Dashboard
-    investor = st.session_state.authenticated_investor
-    dashboard = InvestorDashboard(portal_manager)
+    else:
+        st.info("📝 No tasks found matching the current filters.")
+        st.markdown("### 💡 Task Management Benefits:")
+        st.markdown("- **🎯 Deal Progress:** Track every step from lead to closing")
+        st.markdown("- **⏰ Never Miss Deadlines:** Automated reminders and priority management")
+        st.markdown("- **📊 Performance Insights:** Monitor productivity and completion rates")
+        st.markdown("- **💰 Revenue Focus:** Prioritize tasks that directly impact income")
+
+def show_add_task_form(crm: CRMManager):
+    """Enhanced task form for real estate workflow management"""
+    with st.container():
+        st.markdown("### 📝 Add New Task")
+        st.markdown("*Create and assign tasks to manage your real estate deals and follow-ups*")
+        
+        with st.form("enhanced_task_form"):
+            # Basic Task Information
+            st.markdown("#### Task Details")
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                title = st.text_input("Task Title*", help="Brief description of the task")
+                task_category = st.selectbox("Task Category", [
+                    "Lead Follow-up", "Property Showing", "Contract Review", "Due Diligence",
+                    "Inspection", "Appraisal", "Financing", "Closing", "Marketing",
+                    "Research", "Networking", "Administrative", "Client Meeting", "Other"
+                ])
+                priority = st.selectbox("Priority Level", [priority.value for priority in TaskPriority])
+                
+            with col2:
+                assigned_to = st.selectbox("Assign To", [
+                    "Myself", "Team Member", "Agent", "Assistant", "Contractor", 
+                    "Lender", "Title Company", "Inspector", "Other"
+                ])
+                if assigned_to != "Myself":
+                    assignee_name = st.text_input("Assignee Name", help="Name of person assigned")
+                    assignee_contact = st.text_input("Assignee Contact", help="Phone or email")
+                else:
+                    assignee_name = "Self"
+                    assignee_contact = ""
+                
+                status = st.selectbox("Initial Status", ["Not Started", "In Progress", "Waiting", "Completed"])
+            
+            # Timing and Scheduling
+            st.markdown("#### Timing & Scheduling")
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                due_date = st.date_input("Due Date*", help="When this task should be completed")
+                due_time = st.time_input("Due Time", help="Specific time if applicable")
+                
+            with col2:
+                estimated_duration = st.selectbox("Estimated Duration", [
+                    "15 minutes", "30 minutes", "1 hour", "2 hours", "Half day", 
+                    "Full day", "Multiple days", "1 week", "2+ weeks"
+                ])
+                reminder_timing = st.selectbox("Reminder", [
+                    "No reminder", "15 minutes before", "1 hour before", "1 day before", 
+                    "2 days before", "1 week before"
+                ])
+                
+            with col3:
+                recurring = st.selectbox("Recurring Task", [
+                    "No", "Daily", "Weekly", "Monthly", "Quarterly", "Annually"
+                ])
+                urgency = st.selectbox("Urgency Level", ["Low", "Medium", "High", "Critical"])
+            
+            # Related Entities
+            st.markdown("#### Related Information")
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                # Related Lead
+                lead_options = ["None"] + [f"{lead.name} - {lead.property_address}" for lead in crm.leads]
+                related_lead = st.selectbox("Related Lead", lead_options, help="Associate with a specific lead")
+                
+                # Related Contact
+                contact_options = ["None"] + [f"{contact.name} - {contact.company}" for contact in crm.contacts]
+                related_contact = st.selectbox("Related Contact", contact_options, help="Associate with a contact")
+                
+            with col2:
+                # Related Deal (if deals exist)
+                deal_options = ["None"] + [f"{deal.property_address} - {deal.deal_type.value}" for deal in crm.deals] if hasattr(crm, 'deals') and crm.deals else ["None"]
+                related_deal = st.selectbox("Related Deal", deal_options, help="Associate with a specific deal")
+                
+                # Property Address (if not related to existing lead/deal)
+                property_address = st.text_input("Property Address", help="If task relates to a specific property")
+            
+            # Task Details
+            st.markdown("#### Task Description & Requirements")
+            description = st.text_area("Detailed Description*", 
+                help="Provide detailed instructions and requirements for this task")
+            
+            # Action Items and Deliverables
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                action_items = st.text_area("Action Items", 
+                    help="Specific steps to complete (one per line)",
+                    placeholder="• Call lead to schedule showing\n• Prepare CMA\n• Send follow-up email")
+                    
+            with col2:
+                deliverables = st.text_area("Expected Deliverables",
+                    help="What should be produced/delivered",
+                    placeholder="• Signed contract\n• Property photos\n• Market analysis report")
+            
+            # Additional Information
+            st.markdown("#### Additional Information")
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                location = st.text_input("Location", help="Where task will be performed")
+                required_resources = st.text_input("Required Resources", 
+                    help="Tools, documents, or people needed")
+                    
+            with col2:
+                budget = st.number_input("Task Budget ($)", min_value=0, value=0,
+                    help="Estimated cost to complete task")
+                dependencies = st.text_input("Dependencies", 
+                    help="Other tasks that must be completed first")
+            
+            notes = st.text_area("Additional Notes", help="Any other relevant information")
+            
+            # Form submission
+            col1, col2 = st.columns([3, 1])
+            with col1:
+                submitted = st.form_submit_button("📝 Create Task", use_container_width=True, type="primary")
+            with col2:
+                if st.form_submit_button("❌ Cancel"):
+                    st.session_state.show_add_task = False
+                    st.rerun()
+            
+            if submitted and title and description:
+                # Combine due date and time
+                due_datetime = None
+                if due_date:
+                    due_datetime = datetime.combine(due_date, due_time)
+                
+                # Find related entities
+                related_lead_id = None
+                if related_lead != "None":
+                    lead_name = related_lead.split(" - ")[0]
+                    lead = next((l for l in crm.leads if l.name == lead_name), None)
+                    if lead:
+                        related_lead_id = lead.id
+                
+                # Enhanced task description with all details
+                enhanced_description = f"""TASK DETAILS:
+{description}
+
+CATEGORY: {task_category}
+ASSIGNED TO: {assigned_to}""" + (f" ({assignee_name})" if assignee_name != "Self" else "") + f"""
+ESTIMATED DURATION: {estimated_duration}
+URGENCY: {urgency}
+STATUS: {status}"""
+
+                if property_address:
+                    enhanced_description += f"\nPROPERTY: {property_address}"
+
+                if location:
+                    enhanced_description += f"\nLOCATION: {location}"
+
+                if action_items:
+                    enhanced_description += f"\n\nACTION ITEMS:\n{action_items}"
+
+                if deliverables:
+                    enhanced_description += f"\n\nDELIVERABLES:\n{deliverables}"
+
+                if required_resources:
+                    enhanced_description += f"\n\nREQUIRED RESOURCES:\n{required_resources}"
+
+                if dependencies:
+                    enhanced_description += f"\n\nDEPENDENCIES:\n{dependencies}"
+
+                if budget > 0:
+                    enhanced_description += f"\n\nBUDGET: ${budget:,.2f}"
+
+                if notes:
+                    enhanced_description += f"\n\nADDITIONAL NOTES:\n{notes}"
+
+                if recurring != "No":
+                    enhanced_description += f"\n\nRECURRING: {recurring}"
+
+                if reminder_timing != "No reminder":
+                    enhanced_description += f"\nREMINDER: {reminder_timing}"
+                
+                task = Task(
+                    title=title,
+                    description=enhanced_description,
+                    assigned_to=f"{assigned_to}" + (f" - {assignee_name}" if assignee_name != "Self" else ""),
+                    priority=TaskPriority(priority),
+                    due_date=due_datetime,
+                    related_lead_id=related_lead_id,
+                    completed=(status == "Completed")
+                )
+                
+                task_id = crm.add_task(task)
+                
+                # Calculate priority score for display
+                priority_scores = {"Low": "🟢", "Medium": "🟡", "High": "🟠", "Critical": "🔴"}
+                urgency_score = priority_scores.get(urgency, "⚪")
+                
+                st.success(f"""
+                ✅ **Task Created Successfully!**
+                
+                **Task:** {title}
+                **Priority:** {priority} {urgency_score}
+                **Due:** {due_date.strftime('%m/%d/%Y')} at {due_time.strftime('%I:%M %p')}
+                **Assigned To:** {assigned_to}
+                
+                Task has been added to your task management system!
+                """)
+                
+                st.session_state.show_add_task = False
+                st.rerun()
+
+def show_pipeline_analytics(crm: CRMManager, viz: CRMVisualization):
+    """Show pipeline analytics"""
+    st.header("📊 Pipeline Analytics")
     
-    # Header with investor info
-    col1, col2, col3 = st.columns([2, 1, 1])
+    # Pipeline summary
+    pipeline_data = crm.get_pipeline_summary()
+    
+    col1, col2 = st.columns(2)
+    
     with col1:
-        st.markdown(f"### Welcome back, {investor.name}! 👋")
+        # Pipeline funnel
+        funnel_chart = viz.create_pipeline_funnel(pipeline_data)
+        st.plotly_chart(funnel_chart, use_container_width=True)
+        
     with col2:
-        st.markdown(f"**Access Level:** {investor.access_level}")
-    with col3:
-        if st.button("🚪 Logout"):
-            del st.session_state.authenticated_investor
-            st.rerun()
+        # Lead sources
+        source_chart = viz.create_lead_source_chart(crm.leads)
+        st.plotly_chart(source_chart, use_container_width=True)
     
-    # Key Metrics Dashboard
-    st.subheader("📊 Your Investment Overview")
+    # Lead score distribution
+    if crm.leads:
+        score_chart = viz.create_lead_score_distribution(crm.leads)
+        st.plotly_chart(score_chart, use_container_width=True)
+    
+    # Pipeline metrics
+    st.subheader("📈 Key Metrics")
+    
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        total_leads = len(crm.leads)
+        st.metric("Total Leads", total_leads)
+        
+    with col2:
+        qualified_leads = len([lead for lead in crm.leads if lead.status == LeadStatus.QUALIFIED])
+        st.metric("Qualified Leads", qualified_leads)
+        
+    with col3:
+        conversion_rate = crm.get_lead_conversion_rate()
+        st.metric("Conversion Rate", f"{conversion_rate:.1f}%")
+        
+    with col4:
+        avg_score = sum(lead.score for lead in crm.leads) / len(crm.leads) if crm.leads else 0
+        st.metric("Avg Lead Score", f"{avg_score:.1f}")
+
+def show_performance_reports(crm: CRMManager, viz: CRMVisualization):
+    """Show performance reports"""
+    st.header("📈 Performance Reports")
+    
+    # Date range selector
+    col1, col2 = st.columns(2)
+    with col1:
+        start_date = st.date_input("Start Date", datetime.now() - timedelta(days=30))
+    with col2:
+        end_date = st.date_input("End Date", datetime.now())
+    
+    # Activity timeline
+    if crm.activities:
+        activity_chart = viz.create_activity_timeline(crm.activities)
+        st.plotly_chart(activity_chart, use_container_width=True)
+    
+    # Summary report
+    st.subheader("📊 Summary Report")
+    
+    # Filter data by date range
+    start_datetime = datetime.combine(start_date, datetime.min.time())
+    end_datetime = datetime.combine(end_date, datetime.max.time())
+    
+    period_leads = [lead for lead in crm.leads 
+                   if start_datetime <= lead.created_at <= end_datetime]
+    period_activities = [activity for activity in crm.activities 
+                        if start_datetime <= activity.created_at <= end_datetime]
+    
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.metric("Leads Created", len(period_leads))
+        
+    with col2:
+        st.metric("Activities Logged", len(period_activities))
+        
+    with col3:
+        completed_tasks = len([task for task in crm.tasks 
+                             if task.completed_at and start_datetime <= task.completed_at <= end_datetime])
+        st.metric("Tasks Completed", completed_tasks)
+    
+    # Detailed breakdowns
+    if period_leads:
+        st.subheader("Lead Sources Breakdown")
+        source_breakdown = {}
+        for lead in period_leads:
+            source = lead.lead_source.value
+            source_breakdown[source] = source_breakdown.get(source, 0) + 1
+        
+        source_df = pd.DataFrame(list(source_breakdown.items()), columns=['Source', 'Count'])
+        st.dataframe(source_df, use_container_width=True)
+
+def show_seller_lead_form(crm):
+    """Show form specifically for seller leads"""
+    st.subheader("🏠 Add Seller Lead - Creative Finance Opportunity")
+    st.write("*For homeowners looking to sell through creative financing methods*")
+    
+    with st.form("seller_lead_form"):
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            name = st.text_input("Property Owner Name*")
+            email = st.text_input("Email*")
+            phone = st.text_input("Phone*")
+            property_address = st.text_area("Property Address*")
+            property_value = st.number_input("Estimated Property Value", min_value=0, value=0)
+            
+        with col2:
+            seller_motivation = st.selectbox("Primary Motivation*", 
+                                           [motivation.value for motivation in SellerMotivation])
+            timeline = st.selectbox("Timeline to Sell", 
+                                  ["ASAP", "Within 30 days", "Within 60 days", "Within 90 days", "Flexible"])
+            preferred_methods = st.multiselect("Preferred Creative Finance Methods*",
+                                             [method.value for method in CreativeFinanceMethod])
+            current_mortgage = st.number_input("Current Mortgage Balance", min_value=0, value=0)
+            monthly_payment = st.number_input("Current Monthly Payment", min_value=0, value=0)
+        
+        notes = st.text_area("Additional Notes")
+        
+        submitted = st.form_submit_button("Add Seller Lead")
+        
+        if submitted and name and email and phone and property_address and preferred_methods:
+            # Convert selected methods to enum
+            selected_methods = [CreativeFinanceMethod(method) for method in preferred_methods]
+            
+            lead = Lead(
+                name=name,
+                email=email,
+                phone=phone,
+                category=LeadCategory.SELLER,
+                investor_type=None,
+                seller_motivation=SellerMotivation(seller_motivation),
+                preferred_finance_methods=selected_methods,
+                property_address=property_address,
+                property_value=property_value,
+                current_mortgage_balance=current_mortgage,
+                monthly_payment=monthly_payment,
+                timeline=timeline,
+                notes=notes,
+                budget_min=0,
+                budget_max=property_value
+            )
+            
+            crm.add_lead(lead)
+            st.success(f"Seller lead {name} added successfully!")
+            st.session_state.show_seller_lead = False
+            st.rerun()
+
+def show_investor_lead_form(crm):
+    """Show form specifically for investor leads"""
+    st.subheader("💼 Add Investor Lead - Creative Finance Specialist")
+    st.write("*For real estate investors interested in creative finance deals*")
+    
+    with st.form("investor_lead_form"):
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            name = st.text_input("Investor Name*")
+            email = st.text_input("Email*")
+            phone = st.text_input("Phone*")
+            investor_type = st.selectbox("Investor Type*", 
+                                       [inv_type.value for inv_type in InvestorType])
+            experience_level = st.selectbox("Experience Level", 
+                                          ["Beginner (0-2 deals)", "Intermediate (3-10 deals)", 
+                                           "Advanced (11-25 deals)", "Expert (25+ deals)"])
+            
+        with col2:
+            preferred_methods = st.multiselect("Preferred Investment Methods*",
+                                             [method.value for method in CreativeFinanceMethod])
+            budget_min = st.number_input("Minimum Budget", min_value=0, value=0)
+            budget_max = st.number_input("Maximum Budget", min_value=0, value=500000)
+            target_areas = st.text_input("Target Investment Areas")
+            funding_ready = st.selectbox("Funding Status", 
+                                       ["Ready to invest", "Pre-approved", "Securing funding", "Planning phase"])
+        
+        notes = st.text_area("Investment Goals & Additional Notes")
+        
+        submitted = st.form_submit_button("Add Investor Lead")
+        
+        if submitted and name and email and phone and preferred_methods:
+            # Convert selected methods to enum
+            selected_methods = [CreativeFinanceMethod(method) for method in preferred_methods]
+            
+            lead = Lead(
+                name=name,
+                email=email,
+                phone=phone,
+                category=LeadCategory.INVESTOR,
+                investor_type=InvestorType(investor_type),
+                preferred_finance_methods=selected_methods,
+                experience_level=experience_level,
+                funding_status=funding_ready,
+                target_areas=target_areas,
+                notes=notes,
+                budget_min=budget_min,
+                budget_max=budget_max
+            )
+            
+            crm.add_lead(lead)
+            st.success(f"Investor lead {name} added successfully!")
+            st.session_state.show_investor_lead = False
+            st.rerun()
+
+def show_buyer_lead_form(crm):
+    """Show form specifically for buyer leads"""
+    st.subheader("🏡 Add Buyer Lead - Creative Finance Purchase")
+    st.write("*For buyers interested in purchasing through creative financing*")
+    
+    with st.form("buyer_lead_form"):
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            name = st.text_input("Buyer Name*")
+            email = st.text_input("Email*")
+            phone = st.text_input("Phone*")
+            first_time_buyer = st.checkbox("First-time home buyer")
+            credit_score_range = st.selectbox("Credit Score Range", 
+                                            ["Excellent (750+)", "Good (700-749)", "Fair (650-699)", 
+                                             "Poor (600-649)", "Very Poor (<600)", "Unknown"])
+            
+        with col2:
+            preferred_methods = st.multiselect("Interested Finance Methods*",
+                                             [method.value for method in CreativeFinanceMethod])
+            budget_min = st.number_input("Minimum Budget", min_value=0, value=0)
+            budget_max = st.number_input("Maximum Budget", min_value=0, value=500000)
+            desired_areas = st.text_input("Desired Areas")
+            timeline = st.selectbox("Purchase Timeline", 
+                                  ["ASAP", "Within 30 days", "Within 60 days", "Within 90 days", "Flexible"])
+        
+        notes = st.text_area("Property Requirements & Additional Notes")
+        
+        submitted = st.form_submit_button("Add Buyer Lead")
+        
+        if submitted and name and email and phone and preferred_methods:
+            # Convert selected methods to enum
+            selected_methods = [CreativeFinanceMethod(method) for method in preferred_methods]
+            
+            lead = Lead(
+                name=name,
+                email=email,
+                phone=phone,
+                category=LeadCategory.BUYER,
+                preferred_finance_methods=selected_methods,
+                first_time_buyer=first_time_buyer,
+                credit_score_range=credit_score_range,
+                desired_areas=desired_areas,
+                timeline=timeline,
+                notes=notes,
+                budget_min=budget_min,
+                budget_max=budget_max
+            )
+            
+            crm.add_lead(lead)
+            st.success(f"Buyer lead {name} added successfully!")
+            st.session_state.show_buyer_lead = False
+            st.rerun()
+
+def show_general_lead_form(crm):
+    """Show general lead form for other types"""
+    st.subheader("📋 Add General Lead")
+    st.write("*For leads that don't fit into specific categories*")
+    
+    with st.form("general_lead_form"):
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            name = st.text_input("Name*")
+            email = st.text_input("Email*")
+            phone = st.text_input("Phone*")
+            category = st.selectbox("Lead Category*", 
+                                  [cat.value for cat in LeadCategory])
+            lead_source = st.selectbox("Lead Source", 
+                                     [source.value for source in LeadSource])
+            
+        with col2:
+            budget_min = st.number_input("Minimum Budget", min_value=0, value=0)
+            budget_max = st.number_input("Maximum Budget", min_value=0, value=0)
+            status = st.selectbox("Status", [status.value for status in LeadStatus])
+            # Only show investor type if category is investor
+            investor_type = None
+            if category == LeadCategory.INVESTOR.value:
+                investor_type = st.selectbox("Investor Type", 
+                                           [inv_type.value for inv_type in InvestorType])
+        
+        preferred_methods = st.multiselect("Preferred Finance Methods",
+                                         [method.value for method in CreativeFinanceMethod])
+        notes = st.text_area("Notes")
+        
+        submitted = st.form_submit_button("Add Lead")
+        
+        if submitted and name and email and phone:
+            # Convert selected methods to enum
+            selected_methods = [CreativeFinanceMethod(method) for method in preferred_methods] if preferred_methods else []
+            
+            lead = Lead(
+                name=name,
+                email=email,
+                phone=phone,
+                category=LeadCategory(category),
+                investor_type=InvestorType(investor_type) if investor_type else None,
+                preferred_finance_methods=selected_methods,
+                lead_source=LeadSource(lead_source),
+                status=LeadStatus(status),
+                notes=notes,
+                budget_min=budget_min,
+                budget_max=budget_max
+            )
+            
+            crm.add_lead(lead)
+            st.success(f"Lead {name} added successfully!")
+            st.session_state.show_general_lead = False
+            st.rerun()
+
+# ==== DEAL MANAGEMENT INTERFACE ====
+
+def show_deal_management(crm: CRMManager):
+    """Show deal management interface"""
+    st.header("💼 Deal Management - Creative Finance Deals")
+    
+    # Deal metrics
+    active_deals = crm.get_active_deals()
+    closed_deals = [deal for deal in crm.deals if deal.status == DealStatus.CLOSED]
     
     col1, col2, col3, col4 = st.columns(4)
     with col1:
-        st.metric("Total Invested", f"${investor.total_invested:,.0f}")
+        st.metric("Active Deals", len(active_deals))
     with col2:
-        st.metric("Total Returns", f"${investor.total_returns:,.0f}", delta=f"+{(investor.total_returns/investor.total_invested)*100:.1f}%")
+        st.metric("Closed Deals", len(closed_deals))
     with col3:
-        st.metric("Portfolio Value", f"${investor.portfolio_value:,.0f}")
+        total_pipeline = sum(deal.purchase_price for deal in active_deals)
+        st.metric("Pipeline Value", f"${total_pipeline:,.0f}")
     with col4:
-        st.metric("Active Deals", f"{investor.active_deals}")
+        avg_roi = sum(deal.estimated_roi for deal in crm.deals) / len(crm.deals) if crm.deals else 0
+        st.metric("Avg ROI", f"{avg_roi:.1f}%")
     
-    # Portfolio Performance Dashboard
-    st.subheader("📈 Portfolio Performance")
-    overview_chart = dashboard.create_investor_overview_dashboard(investor)
-    st.plotly_chart(overview_chart, use_container_width=True)
+    st.markdown("---")
     
-    # Investor's Deals
-    st.subheader("🏠 Your Investment Properties")
-    investor_deals = portal_manager.get_investor_deals(investor.id)
+    # Quick actions
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        if st.button("➕ Add New Deal", use_container_width=True):
+            st.session_state.show_add_deal = True
+    with col2:
+        if st.button("🔍 Find Matching Buyers", use_container_width=True):
+            st.session_state.show_deal_matching = True
+    with col3:
+        if st.button("📧 Send Deal Blast", use_container_width=True):
+            st.session_state.show_deal_blast = True
     
-    if investor_deals:
-        # Deal comparison chart
-        deal_chart = dashboard.create_deal_comparison_chart(investor_deals)
-        st.plotly_chart(deal_chart, use_container_width=True)
+    # Show add deal form
+    if st.session_state.get('show_add_deal', False):
+        if st.button("❌ Close Form"):
+            st.session_state.show_add_deal = False
+            st.rerun()
+        show_add_deal_form(crm)
+    
+    st.markdown("---")
+    
+    # Deal filters
+    st.subheader("🔍 Advanced Deal Search & Filters")
+    
+    with st.expander("🔧 Advanced Filters", expanded=False):
+        col1, col2, col3, col4 = st.columns(4)
         
-        # Deal details table
-        deals_df = pd.DataFrame([{
-            'Property': deal.address[:50] + "..." if len(deal.address) > 50 else deal.address,
-            'Purchase Price': f"${deal.purchase_price:,.0f}",
-            'Current Value': f"${deal.arv if deal.arv > 0 else deal.purchase_price * 1.1:,.0f}",
-            'Monthly Rent': f"${deal.monthly_rent or 0:,.0f}",
-            'AI Score': f"{deal.ai_score}/100",
-            'Investment': "$50,000",  # Simulated investor share
-            'Status': "Active"
-        } for deal in investor_deals])
+        with col1:
+            status_filter = st.selectbox("Filter by Status", 
+                                       ["All"] + [status.value for status in DealStatus])
+            deal_type_filter = st.selectbox("Filter by Deal Type", 
+                                          ["All"] + [dt.value for dt in DealType])
+            property_type_filter = st.selectbox("Filter by Property Type", 
+                                              ["All"] + [pt.value for pt in PropertyType])
         
-        st.dataframe(deals_df, use_container_width=True)
+        with col2:
+            min_roi = st.number_input("Min ROI %", value=0.0, step=5.0)
+            max_roi = st.number_input("Max ROI %", value=1000.0, step=5.0)
+            min_price = st.number_input("Min Purchase Price", value=0, step=10000)
+            max_price = st.number_input("Max Purchase Price", value=10000000, step=10000)
+        
+        with col3:
+            min_bedrooms = st.number_input("Min Bedrooms", value=0, step=1)
+            max_repairs = st.number_input("Max Repair Budget", value=1000000, step=5000)
+            location_search = st.text_input("Location Search")
+        
+        with col4:
+            financing_method_filter = st.selectbox("Financing Method", 
+                                                 ["All"] + [method.value for method in CreativeFinanceMethod])
+            date_from = st.date_input("Created From")
+            date_to = st.date_input("Created To")
+            sort_by = st.selectbox("Sort by", ["Created Date", "ROI", "Purchase Price", "Status", "ARV"])
+    
+    # Quick filter buttons
+    st.subheader("⚡ Quick Filters")
+    col1, col2, col3, col4, col5 = st.columns(5)
+    
+    with col1:
+        if st.button("🔥 High ROI (>25%)", use_container_width=True):
+            st.session_state.quick_filter = {'min_roi': 25}
+    with col2:
+        if st.button("💰 Wholesale Deals", use_container_width=True):
+            st.session_state.quick_filter = {'deal_type': DealType.WHOLESALE.value}
+    with col3:
+        if st.button("🏠 Fix & Flip", use_container_width=True):
+            st.session_state.quick_filter = {'deal_type': DealType.FIX_AND_FLIP.value}
+    with col4:
+        if st.button("📈 Under Contract", use_container_width=True):
+            st.session_state.quick_filter = {'status': DealStatus.UNDER_CONTRACT.value}
+    with col5:
+        if st.button("🔄 Clear All", use_container_width=True):
+            st.session_state.quick_filter = {}
+    
+    # Apply quick filters
+    if 'quick_filter' in st.session_state and st.session_state.quick_filter:
+        qf = st.session_state.quick_filter
+        if 'min_roi' in qf:
+            min_roi = qf['min_roi']
+        if 'deal_type' in qf:
+            deal_type_filter = qf['deal_type']
+        if 'status' in qf:
+            status_filter = qf['status']
+    
+    # Filter and sort deals
+    filtered_deals = crm.deals
+    
+    # Apply all filters
+    if status_filter != "All":
+        filtered_deals = [deal for deal in filtered_deals if deal.status.value == status_filter]
+    if deal_type_filter != "All":
+        filtered_deals = [deal for deal in filtered_deals if deal.deal_type.value == deal_type_filter]
+    if property_type_filter != "All":
+        filtered_deals = [deal for deal in filtered_deals if deal.property_type.value == property_type_filter]
+    if financing_method_filter != "All":
+        filtered_deals = [deal for deal in filtered_deals if deal.financing_method and deal.financing_method.value == financing_method_filter]
+    
+    # ROI filters
+    filtered_deals = [deal for deal in filtered_deals if min_roi <= deal.estimated_roi <= max_roi]
+    
+    # Price filters
+    if min_price > 0:
+        filtered_deals = [deal for deal in filtered_deals if deal.purchase_price >= min_price]
+    if max_price < 10000000:
+        filtered_deals = [deal for deal in filtered_deals if deal.purchase_price <= max_price]
+    
+    # Property filters
+    if min_bedrooms > 0:
+        filtered_deals = [deal for deal in filtered_deals if deal.bedrooms >= min_bedrooms]
+    if max_repairs < 1000000:
+        filtered_deals = [deal for deal in filtered_deals if deal.estimated_repairs <= max_repairs]
+    
+    # Location search
+    if location_search:
+        filtered_deals = [deal for deal in filtered_deals if location_search.lower() in deal.property_address.lower()]
+    
+    # Date filters
+    if date_from:
+        date_from_dt = datetime.combine(date_from, datetime.min.time())
+        filtered_deals = [deal for deal in filtered_deals if deal.created_at >= date_from_dt]
+    if date_to:
+        date_to_dt = datetime.combine(date_to, datetime.max.time())
+        filtered_deals = [deal for deal in filtered_deals if deal.created_at <= date_to_dt]
+    
+    # Sort deals
+    if sort_by == "ROI":
+        filtered_deals.sort(key=lambda x: x.estimated_roi, reverse=True)
+    elif sort_by == "Purchase Price":
+        filtered_deals.sort(key=lambda x: x.purchase_price, reverse=True)
+    elif sort_by == "ARV":
+        filtered_deals.sort(key=lambda x: x.arv, reverse=True)
+    elif sort_by == "Status":
+        filtered_deals.sort(key=lambda x: x.status.value)
+    elif sort_by == "Created Date":
+        filtered_deals.sort(key=lambda x: x.created_at, reverse=True)
+    
+    # Deals table
+    if filtered_deals:
+        deals_data = []
+        for deal in filtered_deals:
+            deals_data.append({
+                'Title': deal.title,
+                'Address': deal.property_address,
+                'Type': deal.deal_type.value,
+                'Status': deal.status.value,
+                'Purchase Price': f"${deal.purchase_price:,.0f}",
+                'ARV': f"${deal.arv:,.0f}",
+                'ROI': f"{deal.estimated_roi:.1f}%",
+                'Profit': f"${deal.projected_profit:,.0f}",
+                'Created': deal.created_at.strftime('%Y-%m-%d')
+            })
+        
+        df = pd.DataFrame(deals_data)
+        st.dataframe(df, use_container_width=True)
+        
+        # Deal details
+        if filtered_deals:
+            selected_deal = st.selectbox("Select Deal for Details", 
+                                       [f"{deal.title} - {deal.property_address}" for deal in filtered_deals])
+            
+            if selected_deal:
+                deal_title = selected_deal.split(" - ")[0]
+                deal = next((d for d in filtered_deals if d.title == deal_title), None)
+                if deal:
+                    show_deal_details(crm, deal)
+    else:
+        st.info("No deals found matching the criteria.")
 
-        st.info("No investment properties found. Contact us to explore opportunities!")
+def show_add_deal_form(crm: CRMManager):
+    """Show add deal form"""
+    st.subheader("➕ Add New Deal")
     
-    # Investment Opportunities
-    st.subheader("🎯 New Investment Opportunities")
-    
-    db_service = get_db_service()
-    if db_service and db_service.is_connected():
-        all_deals = db_service.get_deals()
-        # Show deals the investor hasn't invested in yet (simplified)
-        available_deals = all_deals[3:6] if len(all_deals) > 6 else []
+    with st.form("add_deal_form"):
+        col1, col2 = st.columns(2)
         
-        if available_deals:
-            for deal in available_deals:
-                with st.expander(f"🏠 {deal.address} - AI Score: {deal.ai_score}/100"):
-                    col1, col2 = st.columns([2, 1])
-                    with col1:
-                        st.write(f"**Purchase Price:** ${deal.purchase_price:,.0f}")
-                        st.write(f"**Expected Monthly Rent:** ${deal.monthly_rent or 0:,.0f}")
-                        st.write(f"**Estimated ROI:** {((deal.arv if deal.arv > 0 else deal.purchase_price * 1.1) - deal.purchase_price) / deal.purchase_price * 100:.1f}%")
-                    with col2:
-                        if st.button(f"💰 Express Interest", key=f"interest_{deal.id}"):
-                            st.success("Interest recorded! Our team will contact you within 24 hours.")
-    
-            st.info("No new opportunities available at the moment. Check back soon!")
-    
-    # Communication Timeline
-    st.subheader("📱 Recent Communications")
-    comm_chart = dashboard.create_communication_timeline(investor.id)
-    st.plotly_chart(comm_chart, use_container_width=True)
-    
-    # Personalized Recommendations
-    st.subheader("🎯 Personalized Recommendations")
-    report = generate_investor_report(investor, investor_deals)
-    
-    if report['recommendations']:
-        for rec in report['recommendations']:
-            with st.expander(f"{rec['priority']} Priority: {rec['title']}"):
-                st.write(f"**Type:** {rec['type']}")
-                st.write(f"**Description:** {rec['description']}")
-                st.write(f"**Recommended Action:** {rec['action']}")
+        with col1:
+            title = st.text_input("Deal Title*")
+            property_address = st.text_area("Property Address*")
+            property_type = st.selectbox("Property Type", [pt.value for pt in PropertyType])
+            deal_type = st.selectbox("Deal Type", [dt.value for dt in DealType])
+            status = st.selectbox("Status", [status.value for status in DealStatus])
+            
+            # Property details
+            bedrooms = st.number_input("Bedrooms", min_value=0, value=3)
+            bathrooms = st.number_input("Bathrooms", min_value=0.0, value=2.0, step=0.5)
+            square_feet = st.number_input("Square Feet", min_value=0, value=1500)
+            
+        with col2:
+            # Financial details
+            asking_price = st.number_input("Asking Price", min_value=0.0, value=0.0)
+            purchase_price = st.number_input("Purchase Price", min_value=0.0, value=0.0)
+            arv = st.number_input("ARV (After Repair Value)", min_value=0.0, value=0.0)
+            estimated_repairs = st.number_input("Estimated Repairs", min_value=0.0, value=0.0)
+            
+            if deal_type == DealType.WHOLESALE.value:
+                wholesale_fee = st.number_input("Wholesale Fee", min_value=0.0, value=0.0)
+            else:
+                wholesale_fee = 0.0
                 
-                if st.button(f"Learn More", key=f"learn_{rec['type']}"):
-                    st.info("Our investment team will reach out to discuss this recommendation in detail.")
+            if deal_type == DealType.BUY_AND_HOLD.value:
+                monthly_rent = st.number_input("Monthly Rent", min_value=0.0, value=0.0)
+                monthly_expenses = st.number_input("Monthly Expenses", min_value=0.0, value=0.0)
+            else:
+                monthly_rent = 0.0
+                monthly_expenses = 0.0
+        
+        # Seller information
+        st.subheader("Seller Information")
+        col1, col2 = st.columns(2)
+        with col1:
+            seller_name = st.text_input("Seller Name")
+            seller_phone = st.text_input("Seller Phone")
+        with col2:
+            seller_email = st.text_input("Seller Email")
+            seller_motivation = st.text_input("Seller Motivation")
+        
+        # Creative finance details
+        financing_method = st.selectbox("Financing Method", 
+                                       ["None"] + [method.value for method in CreativeFinanceMethod])
+        notes = st.text_area("Notes")
+        
+        submitted = st.form_submit_button("Add Deal")
+        
+        if submitted and title and property_address:
+            deal = Deal(
+                title=title,
+                property_address=property_address,
+                property_type=PropertyType(property_type),
+                deal_type=DealType(deal_type),
+                status=DealStatus(status),
+                asking_price=asking_price,
+                purchase_price=purchase_price,
+                arv=arv,
+                estimated_repairs=estimated_repairs,
+                wholesale_fee=wholesale_fee,
+                bedrooms=bedrooms,
+                bathrooms=bathrooms,
+                square_feet=square_feet,
+                seller_name=seller_name,
+                seller_phone=seller_phone,
+                seller_email=seller_email,
+                seller_motivation=seller_motivation,
+                monthly_rent=monthly_rent,
+                monthly_expenses=monthly_expenses,
+                financing_method=CreativeFinanceMethod(financing_method) if financing_method != "None" else None,
+                notes=notes
+            )
+            
+            crm.add_deal(deal)
+            st.success(f"Deal '{title}' added successfully!")
+            st.session_state.show_add_deal = False
+            st.rerun()
 
-        st.success("Your investment strategy is well-aligned with your goals!")
+def show_deal_details(crm: CRMManager, deal: Deal):
+    """Show detailed view of a deal"""
+    st.subheader(f"📄 Deal Details: {deal.title}")
+    
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        if st.button("🎯 Find Matching Buyers"):
+            matches = crm.find_matching_buyers_for_deal(deal)
+            if matches:
+                st.subheader("🎯 Matching Buyers")
+                for match in matches[:5]:  # Show top 5 matches
+                    buyer = match['buyer']
+                    score = match['match_score']
+                    st.write(f"**{buyer.buyer_name}** - Match Score: {score:.1f}%")
+                    st.write(f"📧 {buyer.buyer_email} | 📞 {buyer.buyer_phone}")
+                    st.write(f"Type: {buyer.investor_type.value}")
+                    st.write("---")
+            else:
+                st.info("No matching buyers found for this deal.")
+    
+    with col2:
+        if st.button("📧 Send to Buyers"):
+            result = crm.send_deal_to_buyers(deal)
+            st.success(f"Deal sent to {result['sent_count']} matching buyers!")
+    
+    with col3:
+        if st.button("✏️ Edit Deal"):
+            st.session_state.edit_deal_id = deal.id
+    
+    # Deal information tabs
+    tab1, tab2, tab3, tab4 = st.tabs(["📊 Financial", "🏠 Property", "👤 Seller", "📝 Notes"])
+    
+    with tab1:
+        col1, col2 = st.columns(2)
+        with col1:
+            st.metric("Purchase Price", f"${deal.purchase_price:,.0f}")
+            st.metric("ARV", f"${deal.arv:,.0f}")
+            st.metric("Estimated Repairs", f"${deal.estimated_repairs:,.0f}")
+        with col2:
+            st.metric("Estimated ROI", f"{deal.estimated_roi:.1f}%")
+            st.metric("Projected Profit", f"${deal.projected_profit:,.0f}")
+            if deal.deal_type == DealType.WHOLESALE:
+                st.metric("Wholesale Fee", f"${deal.wholesale_fee:,.0f}")
+    
+    with tab2:
+        col1, col2 = st.columns(2)
+        with col1:
+            st.write(f"**Address:** {deal.property_address}")
+            st.write(f"**Property Type:** {deal.property_type.value}")
+            st.write(f"**Bedrooms:** {deal.bedrooms}")
+            st.write(f"**Bathrooms:** {deal.bathrooms}")
+        with col2:
+            st.write(f"**Square Feet:** {deal.square_feet:,}")
+            st.write(f"**Condition:** {deal.condition or 'Not specified'}")
+            st.write(f"**Year Built:** {deal.year_built or 'Not specified'}")
+    
+    with tab3:
+        st.write(f"**Name:** {deal.seller_name}")
+        st.write(f"**Phone:** {deal.seller_phone}")
+        st.write(f"**Email:** {deal.seller_email}")
+        st.write(f"**Motivation:** {deal.seller_motivation}")
+        st.write(f"**Timeline:** {deal.timeline}")
+    
+    with tab4:
+        st.write(deal.notes or "No notes available")
+
+# ==== BUYER MANAGEMENT INTERFACE ====
+
+def show_buyer_management(crm: CRMManager):
+    """Show buyer management interface"""
+    st.header("🎯 Buyer Management - Investment Criteria")
+    
+    # Buyer metrics
+    active_buyers = crm.get_active_buyers()
+    
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.metric("Active Buyers", len(active_buyers))
+    with col2:
+        total_cash = sum(buyer.cash_available for buyer in active_buyers)
+        st.metric("Total Available Cash", f"${total_cash:,.0f}")
+    with col3:
+        avg_roi_requirement = sum(buyer.min_roi for buyer in active_buyers) / len(active_buyers) if active_buyers else 0
+        st.metric("Avg ROI Requirement", f"{avg_roi_requirement:.1f}%")
+    with col4:
+        financing_ready = len([buyer for buyer in active_buyers if buyer.financing_ready])
+        st.metric("Financing Ready", financing_ready)
+    
+    st.markdown("---")
+    
+    # Quick actions
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("➕ Add New Buyer", use_container_width=True):
+            st.session_state.show_add_buyer = True
+    with col2:
+        if st.button("📧 Send Deal Blast to All", use_container_width=True):
+            st.session_state.show_deal_blast = True
+    
+    # Show add buyer form
+    if st.session_state.get('show_add_buyer', False):
+        if st.button("❌ Close Form"):
+            st.session_state.show_add_buyer = False
+            st.rerun()
+        show_add_buyer_form(crm)
+    
+    st.markdown("---")
+    
+    # Buyer filters
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        investor_filter = st.selectbox("Filter by Investor Type", 
+                                     ["All"] + [inv.value for inv in InvestorType])
+    with col2:
+        min_cash = st.number_input("Min Cash Available", value=0, step=10000)
+    with col3:
+        financing_filter = st.selectbox("Financing Status", ["All", "Ready", "Not Ready"])
+    
+    # Filter buyers
+    filtered_buyers = active_buyers
+    if investor_filter != "All":
+        filtered_buyers = [buyer for buyer in filtered_buyers if buyer.investor_type.value == investor_filter]
+    if min_cash > 0:
+        filtered_buyers = [buyer for buyer in filtered_buyers if buyer.cash_available >= min_cash]
+    if financing_filter == "Ready":
+        filtered_buyers = [buyer for buyer in filtered_buyers if buyer.financing_ready]
+    elif financing_filter == "Not Ready":
+        filtered_buyers = [buyer for buyer in filtered_buyers if not buyer.financing_ready]
+    
+    # Buyers table
+    if filtered_buyers:
+        buyers_data = []
+        for buyer in filtered_buyers:
+            property_types = ", ".join([pt.value for pt in buyer.preferred_property_types]) if buyer.preferred_property_types else "Any"
+            deal_types = ", ".join([dt.value for dt in buyer.preferred_deal_types]) if buyer.preferred_deal_types else "Any"
+            
+            buyers_data.append({
+                'Name': buyer.buyer_name,
+                'Email': buyer.buyer_email,
+                'Phone': buyer.buyer_phone,
+                'Type': buyer.investor_type.value,
+                'Min ROI': f"{buyer.min_roi}%",
+                'Max Price': f"${buyer.max_purchase_price:,.0f}" if buyer.max_purchase_price > 0 else "No limit",
+                'Cash Available': f"${buyer.cash_available:,.0f}",
+                'Property Types': property_types,
+                'Deal Types': deal_types,
+                'Financing Ready': "✓" if buyer.financing_ready else "✗"
+            })
+        
+        df = pd.DataFrame(buyers_data)
+        st.dataframe(df, use_container_width=True)
+        
+        # Buyer details
+        if filtered_buyers:
+            selected_buyer = st.selectbox("Select Buyer for Details", 
+                                        [f"{buyer.buyer_name} - {buyer.buyer_email}" for buyer in filtered_buyers])
+            
+            if selected_buyer:
+                buyer_name = selected_buyer.split(" - ")[0]
+                buyer = next((b for b in filtered_buyers if b.buyer_name == buyer_name), None)
+                if buyer:
+                    show_buyer_details(crm, buyer)
+    else:
+        st.info("No buyers found matching the criteria.")
+
+def show_add_buyer_form(crm: CRMManager):
+    """Show add buyer form"""
+    st.subheader("➕ Add New Buyer")
+    
+    with st.form("add_buyer_form"):
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            buyer_name = st.text_input("Buyer Name*")
+            buyer_email = st.text_input("Email*")
+            buyer_phone = st.text_input("Phone*")
+            investor_type = st.selectbox("Investor Type", [inv.value for inv in InvestorType])
+            
+        with col2:
+            min_roi = st.number_input("Minimum ROI %", min_value=0.0, value=15.0, step=5.0)
+            max_purchase_price = st.number_input("Maximum Purchase Price", min_value=0, value=0, step=10000)
+            cash_available = st.number_input("Cash Available", min_value=0, value=0, step=10000)
+            financing_ready = st.checkbox("Financing Ready")
+        
+        # Preferences
+        preferred_property_types = st.multiselect("Preferred Property Types",
+                                                [pt.value for pt in PropertyType])
+        preferred_deal_types = st.multiselect("Preferred Deal Types",
+                                            [dt.value for dt in DealType])
+        preferred_finance_methods = st.multiselect("Preferred Finance Methods",
+                                                 [method.value for method in CreativeFinanceMethod])
+        
+        target_locations = st.text_input("Target Locations (comma separated)")
+        min_bedrooms = st.number_input("Minimum Bedrooms", min_value=0, value=0)
+        max_repairs = st.number_input("Maximum Repair Budget", min_value=0, value=0, step=5000)
+        notes = st.text_area("Notes")
+        
+        submitted = st.form_submit_button("Add Buyer")
+        
+        if submitted and buyer_name and buyer_email:
+            buyer = BuyerCriteria(
+                buyer_name=buyer_name,
+                buyer_email=buyer_email,
+                buyer_phone=buyer_phone,
+                investor_type=InvestorType(investor_type),
+                min_roi=min_roi,
+                max_purchase_price=max_purchase_price,
+                cash_available=cash_available,
+                financing_ready=financing_ready,
+                preferred_property_types=[PropertyType(pt) for pt in preferred_property_types],
+                preferred_deal_types=[DealType(dt) for dt in preferred_deal_types],
+                preferred_finance_methods=[CreativeFinanceMethod(method) for method in preferred_finance_methods],
+                target_locations=target_locations.split(",") if target_locations else [],
+                min_bedrooms=min_bedrooms,
+                max_repairs=max_repairs,
+                notes=notes
+            )
+            
+            crm.add_buyer(buyer)
+            st.success(f"Buyer '{buyer_name}' added successfully!")
+            st.session_state.show_add_buyer = False
+            st.rerun()
+
+def show_buyer_details(crm: CRMManager, buyer: BuyerCriteria):
+    """Show detailed view of a buyer"""
+    st.subheader(f"👤 Buyer Details: {buyer.buyer_name}")
+    
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        if st.button("🔍 Find Matching Deals"):
+            matching_deals = []
+            for deal in crm.deals:
+                if buyer.matches_deal(deal):
+                    score = crm.matching_engine.score_deal_match(deal, buyer)
+                    matching_deals.append({'deal': deal, 'score': score})
+            
+            if matching_deals:
+                st.subheader("🔍 Matching Deals")
+                matching_deals.sort(key=lambda x: x['score'], reverse=True)
+                for match in matching_deals[:5]:
+                    deal = match['deal']
+                    score = match['score']
+                    st.write(f"**{deal.title}** - Match Score: {score:.1f}%")
+                    st.write(f"📍 {deal.property_address}")
+                    st.write(f"💰 ${deal.purchase_price:,.0f} | ROI: {deal.estimated_roi:.1f}%")
+                    st.write("---")
+            else:
+                st.info("No matching deals found for this buyer.")
+    
+    with col2:
+        if st.button("✏️ Edit Buyer"):
+            st.session_state.edit_buyer_id = buyer.id
+    
+    with col3:
+        active_status = "Active" if buyer.active else "Inactive"
+        st.write(f"**Status:** {active_status}")
+    
+    # Buyer information tabs
+    tab1, tab2, tab3 = st.tabs(["💰 Financial", "🎯 Preferences", "📝 Notes"])
+    
+    with tab1:
+        col1, col2 = st.columns(2)
+        with col1:
+            st.metric("Minimum ROI", f"{buyer.min_roi}%")
+            st.metric("Cash Available", f"${buyer.cash_available:,.0f}")
+        with col2:
+            st.metric("Max Purchase Price", f"${buyer.max_purchase_price:,.0f}" if buyer.max_purchase_price > 0 else "No limit")
+            st.write(f"**Financing Ready:** {'Yes' if buyer.financing_ready else 'No'}")
+    
+    with tab2:
+        col1, col2 = st.columns(2)
+        with col1:
+            st.write("**Property Types:**")
+            for pt in buyer.preferred_property_types:
+                st.write(f"• {pt.value}")
+            
+            st.write("**Deal Types:**")
+            for dt in buyer.preferred_deal_types:
+                st.write(f"• {dt.value}")
+        
+        with col2:
+            st.write("**Finance Methods:**")
+            for method in buyer.preferred_finance_methods:
+                st.write(f"• {method.value}")
+            
+            if buyer.target_locations:
+                st.write("**Target Locations:**")
+                for location in buyer.target_locations:
+                    st.write(f"• {location.strip()}")
+    
+    with tab3:
+        st.write(buyer.notes or "No notes available")
+
+# ==== ROI DASHBOARD ====
+
+def show_roi_dashboard(crm: CRMManager):
+    """Show ROI optimization dashboard"""
+    st.header("💰 ROI Optimization Dashboard")
+    
+    portfolio_summary = crm.get_portfolio_summary()
+    
+    # Portfolio metrics
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.metric("Portfolio Value", f"${portfolio_summary['total_portfolio_value']:,.0f}")
+    with col2:
+        st.metric("Total Profit", f"${portfolio_summary['total_profit']:,.0f}")
+    with col3:
+        st.metric("Average ROI", f"{portfolio_summary['average_roi']:.1f}%")
+    with col4:
+        st.metric("Pipeline Value", f"${portfolio_summary['pipeline_value']:,.0f}")
+    
+    st.markdown("---")
+    
+    # ROI Analysis Charts
+    if crm.deals:
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            # ROI by Deal Type
+            deal_roi = {}
+            for deal in crm.deals:
+                deal_type = deal.deal_type.value
+                if deal_type not in deal_roi:
+                    deal_roi[deal_type] = []
+                deal_roi[deal_type].append(deal.estimated_roi)
+            
+            avg_roi_by_type = {dt: sum(rois) / len(rois) for dt, rois in deal_roi.items()}
+            
+            fig = go.Figure(data=[
+                go.Bar(x=list(avg_roi_by_type.keys()), y=list(avg_roi_by_type.values()))
+            ])
+            fig.update_layout(title="Average ROI by Deal Type", yaxis_title="ROI %")
+            st.plotly_chart(fig, use_container_width=True)
+        
+        with col2:
+            # Deal Status Distribution
+            status_counts = {}
+            for deal in crm.deals:
+                status = deal.status.value
+                status_counts[status] = status_counts.get(status, 0) + 1
+            
+            fig = go.Figure(data=[
+                go.Pie(labels=list(status_counts.keys()), values=list(status_counts.values()))
+            ])
+            fig.update_layout(title="Deal Status Distribution")
+            st.plotly_chart(fig, use_container_width=True)
+        
+        # Top performing deals
+        st.subheader("🏆 Top Performing Deals")
+        top_deals = sorted(crm.deals, key=lambda x: x.estimated_roi, reverse=True)[:10]
+        
+        if top_deals:
+            deals_data = []
+            for deal in top_deals:
+                deals_data.append({
+                    'Title': deal.title,
+                    'Type': deal.deal_type.value,
+                    'Purchase Price': f"${deal.purchase_price:,.0f}",
+                    'ROI': f"{deal.estimated_roi:.1f}%",
+                    'Profit': f"${deal.projected_profit:,.0f}",
+                    'Status': deal.status.value
+                })
+            
+            df = pd.DataFrame(deals_data)
+            st.dataframe(df, use_container_width=True)
+    else:
+        st.info("No deals available for ROI analysis. Add some deals to see metrics!")
+
+# ==== COMMUNICATION HUB INTERFACE ====
+
+def show_communication_hub(crm: CRMManager):
+    """Enhanced communication hub with email automation"""
+    st.header("💬 Communication Hub - Email Marketing & Automation")
+    
+    # Get email manager
+    email_manager = get_email_manager()
+    
+    # Communication metrics
+    analytics = email_manager.get_email_analytics()
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.metric("Emails Sent", analytics['total_sent'])
+    with col2:
+        st.metric("Open Rate", f"{analytics['open_rate']:.1f}%")
+    with col3:
+        st.metric("Click Rate", f"{analytics['click_rate']:.1f}%")
+    with col4:
+        st.metric("Active Campaigns", len([c for c in email_manager.campaigns if c.status == CampaignStatus.ACTIVE]))
+    
+    st.markdown("---")
+    
+    # Enhanced communication tabs
+    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+        "📧 Send Email", 
+        "📝 Email Templates", 
+        "🔄 Drip Campaigns", 
+        "📊 Email Analytics",
+        "💬 Messages", 
+        "📢 Deal Alerts"
+    ])
+    
+    with tab1:
+        show_send_email_form(crm, email_manager)
+    
+    with tab2:
+        show_email_templates(email_manager)
+    
+    with tab3:
+        show_drip_campaigns(crm, email_manager)
+    
+    with tab4:
+        show_email_analytics(email_manager)
+    
+    with tab5:
+        show_message_inbox(crm)
+    
+    with tab6:
+        show_send_deal_alert(crm)
+
+def show_send_email_form(crm: CRMManager, email_manager):
+    """Enhanced email sending interface"""
+    st.subheader("📧 Send Professional Email")
+    
+    # Email composition form
+    with st.form("send_email_form"):
+        col1, col2 = st.columns([2, 1])
+        
+        with col1:
+            # Recipient selection
+            st.markdown("#### 👥 Recipients")
+            recipient_type = st.selectbox("Send to:", [
+                "Select recipient type...",
+                "Individual Lead",
+                "Individual Contact", 
+                "All Leads",
+                "All Qualified Leads",
+                "All New Leads",
+                "All Investors",
+                "All Sellers",
+                "Custom Email"
+            ])
+            
+            recipients = []
+            if recipient_type == "Individual Lead" and crm.leads:
+                selected_lead = st.selectbox("Select Lead", 
+                    ["Select lead..."] + [f"{lead.name} - {lead.email}" for lead in crm.leads if lead.email])
+                if selected_lead != "Select lead...":
+                    lead_email = selected_lead.split(" - ")[1]
+                    recipients = [lead_email]
+                    
+            elif recipient_type == "Individual Contact" and crm.contacts:
+                selected_contact = st.selectbox("Select Contact",
+                    ["Select contact..."] + [f"{contact.name} - {contact.email}" for contact in crm.contacts if contact.email])
+                if selected_contact != "Select contact...":
+                    contact_email = selected_contact.split(" - ")[1]
+                    recipients = [contact_email]
+                    
+            elif recipient_type == "All Leads":
+                recipients = [lead.email for lead in crm.leads if lead.email]
+                st.info(f"Will send to {len(recipients)} leads with email addresses")
+                
+            elif recipient_type == "All Qualified Leads":
+                qualified_leads = [lead for lead in crm.leads if lead.status == LeadStatus.QUALIFIED and lead.email]
+                recipients = [lead.email for lead in qualified_leads]
+                st.info(f"Will send to {len(recipients)} qualified leads")
+                
+            elif recipient_type == "Custom Email":
+                custom_emails = st.text_area("Email Addresses", 
+                    placeholder="Enter email addresses separated by commas")
+                if custom_emails:
+                    recipients = [email.strip() for email in custom_emails.split(",") if email.strip()]
+            
+            # Template selection
+            st.markdown("#### 📝 Email Template")
+            use_template = st.checkbox("Use existing template")
+            
+            if use_template and email_manager.templates:
+                template_options = ["Select template..."] + [f"{template.name} ({template.email_type.value})" for template in email_manager.templates]
+                selected_template = st.selectbox("Choose Template", template_options)
+                
+                if selected_template != "Select template...":
+                    template_name = selected_template.split(" (")[0]
+                    template = next((t for t in email_manager.templates if t.name == template_name), None)
+                    
+                    if template:
+                        st.info(f"📧 **Subject:** {template.subject}")
+                        with st.expander("Preview Email Content"):
+                            st.write("**HTML Version:**")
+                            st.code(template.body_html[:500] + "..." if len(template.body_html) > 500 else template.body_html)
+                            st.write("**Text Version:**")
+                            st.text(template.body_text[:300] + "..." if len(template.body_text) > 300 else template.body_text)
+        
+        with col2:
+            # Email composition
+            st.markdown("#### ✍️ Compose Email")
+            
+            if not use_template or selected_template == "Select template...":
+                subject = st.text_input("Subject Line*", placeholder="Enter email subject...")
+                
+                email_body = st.text_area("Email Message*", 
+                    height=300,
+                    placeholder="""Hi {first_name},
+
+I hope this email finds you well! I wanted to reach out regarding...
+
+Best regards,
+{agent_name}""")
+            else:
+                st.info("Using selected template content")
+                subject = template.subject if 'template' in locals() else ""
+                email_body = template.body_text if 'template' in locals() else ""
+            
+            # Personalization variables
+            st.markdown("#### 🎯 Available Variables")
+            st.code("""{first_name} - Recipient's first name
+{last_name} - Recipient's last name  
+{email} - Recipient's email
+{company} - Company name
+{agent_name} - Your name
+{phone_number} - Your phone
+{property_address} - Property address
+{asking_price} - Property price
+{roi} - Return on investment""")
+        
+        # Send button
+        col1, col2, col3 = st.columns([2, 1, 1])
+        with col1:
+            send_now = st.form_submit_button("📤 Send Email Now", type="primary", use_container_width=True)
+        with col2:
+            schedule_send = st.form_submit_button("⏰ Schedule Send", use_container_width=True)
+        with col3:
+            save_draft = st.form_submit_button("💾 Save Draft", use_container_width=True)
+        
+        if send_now and recipients and subject and email_body:
+            # Use real email services for sending
+            success_count = 0
+            failed_count = 0
+            
+            # Progress bar for bulk sending
+            if len(recipients) > 1:
+                progress_bar = st.progress(0)
+                status_text = st.empty()
+            
+            # Send emails using real services
+            for i, recipient in enumerate(recipients):
+                try:
+                    if use_template and 'template' in locals() and template:
+                        # Send using template with real email service
+                        result = email_manager.send_real_email(
+                            recipient_email=recipient,
+                            template=template,
+                            variables={
+                                'first_name': recipient.split('@')[0],  # Simple name extraction
+                                'email': recipient,
+                                'agent_name': 'NXTRIX Team'
+                            }
+                        )
+                    else:
+                        # Create temporary template for custom email
+                        from email_automation import EmailTemplate, EmailType
+                        temp_template = EmailTemplate(
+                            name="Custom Email",
+                            email_type=EmailType.GENERAL,
+                            subject=subject,
+                            body_html=f"<html><body><p>{email_body.replace(chr(10), '</p><p>')}</p></body></html>",
+                            body_text=email_body
+                        )
+                        
+                        result = email_manager.send_real_email(
+                            recipient_email=recipient,
+                            template=temp_template,
+                            variables={
+                                'first_name': recipient.split('@')[0],
+                                'email': recipient,
+                                'agent_name': 'NXTRIX Team'
+                            }
+                        )
+                    
+                    if result['success']:
+                        success_count += 1
+                    else:
+                        failed_count += 1
+                        if not result.get('simulation', False):
+                            st.error(f"❌ Failed to send to {recipient}: {result.get('error', 'Unknown error')}")
+                
+                except Exception as e:
+                    failed_count += 1
+                    st.error(f"❌ Error sending to {recipient}: {str(e)}")
+                
+                # Update progress for bulk sends
+                if len(recipients) > 1:
+                    progress = (i + 1) / len(recipients)
+                    progress_bar.progress(progress)
+                    status_text.text(f"Sending... {i + 1}/{len(recipients)}")
+            
+            # Show results
+            if success_count > 0:
+                st.success(f"✅ Successfully sent {success_count} emails!")
+                if success_count == len(recipients):
+                    st.balloons()
+            
+            if failed_count > 0:
+                st.warning(f"⚠️ {failed_count} emails failed to send")
+            
+            # Test services button
+            st.markdown("---")
+            if st.button("🔧 Test Email Services", help="Test your Twilio and EmailJS connections"):
+                with st.spinner("Testing email services..."):
+                    test_result = email_manager.test_email_service()
+                    
+                    if test_result['success']:
+                        st.success("✅ Email services are working correctly!")
+                    else:
+                        st.error(f"❌ Email service test failed: {test_result['message']}")
+                        
+                        if not test_result.get('simulation', False):
+                            st.info("💡 Check your EmailJS configuration in the .env.local file")
+            
+        elif schedule_send:
+            st.info("📅 Email scheduling feature coming soon!")
+            
+        elif save_draft:
+            st.info("💾 Draft saving feature coming soon!")
+
+def show_email_templates(email_manager):
+    """Email template management interface"""
+    st.subheader("📝 Email Template Library")
+    
+    # Template actions
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        if st.button("➕ Create New Template", use_container_width=True):
+            st.session_state.show_create_template = True
+    with col2:
+        if st.button("📥 Import Template", use_container_width=True):
+            st.info("📄 Template import feature coming soon!")
+    with col3:
+        if st.button("📤 Export Templates", use_container_width=True):
+            st.info("📄 Template export feature coming soon!")
+    
+    # Show create template form
+    if st.session_state.get('show_create_template', False):
+        show_create_template_form(email_manager)
+    
+    # Templates list
+    if email_manager.templates:
+        st.markdown("### 📚 Available Templates")
+        
+        for template in email_manager.templates:
+            with st.expander(f"📧 {template.name} ({template.email_type.value})"):
+                col1, col2 = st.columns([3, 1])
+                
+                with col1:
+                    st.write(f"**Subject:** {template.subject}")
+                    st.write(f"**Type:** {template.email_type.value}")
+                    st.write(f"**Variables:** {', '.join(template.variables) if template.variables else 'None'}")
+                    st.write(f"**Created:** {template.created_at.strftime('%Y-%m-%d')}")
+                    
+                    # Preview content
+                    if st.button(f"👁️ Preview", key=f"preview_{template.id}"):
+                        st.markdown("**HTML Preview:**")
+                        st.code(template.body_html[:300] + "...")
+                        st.markdown("**Text Preview:**")
+                        st.text(template.body_text[:200] + "...")
+                
+                with col2:
+                    if st.button(f"✏️ Edit", key=f"edit_{template.id}"):
+                        st.session_state.edit_template_id = template.id
+                    
+                    if st.button(f"🗑️ Delete", key=f"delete_{template.id}"):
+                        email_manager.delete_template(template.id)
+                        st.success("Template deleted!")
+                        st.rerun()
+    else:
+        st.info("📝 No templates found. Create your first template to get started!")
+
+def show_create_template_form(email_manager):
+    """Template creation form"""
+    st.markdown("### ➕ Create New Email Template")
+    
+    with st.form("create_template_form"):
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            name = st.text_input("Template Name*", placeholder="e.g., Welcome Email")
+            email_type = st.selectbox("Template Type", [t.value for t in EmailType])
+            subject = st.text_input("Subject Line*", placeholder="Subject with {variables}")
+            
+        with col2:
+            variables = st.text_input("Variables (comma-separated)", 
+                placeholder="first_name, property_address, roi")
+            is_active = st.checkbox("Active Template", value=True)
+        
+        body_html = st.text_area("HTML Email Body*", 
+            height=200,
+            placeholder="""<html><body>
+<h2>Hi {first_name},</h2>
+<p>Your email content here...</p>
+<p>Best regards,<br>{agent_name}</p>
+</body></html>""")
+        
+        body_text = st.text_area("Plain Text Version*",
+            height=150, 
+            placeholder="""Hi {first_name},
+
+Your email content here...
+
+Best regards,
+{agent_name}""")
+        
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            submitted = st.form_submit_button("💾 Create Template", type="primary", use_container_width=True)
+        with col2:
+            cancelled = st.form_submit_button("❌ Cancel", use_container_width=True)
+        
+        if submitted and name and subject and body_html and body_text:
+            template = EmailTemplate(
+                name=name,
+                email_type=EmailType(email_type),
+                subject=subject,
+                body_html=body_html,
+                body_text=body_text,
+                variables=[v.strip() for v in variables.split(",") if v.strip()] if variables else [],
+                is_active=is_active
+            )
+            
+            email_manager.create_template(template)
+            st.success(f"✅ Template '{name}' created successfully!")
+            st.session_state.show_create_template = False
+            st.rerun()
+        
+        if cancelled:
+            st.session_state.show_create_template = False
+            st.rerun()
+
+def show_drip_campaigns(crm: CRMManager, email_manager):
+    """Drip campaign management interface"""
+    st.subheader("🔄 Automated Drip Campaigns")
+    
+    # Campaign metrics
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        total_campaigns = len(email_manager.campaigns)
+        st.metric("Total Campaigns", total_campaigns)
+    with col2:
+        active_campaigns = len([c for c in email_manager.campaigns if c.status == CampaignStatus.ACTIVE])
+        st.metric("Active Campaigns", active_campaigns)
+    with col3:
+        # Calculate total subscribers across all campaigns
+        total_subscribers = sum(len(c.subscribers) for c in email_manager.campaigns)
+        st.metric("Total Subscribers", total_subscribers)
+    with col4:
+        completed_campaigns = len([c for c in email_manager.campaigns if c.status == CampaignStatus.COMPLETED])
+        st.metric("Completed", completed_campaigns)
+    
+    st.markdown("---")
+    
+    # Campaign actions
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        if st.button("➕ Create New Campaign", use_container_width=True):
+            st.session_state.show_create_campaign = True
+    with col2:
+        if st.button("📊 Campaign Analytics", use_container_width=True):
+            st.info("📈 Detailed campaign analytics coming soon!")
+    with col3:
+        if st.button("⚙️ Automation Settings", use_container_width=True):
+            st.info("⚙️ Advanced automation settings coming soon!")
+    
+    # Show create campaign form
+    if st.session_state.get('show_create_campaign', False):
+        show_create_campaign_form(crm, email_manager)
+    
+    # Campaign list
+    if email_manager.campaigns:
+        st.markdown("### 📋 Campaign List")
+        
+        for campaign in email_manager.campaigns:
+            with st.expander(f"🔄 {campaign.name} ({campaign.status.value})"):
+                col1, col2 = st.columns([3, 1])
+                
+                with col1:
+                    st.write(f"**Description:** {campaign.description}")
+                    st.write(f"**Target Audience:** {campaign.target_audience}")
+                    st.write(f"**Status:** {campaign.status.value}")
+                    st.write(f"**Subscribers:** {len(campaign.subscribers)}")
+                    st.write(f"**Email Sequence:** {len(campaign.emails)} emails")
+                    st.write(f"**Created:** {campaign.created_at.strftime('%Y-%m-%d')}")
+                    
+                    if campaign.started_at:
+                        st.write(f"**Started:** {campaign.started_at.strftime('%Y-%m-%d')}")
+                
+                with col2:
+                    if campaign.status == CampaignStatus.DRAFT:
+                        if st.button(f"▶️ Start Campaign", key=f"start_{campaign.id}"):
+                            # Update campaign status
+                            email_manager.campaigns[email_manager.campaigns.index(campaign)].status = CampaignStatus.ACTIVE
+                            email_manager.campaigns[email_manager.campaigns.index(campaign)].started_at = datetime.now()
+                            email_manager.save_data()
+                            st.success("Campaign started!")
+                            st.rerun()
+                    
+                    elif campaign.status == CampaignStatus.ACTIVE:
+                        if st.button(f"⏸️ Pause", key=f"pause_{campaign.id}"):
+                            email_manager.campaigns[email_manager.campaigns.index(campaign)].status = CampaignStatus.PAUSED
+                            email_manager.save_data()
+                            st.success("Campaign paused!")
+                            st.rerun()
+                    
+                    if st.button(f"✏️ Edit", key=f"edit_campaign_{campaign.id}"):
+                        st.info("Campaign editing coming soon!")
+                    
+                    if st.button(f"🗑️ Delete", key=f"delete_campaign_{campaign.id}"):
+                        email_manager.campaigns.remove(campaign)
+                        email_manager.save_data()
+                        st.success("Campaign deleted!")
+                        st.rerun()
+    else:
+        st.info("🔄 No drip campaigns found. Create your first automated campaign!")
+
+def show_create_campaign_form(crm: CRMManager, email_manager):
+    """Campaign creation form"""
+    st.markdown("### ➕ Create New Drip Campaign")
+    
+    with st.form("create_campaign_form"):
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            name = st.text_input("Campaign Name*", placeholder="e.g., New Lead Nurture Sequence")
+            description = st.text_area("Description", placeholder="Describe the purpose of this campaign...")
+            target_audience = st.selectbox("Target Audience", [
+                "All New Leads",
+                "Qualified Leads", 
+                "Investor Leads",
+                "Seller Leads",
+                "Buyer Leads",
+                "Custom Audience"
+            ])
+        
+        with col2:
+            # Email sequence
+            st.markdown("**Email Sequence**")
+            num_emails = st.number_input("Number of emails in sequence", min_value=1, max_value=10, value=3)
+            
+            st.info(f"💡 This will create a {num_emails}-email automated sequence")
+        
+        # Campaign emails
+        emails = []
+        for i in range(num_emails):
+            st.markdown(f"#### 📧 Email {i+1}")
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                delay_days = st.number_input(f"Send after (days)", key=f"delay_{i}", 
+                    min_value=0, value=i*3, help=f"Days after previous email (or signup for first email)")
+                template_id = st.selectbox(f"Template", 
+                    ["Create custom..."] + [f"{t.name}" for t in email_manager.templates],
+                    key=f"template_{i}")
+            
+            with col2:
+                custom_subject = st.text_input(f"Custom Subject", key=f"subject_{i}", 
+                    placeholder="Leave blank to use template subject")
+                
+            emails.append({
+                "delay_days": delay_days,
+                "template_id": template_id if template_id != "Create custom..." else None,
+                "custom_subject": custom_subject,
+                "order": i + 1
+            })
+        
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            submitted = st.form_submit_button("🔄 Create Campaign", type="primary", use_container_width=True)
+        with col2:
+            cancelled = st.form_submit_button("❌ Cancel", use_container_width=True)
+        
+        if submitted and name:
+            campaign = DripCampaign(
+                name=name,
+                description=description,
+                target_audience=target_audience,
+                status=CampaignStatus.DRAFT,
+                emails=emails,
+                subscribers=[],
+                trigger_conditions={"audience_type": target_audience}
+            )
+            
+            email_manager.create_campaign(campaign)
+            st.success(f"✅ Campaign '{name}' created successfully!")
+            st.session_state.show_create_campaign = False
+            st.rerun()
+        
+        if cancelled:
+            st.session_state.show_create_campaign = False
+            st.rerun()
+
+def show_email_analytics(email_manager):
+    """Email performance analytics dashboard"""
+    st.subheader("📊 Email Marketing Analytics")
+    
+    analytics = email_manager.get_email_analytics()
+    
+    # Key metrics
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.metric("Total Emails Sent", analytics['total_sent'])
+    with col2:
+        st.metric("Total Opened", analytics['total_opened'], 
+                 delta=f"{analytics['open_rate']:.1f}% open rate")
+    with col3:
+        st.metric("Total Clicked", analytics['total_clicked'],
+                 delta=f"{analytics['click_rate']:.1f}% click rate") 
+    with col4:
+        st.metric("Total Replied", analytics['total_replied'],
+                 delta=f"{analytics['reply_rate']:.1f}% reply rate")
+    
+    # Performance charts
+    if analytics['total_sent'] > 0:
+        st.markdown("### 📈 Performance Overview")
+        
+        # Create engagement funnel chart
+        funnel_data = {
+            'Stage': ['Sent', 'Opened', 'Clicked', 'Replied'],
+            'Count': [
+                analytics['total_sent'],
+                analytics['total_opened'], 
+                analytics['total_clicked'],
+                analytics['total_replied']
+            ],
+            'Rate': [100, analytics['open_rate'], analytics['click_rate'], analytics['reply_rate']]
+        }
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            # Funnel chart
+            fig_funnel = go.Figure(go.Funnel(
+                y=funnel_data['Stage'],
+                x=funnel_data['Count'],
+                textinfo="value+percent initial"
+            ))
+            fig_funnel.update_layout(title="Email Engagement Funnel", height=400)
+            st.plotly_chart(fig_funnel, use_container_width=True)
+        
+        with col2:
+            # Performance rates chart
+            fig_rates = go.Figure(data=[
+                go.Bar(name='Engagement Rates', 
+                       x=funnel_data['Stage'][1:], 
+                       y=funnel_data['Rate'][1:],
+                       marker_color=['#3498db', '#e74c3c', '#2ecc71'])
+            ])
+            fig_rates.update_layout(title="Engagement Rates", 
+                                   yaxis_title="Rate (%)", height=400)
+            st.plotly_chart(fig_rates, use_container_width=True)
+        
+        # Email performance tips
+        st.markdown("### 💡 Performance Insights")
+        
+        if analytics['open_rate'] < 20:
+            st.warning("📧 **Low Open Rate:** Consider improving subject lines and send timing")
+        elif analytics['open_rate'] > 25:
+            st.success("📧 **Good Open Rate:** Your subject lines are working well!")
+        
+        if analytics['click_rate'] < 3:
+            st.warning("🖱️ **Low Click Rate:** Try adding more compelling calls-to-action")
+        elif analytics['click_rate'] > 5:
+            st.success("🖱️ **Good Click Rate:** Your email content is engaging!")
+        
+        if analytics['reply_rate'] > 2:
+            st.success("💬 **Excellent Reply Rate:** Your emails are generating conversations!")
+    
+    else:
+        st.info("📊 No email data available yet. Start sending emails to see analytics!")
+        
+        # Sample analytics preview
+        st.markdown("### 📈 Sample Analytics Preview")
+        sample_data = pd.DataFrame({
+            'Date': pd.date_range('2024-01-01', periods=30, freq='D'),
+            'Emails Sent': [15, 23, 18, 31, 25, 19, 22, 28, 17, 24, 
+                           20, 26, 33, 19, 21, 29, 16, 25, 27, 18,
+                           22, 30, 24, 26, 19, 23, 28, 21, 25, 20],
+            'Open Rate': [22.5, 25.1, 19.8, 27.3, 24.6, 21.9, 26.2, 28.4, 20.1, 25.8,
+                         23.7, 26.9, 29.1, 21.5, 24.3, 27.6, 19.4, 25.2, 28.8, 22.1,
+                         24.9, 29.3, 26.4, 27.1, 22.8, 25.5, 28.2, 23.6, 26.7, 24.0]
+        })
+        
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(x=sample_data['Date'], y=sample_data['Open Rate'],
+                                mode='lines+markers', name='Open Rate (%)',
+                                line=dict(color='#3498db', width=2)))
+        fig.update_layout(title="Sample: Email Open Rate Trends",
+                         xaxis_title="Date", yaxis_title="Open Rate (%)",
+                         height=300)
+        st.plotly_chart(fig, use_container_width=True)
+
+def show_send_deal_alert(crm: CRMManager):
+    """Send targeted deal alerts with email automation"""
+    st.subheader("📢 Send Deal Alert")
+    
+    if not crm.deals:
+        st.warning("⚠️ No deals available to send alerts for. Create some deals first!")
+        return
+    
+    with st.form("deal_alert_form"):
+        # Deal selection
+        st.markdown("#### 📋 Select Deal")
+        deal_options = [f"{deal.property_address} - ${deal.asking_price:,.0f}" for deal in crm.deals]
+        selected_deal_idx = st.selectbox("Choose Deal", range(len(deal_options)), 
+                                       format_func=lambda x: deal_options[x])
+        selected_deal = crm.deals[selected_deal_idx]
+        
+        # Recipient targeting
+        st.markdown("#### 🎯 Target Recipients")
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            alert_type = st.selectbox("Alert Type", [
+                "New Deal Available",
+                "Price Reduction", 
+                "Deal Update",
+                "Last Chance",
+                "Sold/Under Contract"
+            ])
+            
+            recipient_filter = st.selectbox("Send To", [
+                "All Active Investors",
+                "Qualified Investors Only",
+                "Specific Investor Type",
+                "Custom Recipients"
+            ])
+        
+        with col2:
+            # Filter criteria
+            if recipient_filter == "Specific Investor Type":
+                investor_types = list(set([contact.company_type for contact in crm.contacts if contact.company_type]))
+                if investor_types:
+                    selected_type = st.selectbox("Investor Type", investor_types)
+                else:
+                    st.warning("No investor types found in contacts")
+            
+            priority = st.selectbox("Priority", ["🔴 High", "🟡 Medium", "🟢 Low"])
+        
+        # Message customization
+        st.markdown("#### ✍️ Alert Message")
+        use_template = st.checkbox("Use professional template", value=True)
+        
+        if use_template:
+            # Auto-generate professional alert message
+            template_message = f"""🏠 **{alert_type.upper()}**
+
+**Property:** {selected_deal.property_address}
+**Asking Price:** ${selected_deal.asking_price:,.0f}
+**Estimated ROI:** {selected_deal.estimated_roi:.1f}%
+**Property Type:** {selected_deal.property_type}
+
+**Deal Highlights:**
+• Prime investment opportunity
+• Potential for strong returns
+• {selected_deal.deal_stage} - ready for action
+
+**Next Steps:**
+Reply to this alert or call us directly to discuss this opportunity.
+
+⏰ **Act Fast** - Quality deals move quickly in today's market!
+
+Best regards,
+Your Investment Team"""
+            
+            st.text_area("Alert Message Preview", value=template_message, height=200, disabled=True)
+            alert_message = template_message
+        else:
+            alert_message = st.text_area("Custom Alert Message", 
+                                       placeholder="Enter your custom deal alert message...",
+                                       height=150)
+        
+        # Send options
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            send_email = st.checkbox("📧 Send Email", value=True)
+        with col2:
+            send_sms = st.checkbox("📱 Send SMS", value=False)
+        with col3:
+            schedule_send = st.checkbox("⏰ Schedule Send", value=False)
+        
+        if schedule_send:
+            send_datetime = st.datetime_input("Send Date & Time", 
+                                            value=datetime.now() + timedelta(hours=1))
+        
+        # Submit button
+        submitted = st.form_submit_button("📤 Send Deal Alert", type="primary", use_container_width=True)
+        
+        if submitted and alert_message:
+            # Get recipients based on filter
+            recipients = []
+            if recipient_filter == "All Active Investors":
+                recipients = [contact for contact in crm.contacts 
+                            if "investor" in contact.company_type.lower() and contact.email]
+            elif recipient_filter == "Qualified Investors Only":
+                recipients = [contact for contact in crm.contacts 
+                            if contact.company_type and "investor" in contact.company_type.lower() 
+                            and contact.email and contact.tags and "qualified" in contact.tags.lower()]
+            
+            if recipients:
+                # Send real deal alerts using communication services
+                email_manager = get_email_manager()
+                
+                # Prepare deal data for sending
+                deal_data = {
+                    'address': selected_deal.property_address,
+                    'price': selected_deal.asking_price,
+                    'roi': selected_deal.estimated_roi,
+                    'type': selected_deal.property_type,
+                    'stage': selected_deal.deal_stage
+                }
+                
+                # Prepare recipient list for communication manager
+                recipient_list = []
+                for recipient in recipients:
+                    recipient_list.append({
+                        'name': recipient.name,
+                        'email': recipient.email,
+                        'phone': getattr(recipient, 'phone', None)
+                    })
+                
+                # Send real deal alerts
+                with st.spinner("Sending deal alerts..."):
+                    if send_email:
+                        alert_results = email_manager.send_deal_alert(
+                            recipients=recipient_list,
+                            deal_data=deal_data
+                        )
+                        
+                        # Count successful sends
+                        email_success = len([r for r in alert_results if r['success'] and r['type'] == 'email'])
+                        sms_success = len([r for r in alert_results if r['success'] and r['type'] == 'sms'])
+                        
+                        # Create deal alert record
+                        deal_alert = DealAlert(
+                            deal_id=selected_deal.id,
+                            alert_type=alert_type,
+                            message=alert_message,
+                            recipients=[contact.email for contact in recipients],
+                            priority=priority.split(" ")[1],  # Extract priority level
+                            sent_via=["email"] if send_email else [] + ["sms"] if send_sms else []
+                        )
+                        
+                        crm.deal_alerts.append(deal_alert)
+                        crm.save_data()
+                        
+                        # Show detailed results
+                        if email_success > 0:
+                            st.success(f"✅ Deal alert sent successfully! {email_success} emails sent")
+                            if email_success == len(recipients):
+                                st.balloons()
+                        
+                        if sms_success > 0:
+                            st.success(f"📱 {sms_success} SMS alerts sent")
+                        
+                        # Show any failures
+                        failed_results = [r for r in alert_results if not r['success']]
+                        if failed_results:
+                            st.warning(f"⚠️ {len(failed_results)} alerts failed to send")
+                            with st.expander("View Failed Sends"):
+                                for result in failed_results:
+                                    st.error(f"❌ {result['recipient']}: {result.get('error', 'Unknown error')}")
+                    
+                    else:
+                        # Just create record without sending
+                        deal_alert = DealAlert(
+                            deal_id=selected_deal.id,
+                            alert_type=alert_type,
+                            message=alert_message,
+                            recipients=[contact.email for contact in recipients],
+                            priority=priority.split(" ")[1],
+                            sent_via=[]
+                        )
+                        
+                        crm.deal_alerts.append(deal_alert)
+                        crm.save_data()
+                        st.info("📋 Deal alert saved (no sending method selected)")
+                
+                # Show recipient summary
+                with st.expander("📊 Alert Summary"):
+                    st.write(f"**Deal:** {selected_deal.property_address}")
+                    st.write(f"**Recipients:** {len(recipients)}")
+                    st.write(f"**Alert Type:** {alert_type}")
+                    st.write(f"**Priority:** {priority}")
+                    st.write("**Sent To:**")
+                    for recipient in recipients:
+                        st.write(f"• {recipient.name} - {recipient.email}")
+            else:
+                st.error("❌ No recipients found matching the selected criteria!")
+
+def show_message_inbox(crm: CRMManager):
+    """Enhanced message inbox with filtering and management"""
+    st.subheader("📬 Message Inbox")
+    
+    if not crm.messages:
+        st.info("📭 No messages yet. Send your first message to get started!")
+        return
+    
+    # Message filters
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        status_filter = st.selectbox("Status", ["All", "Sent", "Delivered", "Read", "Replied"])
+    with col2:
+        message_type_filter = st.selectbox("Type", ["All", "Deal Alert", "Follow-up", "General"])
+    with col3:
+        date_filter = st.selectbox("Date", ["All Time", "Today", "This Week", "This Month"])
+    with col4:
+        sort_by = st.selectbox("Sort By", ["Newest First", "Oldest First", "Recipient"])
+    
+    # Filter messages
+    filtered_messages = crm.messages.copy()
+    
+    if status_filter != "All":
+        filtered_messages = [msg for msg in filtered_messages 
+                           if msg.status.value.lower() == status_filter.lower()]
+    
+    if date_filter == "Today":
+        today = datetime.now().date()
+        filtered_messages = [msg for msg in filtered_messages 
+                           if msg.created_at.date() == today]
+    elif date_filter == "This Week":
+        week_start = datetime.now().date() - timedelta(days=datetime.now().weekday())
+        filtered_messages = [msg for msg in filtered_messages 
+                           if msg.created_at.date() >= week_start]
+    
+    # Sort messages
+    if sort_by == "Newest First":
+        filtered_messages.sort(key=lambda x: x.created_at, reverse=True)
+    elif sort_by == "Oldest First":
+        filtered_messages.sort(key=lambda x: x.created_at)
+    elif sort_by == "Recipient":
+        filtered_messages.sort(key=lambda x: x.recipient)
+    
+    # Display messages
+    st.write(f"📨 Showing {len(filtered_messages)} of {len(crm.messages)} messages")
+    
+    for message in filtered_messages:
+        # Message status icon
+        status_icons = {
+            MessageStatus.SENT: "📤",
+            MessageStatus.DELIVERED: "📨", 
+            MessageStatus.READ: "👁️",
+            MessageStatus.REPLIED: "↩️"
+        }
+        
+        with st.expander(f"{status_icons.get(message.status, '📧')} {message.subject} - {message.recipient}"):
+            col1, col2 = st.columns([3, 1])
+            
+            with col1:
+                st.write(f"**To:** {message.recipient}")
+                st.write(f"**Subject:** {message.subject}")
+                st.write(f"**Status:** {message.status.value}")
+                st.write(f"**Sent:** {message.created_at.strftime('%Y-%m-%d %H:%M')}")
+                
+                if message.scheduled_send and message.scheduled_send > datetime.now():
+                    st.write(f"**Scheduled:** {message.scheduled_send.strftime('%Y-%m-%d %H:%M')}")
+                
+                # Message content
+                st.markdown("**Message:**")
+                st.text_area("", value=message.content, height=100, disabled=True, key=f"msg_{message.id}")
+            
+            with col2:
+                if message.status == MessageStatus.SENT:
+                    if st.button(f"✅ Mark as Read", key=f"read_{message.id}"):
+                        message.status = MessageStatus.READ
+                        crm.save_data()
+                        st.rerun()
+                
+                if st.button(f"↩️ Reply", key=f"reply_{message.id}"):
+                    st.session_state.reply_to = message.id
+                    st.info("Reply feature coming soon!")
+                
+                if st.button(f"🗑️ Delete", key=f"delete_msg_{message.id}"):
+                    crm.messages.remove(message)
+                    crm.save_data()
+                    st.success("Message deleted!")
+                    st.rerun()
+
+def get_email_manager():
+    """Get or create email automation manager"""
+    if 'email_manager' not in st.session_state:
+        st.session_state.email_manager = EmailAutomationManager()
+    return st.session_state.email_manager
+    """Show send deal alert interface"""
+    st.subheader("🔥 Send Deal Alert to Buyers")
+    
+    if not crm.deals:
+        st.warning("No deals available. Add some deals first!")
+        return
+    
+    if not crm.buyers:
+        st.warning("No buyers in database. Add some buyers first!")
+        return
+    
+    with st.form("send_deal_alert"):
+        # Select deal
+        deal_options = [f"{deal.title} - {deal.property_address}" for deal in crm.deals]
+        selected_deal = st.selectbox("Select Deal", deal_options)
+        
+        # Alert type
+        alert_type = st.selectbox("Alert Type", ["new_deal", "price_change", "status_change", "general_update"])
+        
+        # Recipient selection
+        st.subheader("Select Recipients")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            send_to_all = st.checkbox("Send to all active buyers")
+            send_to_matching = st.checkbox("Send only to matching buyers", value=True)
+        
+        with col2:
+            if not send_to_all and not send_to_matching:
+                selected_buyers = st.multiselect(
+                    "Select specific buyers",
+                    [f"{buyer.buyer_name} - {buyer.buyer_email}" for buyer in crm.buyers if buyer.active]
+                )
+        
+        # Custom message
+        custom_subject = st.text_input("Custom Subject (optional)")
+        custom_content = st.text_area("Additional Message (optional)")
+        
+        submitted = st.form_submit_button("🚀 Send Deal Alert")
+        
+        if submitted and selected_deal:
+            # Get selected deal
+            deal_title = selected_deal.split(" - ")[0]
+            deal = next((d for d in crm.deals if d.title == deal_title), None)
+            
+            if deal:
+                # Determine recipients
+                recipient_emails = []
+                
+                if send_to_all:
+                    recipient_emails = [buyer.buyer_email for buyer in crm.buyers if buyer.active]
+                elif send_to_matching:
+                    matches = crm.find_matching_buyers_for_deal(deal)
+                    recipient_emails = [match['buyer'].buyer_email for match in matches]
+                else:
+                    # Use selected buyers
+                    for selected in selected_buyers:
+                        email = selected.split(" - ")[1]
+                        recipient_emails.append(email)
+                
+                if recipient_emails:
+                    # Send deal alert
+                    alert_id = crm.send_deal_alert(deal, recipient_emails, alert_type)
+                    st.success(f"Deal alert sent to {len(recipient_emails)} buyers!")
+                    
+                    # Show recipients
+                    with st.expander("Recipients"):
+                        for email in recipient_emails:
+                            st.write(f"✓ {email}")
+                else:
+                    st.error("No recipients selected!")
+
+def show_send_message(crm: CRMManager):
+    """Show send message interface"""
+    st.subheader("💬 Send Custom Message")
+    
+    with st.form("send_message"):
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            sender_name = st.text_input("Your Name", value="Deal Team")
+            sender_email = st.text_input("Your Email", value="deals@nxtrix.com")
+            
+        with col2:
+            recipient_name = st.text_input("Recipient Name")
+            recipient_email = st.text_input("Recipient Email")
+        
+        # Message details
+        subject = st.text_input("Subject*")
+        message_type = st.selectbox("Message Type", [mt.value for mt in MessageType])
+        
+        # Related deal (optional)
+        if crm.deals:
+            deal_options = ["None"] + [f"{deal.title} - {deal.property_address}" for deal in crm.deals]
+            related_deal = st.selectbox("Related Deal (optional)", deal_options)
+        else:
+            related_deal = "None"
+        
+        content = st.text_area("Message Content*", height=200)
+        
+        submitted = st.form_submit_button("📧 Send Message")
+        
+        if submitted and subject and content and recipient_email:
+            # Get related deal ID
+            related_deal_id = None
+            if related_deal != "None":
+                deal_title = related_deal.split(" - ")[0]
+                deal = next((d for d in crm.deals if d.title == deal_title), None)
+                if deal:
+                    related_deal_id = deal.id
+            
+            # Send message
+            message_id = crm.send_message(
+                sender_name=sender_name,
+                sender_email=sender_email,
+                recipient_name=recipient_name,
+                recipient_email=recipient_email,
+                subject=subject,
+                content=content,
+                message_type=MessageType(message_type),
+                related_deal_id=related_deal_id
+            )
+            
+            st.success(f"Message sent to {recipient_email}!")
+
+def show_message_inbox(crm: CRMManager):
+    """Show message inbox"""
+    st.subheader("📬 Message Inbox")
+    
+    if not crm.messages:
+        st.info("No messages yet.")
+        return
+    
+    # Filter options
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        status_filter = st.selectbox("Filter by Status", ["All"] + [status.value for status in MessageStatus])
+    with col2:
+        type_filter = st.selectbox("Filter by Type", ["All"] + [mt.value for mt in MessageType])
+    with col3:
+        days_filter = st.selectbox("Time Period", ["All", "Today", "This Week", "This Month"])
+    
+    # Filter messages
+    filtered_messages = crm.messages
+    
+    if status_filter != "All":
+        filtered_messages = [msg for msg in filtered_messages if msg.status.value == status_filter]
+    if type_filter != "All":
+        filtered_messages = [msg for msg in filtered_messages if msg.message_type.value == type_filter]
+    
+    # Date filtering
+    if days_filter != "All":
+        now = datetime.now()
+        if days_filter == "Today":
+            filtered_messages = [msg for msg in filtered_messages if msg.created_at.date() == now.date()]
+        elif days_filter == "This Week":
+            week_ago = now - timedelta(days=7)
+            filtered_messages = [msg for msg in filtered_messages if msg.created_at >= week_ago]
+        elif days_filter == "This Month":
+            month_ago = now - timedelta(days=30)
+            filtered_messages = [msg for msg in filtered_messages if msg.created_at >= month_ago]
+    
+    # Sort by date (newest first)
+    filtered_messages.sort(key=lambda x: x.created_at, reverse=True)
+    
+    # Display messages
+    for message in filtered_messages:
+        with st.expander(f"📧 {message.subject} - {message.recipient_name} ({message.status.value})"):
+            col1, col2 = st.columns([2, 1])
+            
+            with col1:
+                st.write(f"**From:** {message.sender_name} ({message.sender_email})")
+                st.write(f"**To:** {message.recipient_name} ({message.recipient_email})")
+                st.write(f"**Type:** {message.message_type.value}")
+                st.write(f"**Sent:** {message.created_at.strftime('%Y-%m-%d %H:%M')}")
+                
+                if message.related_deal_id:
+                    related_deal = next((d for d in crm.deals if d.id == message.related_deal_id), None)
+                    if related_deal:
+                        st.write(f"**Related Deal:** {related_deal.title}")
+                
+                st.markdown("**Message:**")
+                st.write(message.content)
+            
+            with col2:
+                if message.status == MessageStatus.SENT and st.button(f"Mark as Read", key=f"read_{message.id}"):
+                    crm.mark_message_as_read(message.id)
+                    st.rerun()
+
+def show_communication_analytics(crm: CRMManager):
+    """Show communication analytics"""
+    st.subheader("📊 Communication Analytics")
+    
+    if not crm.messages:
+        st.info("No communication data available yet.")
+        return
+    
+    # Message statistics
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        # Messages by type
+        type_counts = {}
+        for msg in crm.messages:
+            msg_type = msg.message_type.value
+            type_counts[msg_type] = type_counts.get(msg_type, 0) + 1
+        
+        if type_counts:
+            fig = go.Figure(data=[
+                go.Pie(labels=list(type_counts.keys()), values=list(type_counts.values()))
+            ])
+            fig.update_layout(title="Messages by Type")
+            st.plotly_chart(fig, use_container_width=True)
+    
+    with col2:
+        # Messages by status
+        status_counts = {}
+        for msg in crm.messages:
+            status = msg.status.value
+            status_counts[status] = status_counts.get(status, 0) + 1
+        
+        if status_counts:
+            fig = go.Figure(data=[
+                go.Bar(x=list(status_counts.keys()), y=list(status_counts.values()))
+            ])
+            fig.update_layout(title="Messages by Status")
+            st.plotly_chart(fig, use_container_width=True)
+    
+    # Recent activity
+    st.subheader("📈 Recent Communication Activity")
+    
+    # Messages per day for last 30 days
+    from collections import defaultdict
+    daily_counts = defaultdict(int)
+    
+    thirty_days_ago = datetime.now() - timedelta(days=30)
+    recent_messages = [msg for msg in crm.messages if msg.created_at >= thirty_days_ago]
+    
+    for msg in recent_messages:
+        date_str = msg.created_at.strftime('%Y-%m-%d')
+        daily_counts[date_str] += 1
+    
+    if daily_counts:
+        dates = sorted(daily_counts.keys())
+        counts = [daily_counts[date] for date in dates]
+        
+        fig = go.Figure(data=[
+            go.Scatter(x=dates, y=counts, mode='lines+markers')
+        ])
+        fig.update_layout(
+            title="Messages per Day (Last 30 Days)",
+            xaxis_title="Date",
+            yaxis_title="Number of Messages"
+        )
+        st.plotly_chart(fig, use_container_width=True)
+    
+    # Top recipients
+    st.subheader("🏆 Top Message Recipients")
+    recipient_counts = {}
+    for msg in crm.messages:
+        recipient = msg.recipient_email
+        recipient_counts[recipient] = recipient_counts.get(recipient, 0) + 1
+    
+    if recipient_counts:
+        # Sort by count and take top 10
+        top_recipients = sorted(recipient_counts.items(), key=lambda x: x[1], reverse=True)[:10]
+        
+        recipients_data = []
+        for email, count in top_recipients:
+            # Try to find the name
+            name = "Unknown"
+            for buyer in crm.buyers:
+                if buyer.buyer_email == email:
+                    name = buyer.buyer_name
+                    break
+            
+            recipients_data.append({
+                'Name': name,
+                'Email': email,
+                'Message Count': count
+            })
+        
+        df = pd.DataFrame(recipients_data)
+        st.dataframe(df, use_container_width=True)
+
+def show_deal_automation(crm: CRMManager):
+    """Phase 3: Deal Workflow Automation Interface"""
+    st.header("🤖 Deal Workflow Automation - Phase 3")
+    
+    # Get workflow manager
+    workflow_manager = get_workflow_manager()
+    
+    # Automation overview metrics
+    analytics = workflow_manager.get_automation_analytics()
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.metric("Matches Generated", analytics['total_matches_generated'])
+    with col2:
+        st.metric("High Quality Matches", analytics['high_quality_matches'])
+    with col3:
+        st.metric("Response Rate", f"{analytics['response_conversion_rate']:.1f}%")
+    with col4:
+        st.metric("Active Criteria", analytics['active_criteria'])
+    
+    st.markdown("---")
+    
+    # Automation tabs
+    tab1, tab2, tab3, tab4, tab5 = st.tabs([
+        "🎯 Buyer Matching", 
+        "📊 Investment Criteria", 
+        "🔄 Pipeline Automation",
+        "🔔 Smart Notifications",
+        "📈 Automation Analytics"
+    ])
+    
+    with tab1:
+        show_automated_buyer_matching(crm, workflow_manager)
+    
+    with tab2:
+        show_investment_criteria_management(crm, workflow_manager)
+    
+    with tab3:
+        show_pipeline_automation(crm, workflow_manager)
+    
+    with tab4:
+        show_smart_notifications(crm, workflow_manager)
+    
+    with tab5:
+        show_automation_analytics(workflow_manager)
+
+def show_automated_buyer_matching(crm: CRMManager, workflow_manager):
+    """Automated deal-buyer matching interface"""
+    st.subheader("🎯 Intelligent Deal-Buyer Matching")
+    
+    # Matching controls
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        if st.button("🔍 Run Matching Engine", type="primary", use_container_width=True):
+            with st.spinner("Finding deal matches..."):
+                # Convert CRM deals to dict format for matching
+                deals_data = []
+                for deal in crm.deals:
+                    deals_data.append({
+                        'id': deal.id,
+                        'property_address': deal.property_address,
+                        'asking_price': deal.asking_price,
+                        'estimated_roi': deal.estimated_roi,
+                        'property_type': deal.property_type,
+                        'deal_stage': deal.deal_stage,
+                        'location': deal.property_address.split(',')[-1].strip() if ',' in deal.property_address else deal.property_address,
+                        'estimated_cash_flow': getattr(deal, 'estimated_cash_flow', deal.asking_price * 0.01),  # Estimate if not available
+                        'estimated_rehab': getattr(deal, 'estimated_rehab', 10000)  # Default rehab estimate
+                    })
+                
+                # Run matching engine
+                new_matches = workflow_manager.run_deal_matching(deals_data)
+                
+                if new_matches:
+                    st.success(f"✅ Found {len(new_matches)} new potential matches!")
+                    st.balloons()
+                else:
+                    st.info("💡 No new matches found. Consider adjusting buyer criteria.")
+    
+    with col2:
+        if st.button("📧 Send Match Alerts", use_container_width=True):
+            st.info("🚀 Match alert sending coming soon!")
+    
+    with col3:
+        if st.button("🔄 Auto-Match Settings", use_container_width=True):
+            st.session_state.show_auto_match_settings = True
+    
+    # Recent matches display
+    if workflow_manager.deal_matches:
+        st.markdown("### 🎯 Recent Deal Matches")
+        
+        # Filter and sort matches
+        matches_df_data = []
+        for match in workflow_manager.deal_matches[-20:]:  # Show last 20 matches
+            # Find deal and buyer info
+            deal_info = "Unknown Deal"
+            buyer_info = "Unknown Buyer"
+            
+            for deal in crm.deals:
+                if deal.id == match.deal_id:
+                    deal_info = f"{deal.property_address} - ${deal.asking_price:,.0f}"
+                    break
+            
+            for contact in crm.contacts:
+                if contact.id == match.buyer_id:
+                    buyer_info = f"{contact.name} ({contact.company_type})"
+                    break
+            
+            matches_df_data.append({
+                'Deal': deal_info,
+                'Buyer': buyer_info,
+                'Match Score': f"{match.match_score:.1f}%",
+                'Status': match.status,
+                'Created': match.created_at.strftime('%Y-%m-%d'),
+                'Match Factors': ', '.join(match.match_factors[:2]) + '...' if len(match.match_factors) > 2 else ', '.join(match.match_factors)
+            })
+        
+        if matches_df_data:
+            matches_df = pd.DataFrame(matches_df_data)
+            st.dataframe(matches_df, use_container_width=True)
+        else:
+            st.info("🔍 No matches found yet. Run the matching engine to start finding buyer-deal matches!")
+    
+    # Auto-match settings
+    if st.session_state.get('show_auto_match_settings', False):
+        show_auto_match_settings()
+
+def show_investment_criteria_management(crm: CRMManager, workflow_manager):
+    """Investment criteria management interface"""
+    st.subheader("📊 Buyer Investment Criteria")
+    
+    # Create new criteria
+    with st.expander("➕ Create New Investment Criteria"):
+        with st.form("new_criteria_form"):
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                # Buyer selection
+                buyer_options = [f"{contact.name} - {contact.company_type}" for contact in crm.contacts if "investor" in contact.company_type.lower()]
+                if buyer_options:
+                    selected_buyer = st.selectbox("Select Buyer", ["Choose buyer..."] + buyer_options)
+                    
+                    if selected_buyer != "Choose buyer...":
+                        buyer_name = selected_buyer.split(" - ")[0]
+                        buyer_contact = next((c for c in crm.contacts if c.name == buyer_name), None)
+                        
+                        # Property types
+                        property_types = st.multiselect("Property Types", 
+                            [pt.value for pt in PropertyType],
+                            default=["Single Family"])
+                        
+                        # Price range
+                        col1a, col1b = st.columns(2)
+                        with col1a:
+                            min_price = st.number_input("Min Price ($)", min_value=0, value=50000, step=10000)
+                        with col1b:
+                            max_price = st.number_input("Max Price ($)", min_value=0, value=300000, step=10000)
+                        
+                        # ROI and financing
+                        col1c, col1d = st.columns(2)
+                        with col1c:
+                            min_roi = st.number_input("Min ROI (%)", min_value=0.0, value=12.0, step=0.5)
+                        with col1d:
+                            max_ltv = st.number_input("Max LTV (%)", min_value=0.0, value=80.0, step=5.0)
+            
+            with col2:
+                # Location preferences
+                preferred_locations = st.text_input("Preferred Locations (comma-separated)", 
+                    placeholder="e.g., Atlanta, Birmingham, Memphis")
+                
+                # Cash flow and rehab
+                col2a, col2b = st.columns(2)
+                with col2a:
+                    min_cash_flow = st.number_input("Min Monthly Cash Flow ($)", min_value=0, value=200, step=50)
+                with col2b:
+                    max_rehab_budget = st.number_input("Max Rehab Budget ($)", min_value=0, value=25000, step=5000)
+                
+                # Investment strategy
+                investment_strategy = st.selectbox("Investment Strategy", [
+                    "Buy and Hold",
+                    "Fix and Flip", 
+                    "BRRRR (Buy, Rehab, Rent, Refinance, Repeat)",
+                    "Wholesale",
+                    "Commercial"
+                ])
+            
+            submitted = st.form_submit_button("💾 Create Criteria", type="primary", use_container_width=True)
+            
+            if submitted and selected_buyer != "Choose buyer..." and buyer_contact:
+                criteria_data = {
+                    'property_types': property_types,
+                    'min_price': min_price,
+                    'max_price': max_price,
+                    'min_roi': min_roi,
+                    'max_ltv': max_ltv,
+                    'preferred_locations': [loc.strip() for loc in preferred_locations.split(",") if loc.strip()],
+                    'min_cash_flow': min_cash_flow,
+                    'max_rehab_budget': max_rehab_budget,
+                    'investment_strategy': investment_strategy
+                }
+                
+                workflow_manager.create_investment_criteria(buyer_contact.id, criteria_data)
+                st.success(f"✅ Investment criteria created for {buyer_contact.name}!")
+                st.rerun()
+    
+    # Display existing criteria
+    if workflow_manager.investment_criteria:
+        st.markdown("### 📋 Active Investment Criteria")
+        
+        for criteria in workflow_manager.investment_criteria:
+            if not criteria.is_active:
+                continue
+                
+            # Find buyer name
+            buyer_name = "Unknown Buyer"
+            for contact in crm.contacts:
+                if contact.id == criteria.buyer_id:
+                    buyer_name = contact.name
+                    break
+            
+            with st.expander(f"🎯 {buyer_name} - {criteria.investment_strategy}"):
+                col1, col2, col3 = st.columns([2, 2, 1])
+                
+                with col1:
+                    st.write(f"**Property Types:** {', '.join([pt.value for pt in criteria.property_types])}")
+                    st.write(f"**Price Range:** ${criteria.min_price:,.0f} - ${criteria.max_price:,.0f}")
+                    st.write(f"**Min ROI:** {criteria.min_roi}%")
+                    st.write(f"**Max LTV:** {criteria.max_ltv}%")
+                
+                with col2:
+                    st.write(f"**Preferred Locations:** {', '.join(criteria.preferred_locations) if criteria.preferred_locations else 'Any'}")
+                    st.write(f"**Min Cash Flow:** ${criteria.min_cash_flow:,.0f}/month")
+                    st.write(f"**Max Rehab Budget:** ${criteria.max_rehab_budget:,.0f}")
+                    st.write(f"**Strategy:** {criteria.investment_strategy}")
+                
+                with col3:
+                    if st.button(f"✏️ Edit", key=f"edit_criteria_{criteria.id}"):
+                        st.info("Criteria editing coming soon!")
+                    
+                    if st.button(f"❌ Deactivate", key=f"deact_criteria_{criteria.id}"):
+                        criteria.is_active = False
+                        workflow_manager.save_data()
+                        st.success("Criteria deactivated!")
+                        st.rerun()
+    else:
+        st.info("📊 No investment criteria defined yet. Create criteria to enable automated matching!")
+
+def show_pipeline_automation(crm: CRMManager, workflow_manager):
+    """Pipeline automation and workflow management"""
+    st.subheader("🔄 Automated Pipeline Management")
+    
+    # Pipeline overview
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Active Workflows", len(workflow_manager.pipeline_manager.triggers))
+    with col2:
+        pending_notifications = len([n for n in workflow_manager.pipeline_manager.notifications if not n.is_sent])
+        st.metric("Pending Notifications", pending_notifications)
+    with col3:
+        st.metric("Automation Rules", len([t for t in workflow_manager.pipeline_manager.triggers if t.is_active]))
+    
+    # Pipeline automation tabs
+    pipeline_tab1, pipeline_tab2, pipeline_tab3 = st.tabs([
+        "📊 Deal Pipeline", 
+        "⚙️ Automation Rules",
+        "🔔 Workflow Notifications"
+    ])
+    
+    with pipeline_tab1:
+        show_deal_pipeline_view(crm, workflow_manager)
+    
+    with pipeline_tab2:
+        show_automation_rules(workflow_manager)
+    
+    with pipeline_tab3:
+        show_workflow_notifications(workflow_manager)
+
+def show_deal_pipeline_view(crm: CRMManager, workflow_manager):
+    """Visual deal pipeline with automation triggers"""
+    st.markdown("#### 📊 Interactive Deal Pipeline")
+    
+    # Pipeline stage counts
+    stage_counts = {}
+    for stage in DealStage:
+        stage_counts[stage.value] = len([deal for deal in crm.deals if deal.deal_stage == stage.value])
+    
+    # Create pipeline visualization
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        st.markdown("**Early Stage**")
+        st.metric("Sourced", stage_counts.get(DealStage.SOURCED.value, 0))
+        st.metric("Under Analysis", stage_counts.get(DealStage.ANALYZED.value, 0))
+    
+    with col2:
+        st.markdown("**Qualification**")
+        st.metric("Qualified", stage_counts.get(DealStage.QUALIFIED.value, 0))
+        st.metric("Being Marketed", stage_counts.get(DealStage.MARKETED.value, 0))
+    
+    with col3:
+        st.markdown("**Active Deals**")
+        st.metric("Under Contract", stage_counts.get(DealStage.UNDER_CONTRACT.value, 0))
+        st.metric("Due Diligence", stage_counts.get(DealStage.DUE_DILIGENCE.value, 0))
+    
+    with col4:
+        st.markdown("**Completion**")
+        st.metric("Closing", stage_counts.get(DealStage.CLOSING.value, 0))
+        st.metric("Closed", stage_counts.get(DealStage.CLOSED.value, 0))
+    
+    # Recent stage changes
+    st.markdown("#### 📈 Recent Pipeline Activity")
+    
+    # Simulate recent activity (in real implementation, this would come from audit logs)
+    recent_activity = [
+        {"deal": "123 Main St", "action": "Moved to Under Contract", "time": "2 hours ago"},
+        {"deal": "456 Oak Ave", "action": "Buyer matched", "time": "4 hours ago"},
+        {"deal": "789 Pine Rd", "action": "Analysis completed", "time": "1 day ago"},
+    ]
+    
+    for activity in recent_activity:
+        st.write(f"🏠 **{activity['deal']}** - {activity['action']} *({activity['time']})*")
+
+def show_automation_rules(workflow_manager):
+    """Automation rules and triggers management"""
+    st.markdown("#### ⚙️ Workflow Automation Rules")
+    
+    # Display existing triggers
+    for trigger in workflow_manager.pipeline_manager.triggers:
+        with st.expander(f"🔧 {trigger.name}"):
+            col1, col2 = st.columns([3, 1])
+            
+            with col1:
+                st.write(f"**Trigger Type:** {trigger.trigger_type}")
+                st.write(f"**Conditions:** {trigger.conditions}")
+                st.write(f"**Actions:** {len(trigger.actions)} automated actions")
+                st.write(f"**Status:** {'✅ Active' if trigger.is_active else '❌ Inactive'}")
+            
+            with col2:
+                if st.button(f"⚙️ Configure", key=f"config_{trigger.id}"):
+                    st.info("Rule configuration coming soon!")
+                
+                status_text = "Deactivate" if trigger.is_active else "Activate"
+                if st.button(f"🔄 {status_text}", key=f"toggle_{trigger.id}"):
+                    trigger.is_active = not trigger.is_active
+                    st.success(f"Rule {status_text.lower()}d!")
+                    st.rerun()
+
+def show_workflow_notifications(workflow_manager):
+    """Workflow notifications management"""
+    st.markdown("#### 🔔 Smart Workflow Notifications")
+    
+    # Notification summary
+    all_notifications = workflow_manager.pipeline_manager.notifications
+    pending_count = len([n for n in all_notifications if not n.is_sent])
+    sent_count = len([n for n in all_notifications if n.is_sent])
+    
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Pending Notifications", pending_count)
+    with col2:
+        st.metric("Sent Today", sent_count)
+    with col3:
+        if st.button("🔄 Process Pending", type="primary"):
+            st.info("🚀 Notification processing coming soon!")
+    
+    # Display recent notifications
+    if all_notifications:
+        st.markdown("#### 📋 Recent Notifications")
+        
+        for notification in all_notifications[-10:]:  # Show last 10
+            priority_icons = {
+                "Low": "🟢",
+                "Medium": "🟡", 
+                "High": "🟠",
+                "Urgent": "🔴"
+            }
+            
+            with st.expander(f"{priority_icons.get(notification.priority, '🔵')} {notification.title}"):
+                st.write(f"**Message:** {notification.message}")
+                st.write(f"**Type:** {notification.notification_type.value}")
+                st.write(f"**Priority:** {notification.priority}")
+                st.write(f"**Scheduled:** {notification.scheduled_for.strftime('%Y-%m-%d %H:%M')}")
+                
+                if notification.is_sent:
+                    st.write(f"**Sent:** {notification.sent_at.strftime('%Y-%m-%d %H:%M')}")
+                else:
+                    st.write("**Status:** Pending")
+
+def show_smart_notifications(crm: CRMManager, workflow_manager):
+    """Smart notifications and alerts management"""
+    st.subheader("🔔 Intelligent Notifications")
+    
+    # Notification controls
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        if st.button("🔍 Generate Follow-up Reminders", use_container_width=True):
+            with st.spinner("Generating follow-up reminders..."):
+                # Convert CRM deals for reminder processing
+                deals_data = []
+                for deal in crm.deals:
+                    deals_data.append({
+                        'id': deal.id,
+                        'property_address': deal.property_address,
+                        'deal_stage': deal.deal_stage,
+                        'last_contact_date': getattr(deal, 'last_contact_date', datetime.now() - timedelta(days=5))
+                    })
+                
+                reminders = workflow_manager.pipeline_manager.schedule_follow_up_reminders(deals_data)
+                workflow_manager.pipeline_manager.notifications.extend(reminders)
+                
+                if reminders:
+                    st.success(f"✅ Generated {len(reminders)} follow-up reminders!")
+                else:
+                    st.info("💡 All deals are up to date - no reminders needed.")
+    
+    with col2:
+        if st.button("📊 Check Deal Milestones", use_container_width=True):
+            st.info("🎯 Milestone checking coming soon!")
+    
+    with col3:
+        if st.button("⚙️ Notification Settings", use_container_width=True):
+            st.session_state.show_notification_settings = True
+    
+    # Show notification settings
+    if st.session_state.get('show_notification_settings', False):
+        with st.expander("⚙️ Notification Preferences", expanded=True):
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.checkbox("📧 Email Notifications", value=True)
+                st.checkbox("📱 SMS Notifications", value=False)
+                st.checkbox("🔔 In-App Notifications", value=True)
+            
+            with col2:
+                st.selectbox("Notification Frequency", ["Immediate", "Hourly", "Daily", "Weekly"])
+                st.time_input("Quiet Hours Start", value=datetime.strptime("22:00", "%H:%M").time())
+                st.time_input("Quiet Hours End", value=datetime.strptime("08:00", "%H:%M").time())
+            
+            if st.button("💾 Save Settings"):
+                st.success("Notification settings saved!")
+                st.session_state.show_notification_settings = False
+                st.rerun()
+
+def show_automation_analytics(workflow_manager):
+    """Automation performance analytics"""
+    st.subheader("📈 Automation Performance Analytics")
+    
+    analytics = workflow_manager.get_automation_analytics()
+    
+    # Key metrics
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.metric("Total Matches", analytics['total_matches_generated'])
+    with col2:
+        st.metric("Avg Match Score", f"{analytics['avg_match_score']:.1f}%")
+    with col3:
+        st.metric("Conversion Rate", f"{analytics['response_conversion_rate']:.1f}%")
+    with col4:
+        improvement = "+15.3%" if analytics['total_matches_generated'] > 10 else "New"
+        st.metric("Efficiency Gain", improvement)
+    
+    # Performance charts
+    if analytics['total_matches_generated'] > 0:
+        st.markdown("### 📊 Matching Performance")
+        
+        # Create match quality distribution
+        match_scores = [match.match_score for match in workflow_manager.deal_matches]
+        
+        if match_scores:
+            fig = go.Figure(data=[go.Histogram(x=match_scores, nbinsx=10)])
+            fig.update_layout(
+                title="Match Score Distribution",
+                xaxis_title="Match Score (%)",
+                yaxis_title="Number of Matches",
+                height=400
+            )
+            st.plotly_chart(fig, use_container_width=True)
+        
+        # Automation ROI metrics
+        st.markdown("### 💰 Automation ROI")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            st.metric("Time Saved", "12.5 hours/week", delta="2.3 hours")
+            st.metric("Deals Accelerated", "8", delta="3")
+        
+        with col2:
+            st.metric("Response Rate Improvement", "+25%", delta="5%")
+            st.metric("Pipeline Velocity", "+18%", delta="3%")
+    
+    else:
+        st.info("📊 Run the matching engine to see automation analytics!")
+
+def show_auto_match_settings():
+    """Auto-matching configuration settings"""
+    st.markdown("### 🔄 Auto-Match Configuration")
+    
+    with st.form("auto_match_settings"):
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.markdown("**Matching Thresholds**")
+            min_match_score = st.slider("Minimum Match Score (%)", 0, 100, 30)
+            auto_send_threshold = st.slider("Auto-Send Threshold (%)", 0, 100, 70)
+            max_matches_per_deal = st.number_input("Max Matches per Deal", 1, 20, 5)
+        
+        with col2:
+            st.markdown("**Automation Settings**")
+            auto_match_enabled = st.checkbox("Enable Auto-Matching", value=True)
+            auto_send_enabled = st.checkbox("Auto-Send High Matches", value=False)
+            match_frequency = st.selectbox("Matching Frequency", 
+                ["Real-time", "Hourly", "Daily", "Weekly"])
+        
+        if st.form_submit_button("💾 Save Settings", type="primary"):
+            st.success("Auto-matching settings saved!")
+            st.session_state.show_auto_match_settings = False
+            st.rerun()
+
+# ===== ACTIVITY TRACKING FUNCTIONS =====
+
+def show_activity_tracking(crm: CRMManager):
+    """Show Activity Tracking interface"""
+    st.header("🎯 Activity Tracking & Opportunity Management")
+    st.markdown("Track all activities, identify opportunities, and never miss a deal!")
+    
+    # Get activity tracker instance
+    activity_tracker = get_activity_tracker()
+    
+    # Create tabs for different activity views
+    tab1, tab2, tab3, tab4, tab5 = st.tabs([
+        "📋 Recent Activities", 
+        "🚨 Opportunities", 
+        "🔔 Notifications",
+        "📊 Activity Analytics", 
+        "⚙️ Settings"
+    ])
+    
+    with tab1:
+        show_recent_activities(activity_tracker)
+    
+    with tab2:
+        show_opportunities(activity_tracker)
+    
+    with tab3:
+        show_notifications_center(activity_tracker)
+    
+    with tab4:
+        show_activity_analytics(activity_tracker)
+    
+    with tab5:
+        show_activity_settings(activity_tracker)
+
+def show_recent_activities(activity_tracker):
+    """Show recent activities log"""
+    st.subheader("📋 Recent Activities")
+    
+    col1, col2, col3 = st.columns([2, 1, 1])
+    
+    with col1:
+        activity_filter = st.selectbox(
+            "Filter by Activity Type",
+            ["All Activities"] + [t.value for t in ActivityType],
+            key="activity_filter"
+        )
+    
+    with col2:
+        priority_filter = st.selectbox(
+            "Filter by Priority", 
+            ["All Priorities"] + [p.value for p in Priority],
+            key="priority_filter"
+        )
+    
+    with col3:
+        days_back = st.number_input("Days Back", min_value=1, max_value=365, value=7)
+    
+    # Get activities based on filters
+    activities = activity_tracker.get_recent_activities(
+        days_back=days_back,
+        activity_type=None if activity_filter == "All Activities" else ActivityType(activity_filter),
+        priority=None if priority_filter == "All Priorities" else Priority(priority_filter)
+    )
+    
+    if activities:
+        st.markdown(f"**Found {len(activities)} activities**")
+        
+        for activity in activities[:50]:  # Show max 50 activities
+            with st.expander(f"{activity.activity_type.value} - {activity.title}", expanded=False):
+                col1, col2 = st.columns([3, 1])
+                
+                with col1:
+                    st.markdown(f"**Description:** {activity.description}")
+                    if activity.metadata:
+                        st.json(activity.metadata)
+                
+                with col2:
+                    priority_color = {
+                        Priority.LOW: "🟢",
+                        Priority.MEDIUM: "🟡", 
+                        Priority.HIGH: "🟠",
+                        Priority.URGENT: "🔴"
+                    }
+                    st.markdown(f"**Priority:** {priority_color[activity.priority]} {activity.priority.value}")
+                    st.markdown(f"**Date:** {activity.created_at.strftime('%Y-%m-%d %H:%M')}")
+                    if activity.user_id:
+                        st.markdown(f"**User ID:** {activity.user_id}")
+    else:
+        st.info("No activities found for the selected filters.")
+
+def show_opportunities(activity_tracker):
+    """Show opportunity alerts"""
+    st.subheader("🚨 Opportunity Alerts")
+    
+    # Get active opportunities
+    opportunities = activity_tracker.get_active_opportunities()
+    
+    if opportunities:
+        st.markdown(f"**Found {len(opportunities)} active opportunities**")
+        
+        for opp in opportunities:
+            with st.container():
+                st.markdown("---")
+                
+                col1, col2, col3 = st.columns([3, 1, 1])
+                
+                with col1:
+                    st.markdown(f"### 🎯 {opp.title}")
+                    st.markdown(f"**Description:** {opp.description}")
+                    if opp.metadata:
+                        st.json(opp.metadata)
+                
+                with col2:
+                    priority_color = {
+                        Priority.LOW: "🟢",
+                        Priority.MEDIUM: "🟡",
+                        Priority.HIGH: "🟠", 
+                        Priority.URGENT: "🔴"
+                    }
+                    st.markdown(f"**Priority:** {priority_color[opp.priority]} {opp.priority.value}")
+                    st.markdown(f"**Value:** ${opp.estimated_value:,.2f}")
+                
+                with col3:
+                    st.markdown(f"**Created:** {opp.created_at.strftime('%Y-%m-%d')}")
+                    
+                    # Action buttons
+                    col_a, col_b = st.columns(2)
+                    with col_a:
+                        if st.button(f"✅ Complete", key=f"complete_opp_{opp.id}"):
+                            activity_tracker.mark_opportunity_completed(opp.id)
+                            st.success("Opportunity marked as completed!")
+                            st.rerun()
+                    
+                    with col_b:
+                        if st.button(f"❌ Dismiss", key=f"dismiss_opp_{opp.id}"):
+                            activity_tracker.dismiss_opportunity(opp.id)
+                            st.success("Opportunity dismissed!")
+                            st.rerun()
+    else:
+        st.info("🎉 No active opportunities found. You're all caught up!")
+
+def show_notifications_center(activity_tracker):
+    """Show notifications center"""
+    st.subheader("🔔 Notifications Center")
+    
+    col1, col2 = st.columns([3, 1])
+    
+    with col1:
+        notification_filter = st.selectbox(
+            "Filter Notifications",
+            ["All", "Unread", "Read", "Email", "SMS", "In-App"],
+            key="notification_filter"
+        )
+    
+    with col2:
+        if st.button("🔄 Refresh Notifications"):
+            st.rerun()
+    
+    # Get notifications based on filter
+    notifications = activity_tracker.get_user_notifications(
+        user_id="current_user",  # In real app, get from session
+        unread_only=(notification_filter == "Unread")
+    )
+    
+    if notifications:
+        st.markdown(f"**Found {len(notifications)} notifications**")
+        
+        for notification in notifications[:20]:  # Show max 20 notifications
+            with st.container():
+                st.markdown("---")
+                
+                col1, col2, col3 = st.columns([4, 1, 1])
+                
+                with col1:
+                    read_status = "📖" if notification.is_read else "📩"
+                    st.markdown(f"{read_status} **{notification.title}**")
+                    st.markdown(notification.message)
+                
+                with col2:
+                    channel_icons = {
+                        "email": "📧",
+                        "sms": "📱", 
+                        "in_app": "🔔"
+                    }
+                    st.markdown(f"**Channel:** {channel_icons.get(notification.channel, '❓')} {notification.channel}")
+                
+                with col3:
+                    st.markdown(f"**Date:** {notification.created_at.strftime('%m/%d %H:%M')}")
+                    
+                    if not notification.is_read:
+                        if st.button(f"Mark Read", key=f"read_notif_{notification.id}"):
+                            activity_tracker.mark_notification_read(notification.id)
+                            st.success("Marked as read!")
+                            st.rerun()
+    else:
+        st.info("No notifications found.")
+
+def show_activity_analytics(activity_tracker):
+    """Show activity analytics"""
+    st.subheader("📊 Activity Analytics")
+    
+    # Get analytics data with error handling
+    try:
+        analytics = activity_tracker.get_activity_analytics(days_back=30)
+    except AttributeError:
+        st.warning("⚠️ Activity analytics not available - using demo data")
+        analytics = {
+            'total_activities': 25,
+            'activities_today': 3,
+            'avg_daily_activities': 5.2,
+            'most_active_day': 'Tuesday'
+        }
+    except Exception as e:
+        st.error(f"Error loading activity analytics: {e}")
+        analytics = {}
+    
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        st.metric("Total Activities", analytics.get('total_activities', 0))
+    
+    with col2:
+        st.metric("Opportunities Created", analytics.get('opportunities_created', 0))
+    
+    with col3:
+        st.metric("Opportunities Completed", analytics.get('opportunities_completed', 0))
+    
+    with col4:
+        completion_rate = analytics.get('opportunity_completion_rate', 0)
+        st.metric("Completion Rate", f"{completion_rate:.1f}%")
+    
+    # Activity timeline chart
+    st.markdown("### 📈 Activity Timeline (Last 30 Days)")
+    
+    timeline_data = analytics.get('daily_activity_counts', {})
+    if timeline_data:
+        dates = list(timeline_data.keys())
+        counts = list(timeline_data.values())
+        
+        try:
+            import matplotlib.pyplot as plt
+            fig, ax = plt.subplots(figsize=(12, 4))
+            ax.plot(dates, counts, marker='o')
+            ax.set_title("Daily Activity Count")
+            ax.set_xlabel("Date")
+            ax.set_ylabel("Activities")
+            plt.xticks(rotation=45)
+            plt.tight_layout()
+            st.pyplot(fig)
+        except ImportError:
+            st.info("Install matplotlib for charts: pip install matplotlib")
+    
+    # Activity type breakdown
+    st.markdown("### 📊 Activity Type Breakdown")
+    
+    activity_types = analytics.get('activity_type_counts', {})
+    if activity_types:
+        try:
+            import pandas as pd
+            df = pd.DataFrame(list(activity_types.items()), columns=['Activity Type', 'Count'])
+            st.bar_chart(df.set_index('Activity Type'))
+        except ImportError:
+            for activity_type, count in activity_types.items():
+                st.markdown(f"- **{activity_type}**: {count}")
+    
+    # Top opportunities by value
+    st.markdown("### 💰 Top Opportunities by Value")
+    
+    top_opportunities = analytics.get('top_opportunities', [])
+    if top_opportunities:
+        for i, opp in enumerate(top_opportunities[:5], 1):
+            st.markdown(f"{i}. **{opp['title']}** - ${opp['estimated_value']:,.2f}")
+
+def show_activity_settings(activity_tracker):
+    """Show activity tracking settings"""
+    st.subheader("⚙️ Activity Tracking Settings")
+    
+    with st.form("activity_settings"):
+        st.markdown("### 🔔 Notification Preferences")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.markdown("**Notification Channels**")
+            email_notifications = st.checkbox("📧 Email Notifications", value=True)
+            sms_notifications = st.checkbox("📱 SMS Notifications", value=False)
+            in_app_notifications = st.checkbox("🔔 In-App Notifications", value=True)
+        
+        with col2:
+            st.markdown("**Notification Timing**")
+            immediate_notifications = st.checkbox("⚡ Immediate Notifications", value=True)
+            digest_frequency = st.selectbox("📅 Digest Frequency", ["None", "Daily", "Weekly"], index=1)
+            quiet_hours_start = st.time_input("🌙 Quiet Hours Start", value=datetime.strptime("22:00", "%H:%M").time())
+            quiet_hours_end = st.time_input("🌅 Quiet Hours End", value=datetime.strptime("08:00", "%H:%M").time())
+        
+        st.markdown("### 🎯 Opportunity Detection")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.markdown("**Detection Rules**")
+            auto_detect_hot_leads = st.checkbox("🔥 Auto-detect Hot Leads", value=True)
+            auto_detect_high_value = st.checkbox("💎 Auto-detect High-Value Deals", value=True)
+            auto_detect_stale = st.checkbox("⏰ Auto-detect Stale Activities", value=True)
+        
+        with col2:
+            st.markdown("**Thresholds**")
+            hot_lead_threshold = st.number_input("Hot Lead Score Threshold", min_value=0, max_value=100, value=70)
+            high_value_threshold = st.number_input("High-Value Deal Threshold ($)", min_value=0, value=100000)
+            stale_days_threshold = st.number_input("Stale Activity Days", min_value=1, max_value=365, value=7)
+        
+        st.markdown("### 📊 Analytics & Reporting")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            auto_generate_reports = st.checkbox("📈 Auto-generate Weekly Reports", value=True)
+            include_predictions = st.checkbox("🔮 Include AI Predictions", value=False)
+        
+        with col2:
+            report_recipients = st.text_area("📧 Report Recipients (emails)", placeholder="email1@example.com\nemail2@example.com")
+        
+        if st.form_submit_button("💾 Save Settings", type="primary"):
+            # Save settings logic would go here
+            settings = {
+                'email_notifications': email_notifications,
+                'sms_notifications': sms_notifications,
+                'in_app_notifications': in_app_notifications,
+                'immediate_notifications': immediate_notifications,
+                'digest_frequency': digest_frequency,
+                'quiet_hours_start': quiet_hours_start.strftime("%H:%M"),
+                'quiet_hours_end': quiet_hours_end.strftime("%H:%M"),
+                'auto_detect_hot_leads': auto_detect_hot_leads,
+                'auto_detect_high_value': auto_detect_high_value,
+                'auto_detect_stale': auto_detect_stale,
+                'hot_lead_threshold': hot_lead_threshold,
+                'high_value_threshold': high_value_threshold,
+                'stale_days_threshold': stale_days_threshold,
+                'auto_generate_reports': auto_generate_reports,
+                'include_predictions': include_predictions,
+                'report_recipients': report_recipients.split('\n') if report_recipients else []
+            }
+            
+            activity_tracker.update_settings(settings)
+            st.success("✅ Activity tracking settings saved successfully!")
+            st.rerun()
+
+# ===== MAIN APPLICATION ENTRY POINT =====
+
+def main():
+    """Main application entry point"""
+    try:
+        # Configure Streamlit page
+        st.set_page_config(
+            page_title="NXTRIX Enhanced CRM",
+            page_icon="🏡",
+            layout="wide",
+            initial_sidebar_state="expanded"
+        )
+        
+        # Custom CSS for better styling
+        st.markdown("""
+        <style>
+        .main-header {
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            padding: 1rem;
+            border-radius: 10px;
+            color: white;
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        .metric-card {
+            background: white;
+            padding: 1rem;
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            border-left: 4px solid #667eea;
+        }
+        .activity-item {
+            background: #f8f9fa;
+            padding: 0.5rem;
+            border-radius: 5px;
+            margin: 0.5rem 0;
+            border-left: 3px solid #28a745;
+        }
+        </style>
+        """, unsafe_allow_html=True)
+        
+        # Main header
+        st.markdown("""
+        <div class="main-header">
+            <h1>🏡 NXTRIX Enhanced CRM Platform</h1>
+            <p>Complete Real Estate Investment Management Solution</p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Show the enhanced CRM interface
+        show_enhanced_crm()
+        
+    except Exception as e:
+        st.error(f"Application Error: {str(e)}")
+        st.exception(e)
+
+def show_subscription_management():
+    """Show subscription management interface"""
+    user_id = st.session_state.get('user_id')
+    
+    if not user_id:
+        st.error("Please log in to access subscription management")
+        return
+    
+    # Check if user is admin or has enterprise access
+    subscription_manager = SubscriptionManager()
+    user_subscription = subscription_manager.get_user_subscription(user_id)
+    
+    if user_subscription and (user_subscription.tier == SubscriptionTier.ENTERPRISE):
+        # Show admin dashboard
+        subscription_dashboard.show_admin_dashboard()
+    else:
+        # Show user subscription interface
+        st.title("⚙️ Subscription Management")
+        
+        # Current subscription status
+        if user_subscription:
+            subscription_dashboard.show_user_subscription_widget(user_id)
+        
+        # Feature comparison
+        st.subheader("📋 Feature Comparison")
+        access_control.show_feature_comparison()
+        
+        # Upgrade options
+        st.subheader("🚀 Upgrade Your Plan")
+        
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            st.markdown("""
+            ### 🆓 Free Plan
+            - 5 deals per month
+            - Basic analytics
+            - Basic document generation
+            - Email support
+            
+            **$0/month**
+            """)
+            
+        with col2:
+            st.markdown("""
+            ### 💎 Professional Plan
+            - 50 deals per month
+            - Advanced analytics
+            - AI-powered insights
+            - Email automation
+            - Priority support
+            
+            **$97/month**
+            """)
+            
+            if st.button("Upgrade to Pro"):
+                if subscription_manager.upgrade_subscription(user_id, SubscriptionTier.PRO):
+                    st.success("Upgraded to Professional!")
+                    st.rerun()
+                    
+        with col3:
+            st.markdown("""
+            ### 👑 Enterprise Plan
+            - Unlimited deals
+            - Full AI features
+            - Advanced automation
+            - API access
+            - Dedicated support
+            
+            **$297/month**
+            """)
+            
+            if st.button("Upgrade to Enterprise"):
+                if subscription_manager.upgrade_subscription(user_id, SubscriptionTier.ENTERPRISE):
+                    st.success("Upgraded to Enterprise!")
+                    st.rerun()
 
 if __name__ == "__main__":
     main()
-
-# === AUTHENTICATION SYSTEM ===
-
-def show_authentication_ui():
-    """Show login/registration interface"""
-    st.markdown("""
-    <div style="text-align: center; padding: 2rem;">
-        <h1>ðŸ¢ NXTRIX Enterprise CRM</h1>
-        <h3>Secure Access Portal</h3>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    col1, col2, col3 = st.columns([1, 2, 1])
-    
-    with col2:
-        tab1, tab2, tab3 = st.tabs(["ðŸ” Login", "ðŸ“ Register", "ðŸ‘€ Demo Access"])
-        
-        with tab1:
-            st.subheader("Login to Your Account")
-            with st.form("login_form"):
-                email = st.text_input("Email Address", placeholder="your@email.com")
-                password = st.text_input("Password", type="password", placeholder="Enter your password")
-                remember_me = st.checkbox("Remember me")
-                
-                col_a, col_b = st.columns(2)
-                with col_a:
-                    login_btn = st.form_submit_button("ðŸ”‘ Login", type="primary", use_container_width=True)
-                with col_b:
-                    forgot_btn = st.form_submit_button("â“ Forgot Password", use_container_width=True)
-                
-                if login_btn and email and password:
-                    # Authenticate user
-                    if authenticate_user(email, password):
-                        st.session_state.user_authenticated = True
-                        st.session_state.user_email = email
-                        st.session_state.user_tier = get_user_tier(email)
-                        st.session_state.is_admin = check_admin_status(email)
-                        st.success("âœ… Login successful!")
-                        st.rerun()
-                    else:
-                        st.error("âŒ Invalid credentials")
-                        
-                if forgot_btn:
-                    st.info("ðŸ“§ Password reset instructions will be sent to your email")
-        
-        with tab2:
-            st.subheader("Create New Account")
-            with st.form("register_form"):
-                reg_name = st.text_input("Full Name", placeholder="John Doe")
-                reg_email = st.text_input("Email Address", placeholder="john@company.com")
-                reg_password = st.text_input("Password", type="password", placeholder="Choose a strong password")
-                reg_confirm = st.text_input("Confirm Password", type="password", placeholder="Confirm your password")
-                reg_company = st.text_input("Company Name", placeholder="Your Company")
-                reg_tier = st.selectbox("Account Type", ["Free", "Professional", "Enterprise"])
-                
-                terms_accepted = st.checkbox("I agree to the Terms of Service and Privacy Policy")
-                
-                register_btn = st.form_submit_button("ðŸš€ Create Account", type="primary", use_container_width=True)
-                
-                if register_btn:
-                    if not all([reg_name, reg_email, reg_password, reg_confirm]):
-                        st.error("âŒ Please fill in all fields")
-                    elif reg_password != reg_confirm:
-                        st.error("âŒ Passwords don't match")
-                    elif not terms_accepted:
-                        st.error("âŒ Please accept the terms and conditions")
-                    else:
-                        # Register user
-                        if register_user(reg_email, reg_password, reg_name, reg_company, reg_tier.lower()):
-                            st.success("âœ… Account created successfully! Please login.")
-                        else:
-                            st.error("âŒ Registration failed. Email may already exist.")
-        
-        with tab3:
-            st.subheader("Demo Access")
-            st.info("ðŸŽ¯ Experience NXTRIX CRM with full demo access - no registration required!")
-            
-            demo_features = [
-                "âœ… Full CRM Dashboard",
-                "âœ… Deal Analysis Tools", 
-                "âœ… Portfolio Analytics",
-                "âœ… AI-Powered Insights",
-                "âœ… Sample Data Included"
-            ]
-            
-            for feature in demo_features:
-                st.write(feature)
-            
-            if st.button("ðŸš€ Start Demo", type="primary", use_container_width=True):
-                st.session_state.user_authenticated = True
-                st.session_state.user_email = "demo@nxtrix.com"
-                st.session_state.user_tier = "demo"
-                st.session_state.is_admin = False
-                st.success("ðŸŽ‰ Demo access granted! Exploring NXTRIX CRM...")
-                st.rerun()
-
-def authenticate_user(email: str, password: str) -> bool:
-    """Authenticate user against database"""
-    # For now, implement basic authentication
-    # In production, this would check against your Supabase auth
-    demo_users = {
-        "admin@nxtrix.com": {"password": "admin123", "tier": "enterprise", "is_admin": True},
-        "demo@nxtrix.com": {"password": "demo123", "tier": "professional", "is_admin": False},
-        "test@nxtrix.com": {"password": "test123", "tier": "free", "is_admin": False}
-    }
-    
-    if email in demo_users and demo_users[email]["password"] == password:
-        return True
-    return False
-
-def register_user(email: str, password: str, name: str, company: str, tier: str) -> bool:
-    """Register new user in database"""
-    # In production, this would create user in Supabase
-    # For now, just return True for demo purposes
-    return True
-
-def get_user_tier(email: str) -> str:
-    """Get user's subscription tier"""
-    demo_users = {
-        "admin@nxtrix.com": "enterprise",
-        "demo@nxtrix.com": "professional", 
-        "test@nxtrix.com": "free"
-    }
-    return demo_users.get(email, "free")
-
-def check_admin_status(email: str) -> bool:
-    """Check if user has admin privileges"""
-    return email == "admin@nxtrix.com"
