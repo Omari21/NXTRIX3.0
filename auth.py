@@ -1,6 +1,6 @@
 """
-NXTRIX Platform - Authentication System
-Production subscription-based authentication with Supabase
+NXTRIX Platform - Production Authentication System
+Real Supabase authentication with subscription management
 """
 
 import streamlit as st
@@ -8,8 +8,33 @@ import hashlib
 import uuid
 import time
 from typing import Optional, Dict, Any
+from supabase import create_client, Client
+import os
 
-# Simplified authentication for production deployment
+# Get Supabase client
+@st.cache_resource
+def get_supabase_client():
+    """Get Supabase client with proper error handling"""
+    try:
+        # Try to get from secrets first, then environment
+        supabase_url = None
+        supabase_key = None
+        
+        if hasattr(st, 'secrets') and 'SUPABASE' in st.secrets:
+            supabase_url = st.secrets['SUPABASE']['SUPABASE_URL']
+            supabase_key = st.secrets['SUPABASE']['SUPABASE_KEY']
+        else:
+            supabase_url = os.getenv('SUPABASE_URL')
+            supabase_key = os.getenv('SUPABASE_ANON_KEY')
+        
+        if supabase_url and supabase_key:
+            return create_client(supabase_url, supabase_key)
+        else:
+            return None
+    except Exception as e:
+        st.error(f"Database connection error: {e}")
+        return None
+
 def hash_password(password: str) -> tuple:
     """Hash password with salt"""
     salt = str(uuid.uuid4())
@@ -19,6 +44,35 @@ def hash_password(password: str) -> tuple:
 def verify_password(password: str, hashed: str, salt: str) -> bool:
     """Verify password against hash"""
     return hashlib.sha256((password + salt).encode()).hexdigest() == hashed
+
+def authenticate_user(email: str, password: str) -> Optional[Dict[str, Any]]:
+    """Authenticate user against Supabase database"""
+    supabase = get_supabase_client()
+    if not supabase:
+        return None
+    
+    try:
+        # Get user from database
+        response = supabase.table('profiles').select('*').eq('email', email).execute()
+        
+        if response.data and len(response.data) > 0:
+            user = response.data[0]
+            
+            # Verify password
+            if verify_password(password, user.get('password_hash', ''), user.get('password_salt', '')):
+                # Check if user account is active and has valid subscription
+                if user.get('active', False) and user.get('subscription_status') == 'active':
+                    return user
+                else:
+                    st.error("❌ Account inactive or subscription expired. Please contact support.")
+                    return None
+            else:
+                return None
+        else:
+            return None
+    except Exception as e:
+        st.error(f"Authentication error: {e}")
+        return None
 
 def get_current_user() -> Optional[Dict[str, Any]]:
     """Get current authenticated user"""
@@ -33,7 +87,7 @@ def logout_user():
     st.session_state['user_id'] = None
 
 def supabase_login_form():
-    """Main login/signup form"""
+    """Main login/signup form with real Supabase authentication"""
     st.title("🏢 NXTRIX Platform")
     st.markdown("### Professional Real Estate Investment Management")
     
@@ -49,23 +103,39 @@ def supabase_login_form():
         
         if login_btn:
             if email and password:
-                # Demo authentication for deployment
-                if email == "demo@nxtrix.com" and password == "demo2025":
-                    st.session_state['authenticated'] = True
-                    st.session_state['user_data'] = {
-                        'id': str(uuid.uuid4()),
-                        'email': email,
-                        'first_name': 'Demo',
-                        'last_name': 'User',
-                        'subscription_tier': 'solo'
-                    }
-                    st.success("✅ Welcome back!")
-                    time.sleep(1)
-                    st.rerun()
-                else:
-                    st.error("❌ Invalid credentials")
+                with st.spinner("Authenticating..."):
+                    user = authenticate_user(email, password)
+                    if user:
+                        st.session_state['authenticated'] = True
+                        st.session_state['user_data'] = user
+                        st.session_state['user_id'] = user['id']
+                        st.success("✅ Welcome back!")
+                        time.sleep(1)
+                        st.rerun()
+                    else:
+                        st.error("❌ Invalid email or password")
             else:
                 st.error("❌ Please enter email and password")
+                
+        # Demo access section
+        st.markdown("---")
+        st.markdown("#### 🔍 Demo Access")
+        st.info("**Demo Account**: demo@nxtrix.com / demo2025")
+        
+        if st.button("🎯 Try Demo Access"):
+            # Demo authentication
+            st.session_state['authenticated'] = True
+            st.session_state['user_data'] = {
+                'id': 'demo-user-id',
+                'email': 'demo@nxtrix.com',
+                'first_name': 'Demo',
+                'last_name': 'User',
+                'subscription_tier': 'business',  # Give demo user full access
+                'subscription_status': 'active'
+            }
+            st.success("✅ Demo access granted!")
+            time.sleep(1)
+            st.rerun()
     
     with tab2:
         st.markdown("#### Choose Your Subscription Plan")
@@ -115,7 +185,7 @@ def supabase_login_form():
             show_signup_form(plan, price)
 
 def show_signup_form(plan: str, price: int):
-    """Show signup form for selected plan"""
+    """Show signup form for selected plan with real Supabase integration"""
     st.markdown("---")
     st.markdown(f"### 💳 Subscribe to {plan.title()} Plan - ${price}/month")
     
@@ -129,29 +199,51 @@ def show_signup_form(plan: str, price: int):
             password = st.text_input("Password *", type="password")
         
         st.markdown("#### Payment Information")
-        st.info("🔒 Secure payment processing will be activated in production")
+        st.info("🔒 Stripe payment processing will be activated with your live keys")
         
         agree = st.checkbox("I agree to the Terms of Service and Privacy Policy")
         submit_btn = st.form_submit_button(f"🚀 Subscribe to {plan.title()}", type="primary")
     
     if submit_btn and all([first_name, last_name, email, password]) and agree:
         with st.spinner("Creating your account..."):
-            time.sleep(2)
-            
-            # Create account (simplified for demo)
-            st.session_state['authenticated'] = True
-            st.session_state['user_data'] = {
-                'id': str(uuid.uuid4()),
-                'email': email,
-                'first_name': first_name,
-                'last_name': last_name,
-                'subscription_tier': plan
-            }
-            
-            st.success(f"🎉 Welcome to NXTRIX {plan.title()}!")
-            st.balloons()
-            time.sleep(2)
-            st.rerun()
+            # Here you would integrate with your Stripe payment processing
+            # For now, create account with subscription
+            supabase = get_supabase_client()
+            if supabase:
+                try:
+                    # Hash password
+                    password_hash, password_salt = hash_password(password)
+                    user_id = str(uuid.uuid4())
+                    
+                    # Create user account
+                    user_data = {
+                        'id': user_id,
+                        'email': email,
+                        'password_hash': password_hash,
+                        'password_salt': password_salt,
+                        'first_name': first_name,
+                        'last_name': last_name,
+                        'subscription_tier': plan,
+                        'subscription_status': 'active',
+                        'subscription_price': price,
+                        'active': True
+                    }
+                    
+                    response = supabase.table('profiles').insert(user_data).execute()
+                    
+                    if response.data:
+                        st.success(f"🎉 Welcome to NXTRIX {plan.title()}!")
+                        st.info("✅ Your account has been created successfully!")
+                        st.balloons()
+                        time.sleep(2)
+                        st.rerun()
+                    else:
+                        st.error("❌ Account creation failed. Please try again.")
+                        
+                except Exception as e:
+                    st.error(f"❌ Error creating account: {e}")
+            else:
+                st.error("❌ Database connection failed")
     elif submit_btn:
         if not agree:
             st.error("❌ Please accept the terms")
