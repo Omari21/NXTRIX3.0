@@ -87,7 +87,7 @@ def logout_user():
     st.session_state['user_id'] = None
 
 def supabase_login_form():
-    """Main login/signup form with real Supabase authentication"""
+    """Production login/signup form - no visible demo access"""
     st.title("🏢 NXTRIX Platform")
     st.markdown("### Professional Real Estate Investment Management")
     
@@ -117,25 +117,19 @@ def supabase_login_form():
             else:
                 st.error("❌ Please enter email and password")
                 
-        # Demo access section
-        st.markdown("---")
-        st.markdown("#### 🔍 Demo Access")
-        st.info("**Demo Account**: demo@nxtrix.com / demo2025")
-        
-        if st.button("🎯 Try Demo Access"):
-            # Demo authentication
-            st.session_state['authenticated'] = True
-            st.session_state['user_data'] = {
-                'id': 'demo-user-id',
-                'email': 'demo@nxtrix.com',
-                'first_name': 'Demo',
-                'last_name': 'User',
-                'subscription_tier': 'business',  # Give demo user full access
-                'subscription_status': 'active'
-            }
-            st.success("✅ Demo access granted!")
-            time.sleep(1)
-            st.rerun()
+        # Hidden developer access (only visible in development)
+        if os.getenv('ENVIRONMENT') == 'development' or st.secrets.get('APP', {}).get('ENVIRONMENT') == 'development':
+            with st.expander("� Developer Testing"):
+                st.info("**Demo Account**: demo@nxtrix.com / demo2025")
+                if st.button("🎯 Quick Demo Access"):
+                    user = authenticate_user("demo@nxtrix.com", "demo2025")
+                    if user:
+                        st.session_state['authenticated'] = True
+                        st.session_state['user_data'] = user
+                        st.session_state['user_id'] = user['id']
+                        st.success("✅ Demo access granted!")
+                        time.sleep(1)
+                        st.rerun()
     
     with tab2:
         st.markdown("#### Choose Your Subscription Plan")
@@ -147,36 +141,108 @@ def supabase_login_form():
             ### 🎯 SOLO
             **$79/month**
             
-            ✅ Deal Analysis & Scoring
-            ✅ Basic CRM Features  
-            ✅ Financial Modeling
-            ✅ Core Platform Access
+            **Perfect for individual investors**
+            
+            ✅ **Deal Analysis & Scoring**
+            - AI-powered property evaluation
+            - ROI calculations & projections
+            - Market comparables analysis
+            - Investment performance tracking
+            
+            ✅ **Basic CRM Features**
+            - Lead management (up to 100)
+            - Contact organization
+            - Basic pipeline tracking
+            - Email integration
+            
+            ✅ **Financial Modeling**
+            - Investment calculators
+            - Cash flow projections
+            - Basic reporting
+            - Scenario planning
+            
+            ✅ **Core Platform Access**
+            - Mobile responsive design
+            - Email support
+            - Standard updates
+            - Document storage (5GB)
             """)
-            solo_btn = st.button("Choose SOLO", key="solo")
+            solo_btn = st.button("Choose SOLO - $79/mo", key="solo", use_container_width=True)
         
         with col2:
             st.markdown("""
             ### 👥 TEAM
             **$119/month**
             
-            ✅ Everything in SOLO
-            ✅ Advanced CRM & Automation
-            ✅ Team Collaboration
-            ✅ Enhanced Analytics
+            **For growing real estate teams**
+            
+            ✅ **Everything in SOLO, plus:**
+            
+            ✅ **Advanced CRM & Automation**
+            - Unlimited lead management
+            - Advanced pipeline automation
+            - Team collaboration tools
+            - Custom fields & workflows
+            - Advanced contact management
+            
+            ✅ **Enhanced Analytics**
+            - Advanced deal analytics
+            - Market intelligence reports
+            - Portfolio performance tracking
+            - Custom dashboards
+            - Comparative market analysis
+            
+            ✅ **Team Features**
+            - Multi-user access (up to 5 users)
+            - Role-based permissions
+            - Team activity tracking
+            - Shared deal pipeline
+            - Team performance metrics
+            
+            ✅ **Enhanced Support**
+            - Priority email support
+            - Advanced training materials
+            - Document storage (25GB)
             """)
-            team_btn = st.button("Choose TEAM", key="team")
+            team_btn = st.button("Choose TEAM - $119/mo", key="team", use_container_width=True)
         
         with col3:
             st.markdown("""
             ### 🏢 BUSINESS
             **$219/month**
             
-            ✅ Everything in TEAM
-            ✅ AI-Powered Insights
-            ✅ Custom Integrations
-            ✅ Premium Support
+            **For established real estate businesses**
+            
+            ✅ **Everything in TEAM, plus:**
+            
+            ✅ **AI-Powered Features**
+            - Automated deal sourcing
+            - Predictive market modeling
+            - AI email automation
+            - Advanced lead scoring
+            - Market trend predictions
+            
+            ✅ **Client Management**
+            - Professional investor portal
+            - Automated client reporting
+            - Investment presentations
+            - Client communication tools
+            - White-label options
+            
+            ✅ **Enterprise Features**
+            - Custom integrations
+            - Advanced security
+            - API access
+            - Unlimited users
+            - Document storage (100GB)
+            
+            ✅ **Premium Support**
+            - Dedicated account manager
+            - Phone & video support
+            - Custom training sessions
+            - 24/7 priority support
             """)
-            business_btn = st.button("Choose BUSINESS", key="business")
+            business_btn = st.button("Choose BUSINESS - $219/mo", key="business", use_container_width=True)
         
         # Handle plan selection
         if solo_btn or team_btn or business_btn:
