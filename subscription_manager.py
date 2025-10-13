@@ -16,11 +16,13 @@ from datetime import datetime, timedelta
 from enum import Enum
 import json
 
-# Optional PostgreSQL import with error handling
+# Optional PostgreSQL import with error handling - DISABLED for Supabase API
 try:
-    import psycopg2
-    from psycopg2.extras import RealDictCursor
-    PSYCOPG2_AVAILABLE = True
+    # Temporarily disable PostgreSQL imports to prevent connection attempts
+    # import psycopg2
+    # from psycopg2.extras import RealDictCursor
+    PSYCOPG2_AVAILABLE = False
+    print("🟡 PostgreSQL connections disabled - using Supabase API instead")
 except ImportError:
     PSYCOPG2_AVAILABLE = False
     # Create placeholder for psycopg2 when not available
@@ -78,7 +80,7 @@ class SubscriptionManager:
     def _get_db_connection(self):
         """Get database connection using Supabase credentials"""
         if not PSYCOPG2_AVAILABLE:
-            st.warning("⚠️ PostgreSQL adapter not available. Subscription features will use demo mode.")
+            # Silently return None - no user-facing warnings
             return None
             
         try:

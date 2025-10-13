@@ -11,11 +11,13 @@ import plotly.graph_objects as go
 from subscription_manager import SubscriptionManager, SubscriptionTier
 from feature_access_control import FeatureAccessControl, access_control
 
-# Optional PostgreSQL import with error handling
+# Optional PostgreSQL import with error handling - DISABLED for Supabase API
 try:
-    import psycopg2
-    from psycopg2.extras import RealDictCursor
-    PSYCOPG2_AVAILABLE = True
+    # Temporarily disable PostgreSQL imports to prevent connection attempts
+    # import psycopg2
+    # from psycopg2.extras import RealDictCursor
+    PSYCOPG2_AVAILABLE = False
+    print("🟡 PostgreSQL connections disabled - using Supabase API instead")
 except ImportError:
     PSYCOPG2_AVAILABLE = False
     # Create placeholder for psycopg2 when not available
