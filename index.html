@@ -1155,6 +1155,13 @@
           [planType, billingType] = selectedPlan.split('-');
         }
         
+        console.log('🔍 Form parsing debug:', {
+          selectedPlan: selectedPlan,
+          planType: planType,
+          billingType: billingType,
+          formDataPlan: formData.get('plan')
+        });
+        
         // Map plan types to proper tier names for Stripe
         const tierMapping = {
           'solo': 'solo',      // $59
@@ -1183,6 +1190,7 @@
           name: signupData.name,
           email: signupData.email, 
           tier: signupData.tier,
+          billing: signupData.billing,
           originalPlanType: planType,
           mappedTier: mappedTier,
           billingType: billingType
