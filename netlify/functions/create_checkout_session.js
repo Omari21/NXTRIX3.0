@@ -95,7 +95,8 @@ exports.handler = async (event, context) => {
       email: customer_email,
       tier,
       billing,
-      amount: amount / 100
+      amount: amount / 100,
+      interval: billing === 'annual' ? 'year' : 'month'
     });
 
     // Create or retrieve customer
@@ -141,10 +142,8 @@ exports.handler = async (event, context) => {
               images: ['https://nxtrix.com/logo.png'], // Add your logo URL
             },
             unit_amount: amount,
-            recurring: billing === 'monthly' ? {
-              interval: 'month',
-            } : {
-              interval: 'year',
+            recurring: {
+              interval: billing === 'annual' ? 'year' : 'month',
             },
           },
           quantity: 1,
