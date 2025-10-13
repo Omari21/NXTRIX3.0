@@ -1195,6 +1195,13 @@
           mappedTier: mappedTier,
           billingType: billingType
         });
+
+        console.log('🔍 About to send to backend:', {
+          tier: signupData.tier,
+          billing: signupData.billing,
+          customer_email: signupData.email,
+          name: signupData.name
+        });
         
         // Step 1: Save to Supabase via Netlify Functions
         console.log('💾 Calling:', CONFIG.getApiUrl('/signup_fresh'));
@@ -1265,8 +1272,8 @@
             tier: signupData.tier,
             billing: signupData.billing,
             company: signupData.company,
-            success_url: `${window.location.origin}/success.html?founders=true&plan=${signupData.tier}&email=${encodeURIComponent(signupData.email)}`,
-            cancel_url: `${window.location.origin}/index.html?cancelled=true&plan=${signupData.tier}`
+            success_url: `${window.location.origin}/success.html?founders=true&plan=${signupData.tier}&billing=${signupData.billing}&email=${encodeURIComponent(signupData.email)}`,
+            cancel_url: `${window.location.origin}/index.html?cancelled=true&plan=${signupData.tier}&billing=${signupData.billing}`
           })
         });
         

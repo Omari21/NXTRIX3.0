@@ -63,6 +63,12 @@ exports.handler = async (event, context) => {
       cancel_url
     } = JSON.parse(event.body);
 
+    console.log('🔍 Stripe function received:', {
+      tier,
+      billing,
+      customer_email: customer_email ? '***@***' : 'missing'
+    });
+
     // Validate required fields
     if (!customer_email || !customer_name || !tier || !billing) {
       return {
