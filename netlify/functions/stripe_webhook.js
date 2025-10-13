@@ -90,6 +90,13 @@ async function handleCheckoutCompleted(session) {
     return;
   }
 
+  // Get user details for email personalization
+  const { data: userData, error: fetchError } = await supabase
+    .from('waitlist')
+    .select('name, tier, billing')
+    .eq('email', customerEmail)
+    .single();
+
   // Update user record
   const { error } = await supabase
     .from('waitlist')
@@ -106,6 +113,34 @@ async function handleCheckoutCompleted(session) {
     console.error('❌ Failed to update user payment status:', error);
   } else {
     console.log('✅ Updated payment status for:', customerEmail);
+    
+    // Send welcome email automatically
+    if (userData && !fetchError) {
+      try {
+        const emailResponse = await fetch(`${process.env.URL}/.netlify/functions/send_email`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: 'welcome',
+            email: customerEmail,
+            data: {
+              name: userData.name || 'NXTRIX Founder',
+              email: customerEmail,
+              tier: userData.tier || 'business',
+              billing: userData.billing || 'monthly'
+            }
+          })
+        });
+
+        if (emailResponse.ok) {
+          console.log('✅ Welcome email sent successfully to:', customerEmail);
+        } else {
+          console.error('❌ Failed to send welcome email:', await emailResponse.text());
+        }
+      } catch (emailError) {
+        console.error('❌ Welcome email error:', emailError);
+      }
+    }
   }
 }
 
