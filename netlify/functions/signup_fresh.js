@@ -73,23 +73,33 @@ exports.handler = async (event, context) => {
 
     console.log('💾 Saving signup data:', { ...signupData, email: '***@***' });
 
-    // Save to Supabase waitlist table (creates or updates)
+    // Save to Supabase waitlist table (simple insert)
     const { data, error } = await supabase
       .from('waitlist')
-      .upsert(signupData, { 
-        onConflict: 'email',
-        ignoreDuplicates: false 
-      })
+      .insert(signupData)
       .select();
 
     if (error) {
       console.error('❌ Supabase error:', error);
       
       // Handle common errors gracefully
-      if (error.code === '23505') { // Duplicate key
-        console.log('✅ User already exists, updating record');
-        // This is actually success - user is updating their info
+      if (error.code === '23505' || error.message.includes('duplicate')) { 
+        // Duplicate email - this is actually okay for our use case
+        console.log('✅ User already exists with this email, but continuing...');
+        return {
+          statusCode: 200,
+          headers: {
+            'Access-Control-Allow-Origin': '*',
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            success: true,
+            message: 'Email already registered, proceeding to payment',
+            next_step: 'payment_setup'
+          }),
+        };
       } else {
+        // Other database errors
         throw error;
       }
     }
