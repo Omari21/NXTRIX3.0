@@ -32,12 +32,12 @@ except ImportError:
 
 # Try to import full Supabase authentication first
 try:
-    from supabase_auth import supabase_login_form, get_current_user, logout_user
+    from supabase_auth import supabase_login_form
     SUPABASE_AUTH_AVAILABLE = True
 except ImportError:
     # Fallback to basic auth if Supabase auth not available
     try:
-        from auth import supabase_login_form, get_current_user, logout_user
+        from auth import supabase_login_form
         SUPABASE_AUTH_AVAILABLE = True
     except ImportError:
         SUPABASE_AUTH_AVAILABLE = False
@@ -104,10 +104,45 @@ def check_authentication():
     """Check if user is authenticated"""
     return st.session_state.get('authenticated', False)
 
+def get_current_user():
+    """Get current user from session (works with both Supabase and demo)"""
+    if st.session_state.get('authenticated', False):
+        return st.session_state.get('user', {})
+    return None
+
+def logout_user():
+    """Logout current user"""
+    st.session_state.authenticated = False
+    st.session_state.user = None
+    if 'user' in st.session_state:
+        del st.session_state.user
+
 def show_authentication_ui():
     """Show authentication interface - subscription required"""
     if SUPABASE_AUTH_AVAILABLE:
+        # Show Supabase login
         supabase_login_form()
+        
+        # Developer demo access (for testing only)
+        st.markdown("---")
+        with st.expander("🧪 Developer Demo Access (Testing Only)"):
+            st.warning("⚠️ This is for development/demo purposes only")
+            if st.button("🎭 Access Demo Mode", type="secondary"):
+                # Create demo session
+                demo_user = {
+                    'id': 'demo_user_testing',
+                    'email': 'demo@nxtrix.com',
+                    'first_name': 'Demo',
+                    'last_name': 'User',
+                    'subscription_tier': 'business',
+                    'subscription_status': 'active',
+                    'phone': '+1-555-0123',
+                    'company': 'Demo Company'
+                }
+                st.session_state.authenticated = True
+                st.session_state.user = demo_user
+                st.success("🎭 Demo access granted for testing!")
+                st.rerun()
     else:
         st.title("🏢 NXTRIX Platform")
         st.error("🚨 **Service Temporarily Unavailable**")
