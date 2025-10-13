@@ -56,17 +56,23 @@ exports.handler = async (event, context) => {
       };
     }
 
-    // Prepare signup data for database (using only existing columns)
+    // Prepare signup data for database (using all available columns)
     const signupData = {
       name: name.trim(),
       email: customer_email.trim().toLowerCase(),
       plan: `${tier}-${billing || 'monthly'}`, // e.g., "team-monthly"
+      tier: tier, // Add the individual tier field
+      billing: billing || 'monthly', // Add the individual billing field
       investor_type: investor_type || '',
+      experience: experience || '',
       notes: notes || '',
-      consent: true // Assuming user consented by submitting
+      consent: true, // Assuming user consented by submitting
+      status: 'pending_payment',
+      founders_pricing: true,
+      payment_status: 'pending'
     };
 
-    // Add optional fields only if they exist in your schema
+    // Add company info to notes if provided
     if (company) {
       signupData.notes = `Company: ${company}\nExperience: ${experience || 'Not specified'}\n${notes || ''}`.trim();
     }
