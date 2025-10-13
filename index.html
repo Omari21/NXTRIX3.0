@@ -16,30 +16,53 @@
     const CONFIG = {
       ENVIRONMENT: 'production',
       
+      // Auto-detect current domain for API calls
+      getCurrentDomain: function() {
+        // If we're on localhost, use localhost
+        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+          return 'http://localhost:7000';
+        }
+        // Otherwise use current domain (works for Netlify, custom domains, etc.)
+        return `${window.location.protocol}//${window.location.host}`;
+      },
+      
       API_BASE_URL: {
         development: 'http://localhost:7000',
-        production: 'https://nxtrix.com/api' // Netlify Functions API
+        production: function() {
+          return CONFIG.getCurrentDomain() + '/api';
+        }
       },
       
       FRONTEND_URL: {
         development: 'http://localhost:8000',
-        production: 'https://nxtrix.com'
+        production: function() {
+          return CONFIG.getCurrentDomain();
+        }
       },
       
       // Helper functions
       getApiUrl: function(endpoint) {
-        const baseUrl = this.API_BASE_URL[this.ENVIRONMENT];
-        return baseUrl + endpoint;
+        if (this.ENVIRONMENT === 'development') {
+          return this.API_BASE_URL.development + endpoint;
+        } else {
+          return this.API_BASE_URL.production() + endpoint;
+        }
       },
       
       getSuccessUrl: function() {
-        const baseUrl = this.FRONTEND_URL[this.ENVIRONMENT];
-        return `${baseUrl}/success.html`;
+        if (this.ENVIRONMENT === 'development') {
+          return this.FRONTEND_URL.development + '/success.html';
+        } else {
+          return this.FRONTEND_URL.production() + '/success.html';
+        }
       },
       
       getCancelUrl: function() {
-        const baseUrl = this.FRONTEND_URL[this.ENVIRONMENT];
-        return `${baseUrl}/cancel.html`;
+        if (this.ENVIRONMENT === 'development') {
+          return this.FRONTEND_URL.development + '/cancel.html';
+        } else {
+          return this.FRONTEND_URL.production() + '/cancel.html';
+        }
       }
     };
     
@@ -1165,16 +1188,8 @@
           billingType: billingType
         });
         
-        // TEST: First try the simple function to see if any functions work
-        console.log('🧪 Testing simple function first...');
-        const testResponse = await fetch('https://nxtrix.com/api/simple');
-        console.log('🧪 Simple function status:', testResponse.status);
-        if (testResponse.ok) {
-          const testData = await testResponse.json();
-          console.log('🧪 Simple function works:', testData);
-        }
-        
         // Step 1: Save to Supabase via Netlify Functions
+        console.log('💾 Calling:', CONFIG.getApiUrl('/signup_fresh'));
         const response = await fetch(CONFIG.getApiUrl('/signup_fresh'), {
           method: 'POST',
           headers: { 
