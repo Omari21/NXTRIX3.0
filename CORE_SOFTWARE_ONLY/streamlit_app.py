@@ -84,15 +84,6 @@ try:
 except ImportError:
     AI_ENHANCEMENT_AVAILABLE = False
 
-# Import subscription management
-try:
-    from subscription_manager import SubscriptionManager, SubscriptionTier, get_user_tier, is_feature_available
-    from stripe_integration import StripePaymentSystem
-    SUBSCRIPTION_AVAILABLE = True
-except ImportError:
-    SUBSCRIPTION_AVAILABLE = False
-    st.warning("Subscription management not available")
-
 # PRODUCTION DATABASE CONNECTION
 @st.cache_resource
 def init_supabase():
@@ -184,111 +175,6 @@ class ProductionAuth:
             st.error(f"Registration error: {e}")
             return False
 
-# Subscription and Feature Access Control
-def check_feature_access(feature_name: str, required_tier: str = 'solo') -> bool:
-    """Check if user has access to a specific feature based on their subscription"""
-    if not SUBSCRIPTION_AVAILABLE:
-        return True  # Allow access if subscription system not available
-    
-    user_id = st.session_state.get('user_id')
-    user_tier = st.session_state.get('user_tier', 'trial')
-    
-    # Define feature requirements
-    feature_requirements = {
-        'ai_insights': 'solo',
-        'advanced_analytics': 'solo', 
-        'team_collaboration': 'team',
-        'automated_deal_sourcing': 'team',
-        'api_access': 'team',
-        'white_label': 'business',
-        'unlimited_deals': 'business',
-        'priority_support': 'team'
-    }
-    
-    required = feature_requirements.get(feature_name, required_tier)
-    
-    # Tier hierarchy: trial < solo < team < business
-    tier_hierarchy = {'trial': 0, 'solo': 1, 'team': 2, 'business': 3}
-    
-    user_level = tier_hierarchy.get(user_tier, 0)
-    required_level = tier_hierarchy.get(required, 1)
-    
-    return user_level >= required_level
-
-def show_upgrade_prompt(feature_name: str, required_tier: str):
-    """Show upgrade prompt when feature access is denied"""
-    st.error(f"🔒 **Premium Feature: {feature_name}**")
-    
-    tier_info = {
-        'solo': {'name': 'Solo Professional', 'price': '$79/month'},
-        'team': {'name': 'Team Collaboration', 'price': '$119/month'},
-        'business': {'name': 'Enterprise Solution', 'price': '$219/month'}
-    }
-    
-    required_plan = tier_info.get(required_tier, {'name': 'Premium', 'price': 'Contact Sales'})
-    
-    st.markdown(f"""
-    ### Upgrade Required
-    
-    **{feature_name}** requires **{required_plan['name']}** plan or higher.
-    
-    **Benefits of upgrading:**
-    - 🚀 Unlock advanced features
-    - 📈 Increased limits and capabilities
-    - 🎯 Priority support
-    - 💼 Scale your business
-    
-    **Price:** {required_plan['price']}
-    """)
-    
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("🎯 **Upgrade Now**", type="primary"):
-            st.session_state['show_pricing'] = True
-            st.rerun()
-    with col2:
-        if st.button("📚 **View All Plans**"):
-            st.session_state['show_pricing'] = True
-            st.rerun()
-
-def check_usage_limits(user_id: str, resource_type: str) -> tuple:
-    """Check current usage against subscription limits"""
-    if not SUBSCRIPTION_AVAILABLE:
-        return 0, -1, True  # unlimited if subscription not available
-    
-    user_tier = st.session_state.get('user_tier', 'trial')
-    
-    # Define limits for each tier
-    limits = {
-        'trial': {'deals': 5, 'portfolios': 1, 'team_members': 1},
-        'solo': {'deals': 50, 'portfolios': 5, 'team_members': 1},
-        'team': {'deals': 200, 'portfolios': 20, 'team_members': 5},
-        'business': {'deals': -1, 'portfolios': -1, 'team_members': -1}  # unlimited
-    }
-    
-    limit = limits.get(user_tier, {}).get(resource_type, 0)
-    
-    # Get current usage from database
-    supabase = st.session_state.get('supabase')
-    if not supabase:
-        return 0, limit, True
-    
-    try:
-        if resource_type == 'deals':
-            result = supabase.table('deals').select('id').eq('user_id', user_id).execute()
-        elif resource_type == 'portfolios':
-            result = supabase.table('portfolios').select('id').eq('user_id', user_id).execute()
-        else:
-            return 0, limit, True
-            
-        current_count = len(result.data) if result.data else 0
-        can_add = limit == -1 or current_count < limit
-        
-        return current_count, limit, can_add
-        
-    except Exception:
-        return 0, limit, True
-
 # Authentication and session management
 def check_authentication():
     """Check if user is authenticated"""
@@ -324,7 +210,11 @@ def show_authentication_ui():
                 email = st.text_input("Email Address", placeholder="Enter your email")
                 password = st.text_input("Password", type="password", placeholder="Enter your password")
                 
-                login_btn = st.form_submit_button("🚀 Login", use_container_width=True, type="primary")
+                col1, col2 = st.columns(2)
+                with col1:
+                    login_btn = st.form_submit_button("🚀 Login", use_container_width=True, type="primary")
+                with col2:
+                    demo_btn = st.form_submit_button("👁️ Demo Mode", use_container_width=True)
             
             if login_btn and email and password:
                 with st.spinner("Authenticating..."):
@@ -336,12 +226,22 @@ def show_authentication_ui():
                         st.session_state['user_name'] = user['full_name']
                         st.session_state['user_tier'] = user['subscription_tier']
                         st.session_state['user_id'] = user['id']
-                        st.session_state['user_email'] = user['email']
                         st.success("✅ Login successful!")
                         time.sleep(1)
                         st.rerun()
                     else:
                         st.error("❌ Invalid email or password")
+            
+            elif demo_btn:
+                # Demo mode authentication
+                st.session_state['authenticated'] = True
+                st.session_state['user_name'] = "Demo User"
+                st.session_state['user_tier'] = 'professional'
+                st.session_state['user_id'] = 'demo-user'
+                st.session_state['demo_mode'] = True
+                st.success("✅ Demo mode activated!")
+                time.sleep(1)
+                st.rerun()
         
         with tab2:
             st.subheader("🚀 Join NXTRIX - Choose Your Plan")
@@ -361,13 +261,13 @@ def show_authentication_ui():
                 
                 <h5>✅ Core Features:</h5>
                 <ul>
-                <li>50 deals per month</li>
-                <li>Advanced financial modeling</li>
-                <li>AI-powered deal analysis</li>
-                <li>Portfolio tracking (5 portfolios)</li>
-                <li>Professional reports</li>
-                <li>Investor portal</li>
-                <li>Email support</li>
+                <li>Deal Analysis & Calculator</li>
+                <li>Portfolio Tracking (25 deals)</li>
+                <li>Basic CRM (100 contacts)</li>
+                <li>Financial Modeling</li>
+                <li>Market Intelligence</li>
+                <li>Mobile Access</li>
+                <li>Email Support</li>
                 </ul>
                 </div>
                 """, unsafe_allow_html=True)
@@ -381,13 +281,14 @@ def show_authentication_ui():
                 
                 <h5>✅ Everything in Solo +</h5>
                 <ul>
-                <li>200 deals per month</li>
-                <li>Multi-user team access (5 users)</li>
-                <li>Advanced deal analytics</li>
-                <li>Automated deal sourcing</li>
-                <li>Enhanced CRM features</li>
-                <li>20 portfolios</li>
-                <li>Priority support</li>
+                <li>Unlimited Deals & Contacts</li>
+                <li>Advanced CRM & Automation</li>
+                <li>Team Collaboration (5 users)</li>
+                <li>Deal Pipeline Management</li>
+                <li>Advanced Analytics</li>
+                <li>Custom Reports</li>
+                <li>Phone Support</li>
+                <li>Integrations (Zillow, MLS)</li>
                 </ul>
                 </div>
                 """, unsafe_allow_html=True)
@@ -401,12 +302,14 @@ def show_authentication_ui():
                 
                 <h5>✅ Everything in Team +</h5>
                 <ul>
-                <li>Unlimited deals & portfolios</li>
-                <li>Unlimited team members</li>
-                <li>AI enhancement suite</li>
-                <li>Complete feature access</li>
-                <li>Advanced automation</li>
-                <li>Dedicated support</li>
+                <li>Unlimited Team Members</li>
+                <li>White-label Options</li>
+                <li>API Access</li>
+                <li>Advanced Security</li>
+                <li>Custom Integrations</li>
+                <li>Dedicated Account Manager</li>
+                <li>Priority Support</li>
+                <li>Custom Training</li>
                 </ul>
                 </div>
                 """, unsafe_allow_html=True)
@@ -610,14 +513,6 @@ def show_financial_modeling():
             submitted = st.form_submit_button("📊 Generate Analysis", type="primary")
             
             if submitted:
-                # Check deal creation limits
-                user_id = st.session_state.get('user_id', '')
-                deals_current, deals_limit, can_add_deals = check_usage_limits(user_id, 'deals')
-                
-                if not can_add_deals and deals_limit != -1:
-                    st.error(f"🔒 **Deal Limit Reached** ({deals_current}/{deals_limit})")
-                    show_upgrade_prompt("Additional Deal Analysis", "team")
-                    return
                 deal_data = {
                     'purchase_price': purchase_price,
                     'arv': arv,
@@ -1545,218 +1440,12 @@ def show_deal_analysis():
 # [Include all other functions from the previous platform...]
 
 # Main application function
-def show_pricing_page():
-    """Display pricing and subscription plans with Stripe integration"""
-    st.title("💳 Choose Your NXTRIX Plan")
-    st.markdown("*Transform your real estate investment business with the right plan*")
-    
-    # Current user info
-    current_tier = st.session_state.get('user_tier', 'trial')
-    user_email = st.session_state.get('user_email', '')
-    user_id = st.session_state.get('user_id', '')
-    
-    # Check for payment success
-    query_params = st.query_params
-    if query_params.get('payment_success') == 'true':
-        st.success("🎉 **Payment Successful!** Your subscription has been activated.")
-        st.balloons()
-        
-        # Clear the query params to avoid repeated messages
-        st.query_params.clear()
-    elif query_params.get('payment_canceled') == 'true':
-        st.warning("Payment was canceled. You can try again anytime.")
-    
-    if current_tier != 'trial':
-        st.info(f"**Current Plan:** {current_tier.title()}")
-    
-    # Billing frequency toggle
-    st.markdown("### 💰 **Choose Billing Frequency**")
-    billing_col1, billing_col2 = st.columns([1, 1])
-    
-    with billing_col1:
-        billing_frequency = st.radio(
-            "Select billing:",
-            ["Monthly", "Annual (Save 20%)"],
-            index=0,
-            horizontal=True
-        )
-    
-    is_annual = "Annual" in billing_frequency
-    
-    if is_annual:
-        st.success("🎊 **Annual Billing Selected** - Save 20% with yearly payment!")
-    
-    # Pricing cards
-    col1, col2, col3 = st.columns(3)
-    
-    # Define pricing based on billing frequency
-    monthly_prices = {'solo': 79, 'team': 119, 'business': 219}
-    annual_prices = {'solo': 63, 'team': 95, 'business': 175}  # 20% discount
-    
-    current_prices = annual_prices if is_annual else monthly_prices
-    billing_text = "/year (billed annually)" if is_annual else "/month"
-    
-    plans = {
-        'solo': {
-            'name': 'Solo Professional',
-            'price': f"${current_prices['solo']}",
-            'billing': billing_text,
-            'original_price': f"${monthly_prices['solo']}/month" if is_annual else None,
-            'description': 'Perfect for individual investors',
-            'stripe_price_id': st.secrets["STRIPE"]["SOLO_ANNUAL_PRICE_ID"] if is_annual else st.secrets["STRIPE"]["SOLO_PRICE_ID"],
-            'features': [
-                '✅ 50 deals per month',
-                '✅ Advanced financial modeling',
-                '✅ AI-powered deal analysis',
-                '✅ Portfolio performance tracking',
-                '✅ Professional reports & exports',
-                '✅ Investor portal management',
-                '✅ Email support'
-            ],
-            'popular': False
-        },
-        'team': {
-            'name': 'Team Collaboration', 
-            'price': f"${current_prices['team']}",
-            'billing': billing_text,
-            'original_price': f"${monthly_prices['team']}/month" if is_annual else None,
-            'description': 'Most popular for growing teams',
-            'stripe_price_id': st.secrets["STRIPE"]["TEAM_ANNUAL_PRICE_ID"] if is_annual else st.secrets["STRIPE"]["TEAM_PRICE_ID"],
-            'features': [
-                '✅ Everything in Solo +',
-                '✅ 200 deals per month',
-                '✅ Multi-user team access (5 users)',
-                '✅ Advanced deal analytics',
-                '✅ Automated deal sourcing',
-                '✅ Enhanced CRM features',
-                '✅ Priority support'
-            ],
-            'popular': True
-        },
-        'business': {
-            'name': 'Enterprise Solution',
-            'price': f"${current_prices['business']}", 
-            'billing': billing_text,
-            'original_price': f"${monthly_prices['business']}/month" if is_annual else None,
-            'description': 'Unlimited power for enterprises',
-            'stripe_price_id': st.secrets["STRIPE"]["BUSINESS_ANNUAL_PRICE_ID"] if is_annual else st.secrets["STRIPE"]["BUSINESS_PRICE_ID"],
-            'features': [
-                '✅ Everything in Team +',
-                '✅ Unlimited deals & portfolios',
-                '✅ Unlimited team members',
-                '✅ AI enhancement suite',
-                '✅ Complete feature access',
-                '✅ Advanced automation tools',
-                '✅ Dedicated support'
-            ],
-            'popular': False
-        }
-    }
-    
-    for i, (plan_key, plan) in enumerate(plans.items()):
-        with [col1, col2, col3][i]:
-            # Card styling with popular badge
-            card_style = "border: 3px solid #FF6B6B;" if plan['popular'] else "border: 2px solid #E0E0E0;"
-            
-            st.markdown(f"""
-            <div style="{card_style} border-radius: 10px; padding: 20px; margin: 10px 0; background: white; position: relative;">
-            """, unsafe_allow_html=True)
-            
-            if plan['popular']:
-                st.markdown("""
-                <div style="background: #FF6B6B; color: white; text-align: center; padding: 5px; 
-                margin: -20px -20px 15px -20px; border-radius: 8px 8px 0 0; font-weight: bold;">
-                🔥 MOST POPULAR</div>
-                """, unsafe_allow_html=True)
-            
-            st.markdown(f"### {plan['name']}")
-            
-            # Price display with savings
-            if is_annual and plan['original_price']:
-                st.markdown(f"""
-                **{plan['price']}{plan['billing']}**  
-                <small style='text-decoration: line-through; color: #999;'>{plan['original_price']}</small>  
-                <span style='color: #28a745; font-weight: bold;'>Save 20%!</span>
-                """, unsafe_allow_html=True)
-            else:
-                st.markdown(f"**{plan['price']}{plan['billing']}**")
-                
-            st.caption(plan['description'])
-            
-            st.markdown("**Features:**")
-            for feature in plan['features']:
-                st.markdown(f"<small>{feature}</small>", unsafe_allow_html=True)
-            
-            # Subscription button
-            button_disabled = current_tier == plan_key
-            button_text = "Current Plan" if button_disabled else "Choose Plan"
-            
-            if st.button(
-                button_text, 
-                key=f"select_{plan_key}_{billing_frequency}", 
-                disabled=button_disabled,
-                type="primary" if plan['popular'] else "secondary"
-            ):
-                if user_id and user_email:
-                    # Create Stripe checkout session with correct price ID
-                    try:
-                        import stripe
-                        stripe.api_key = st.secrets["STRIPE"]["STRIPE_SECRET_KEY"]
-                        
-                        checkout_session = stripe.checkout.Session.create(
-                            payment_method_types=['card'],
-                            line_items=[{
-                                'price': plan['stripe_price_id'],
-                                'quantity': 1,
-                            }],
-                            mode='subscription',
-                            customer_email=user_email,
-                            client_reference_id=user_id,
-                            success_url=f"{st.secrets.get('APP', {}).get('BASE_URL', 'https://nxtrix-platform.streamlit.app')}?payment_success=true&session_id={{CHECKOUT_SESSION_ID}}",
-                            cancel_url=f"{st.secrets.get('APP', {}).get('BASE_URL', 'https://nxtrix-platform.streamlit.app')}?payment_canceled=true",
-                            metadata={
-                                'user_id': user_id,
-                                'plan_tier': plan_key,
-                                'billing_frequency': 'annual' if is_annual else 'monthly'
-                            }
-                        )
-                        
-                        st.markdown(f"[🚀 **Complete Payment - {plan['name']}**]({checkout_session.url})")
-                        st.info("Click above to proceed to secure Stripe checkout")
-                        
-                    except Exception as e:
-                        st.error(f"Payment setup error: {e}")
-                        st.info("Please try again or contact support")
-                else:
-                    st.error("Please log in to subscribe")
-            
-            st.markdown("</div>", unsafe_allow_html=True)
-    
-    # Money-back guarantee
-    st.markdown("---")
-    st.markdown("""
-    ### 💯 **30-Day Money-Back Guarantee**
-    
-    **Not satisfied?** Get a full refund within 30 days, no questions asked.
-    
-    - 🔒 **Secure payments** powered by Stripe
-    - 💳 **All major cards** accepted  
-    - 🔄 **Cancel anytime** with one click
-    - 📞 **24/7 support** for all subscribers
-    """)
-
 def main():
     """Main application entry point"""
     
     # Initialize session state
     if 'authenticated' not in st.session_state:
         st.session_state['authenticated'] = False
-    
-    # Check if user wants to view pricing
-    if st.session_state.get('show_pricing', False):
-        st.session_state['show_pricing'] = False  # Reset flag
-        show_pricing_page()
-        return
     
     # Check authentication
     if not check_authentication():
@@ -1769,61 +1458,8 @@ def main():
     # Show user info
     user_name = st.session_state.get('user_name', 'User')
     user_tier = st.session_state.get('user_tier', 'solo')
-    user_id = st.session_state.get('user_id', '')
     
     st.sidebar.success(f"✅ Welcome, {user_name}!")
-    
-    # Subscription Status Display
-    st.sidebar.markdown("---")
-    st.sidebar.markdown("### 💳 Subscription Status")
-    
-    # Display current plan with styling
-    plan_colors = {
-        'trial': '#FF9800',
-        'solo': '#4CAF50', 
-        'team': '#2196F3',
-        'business': '#9C27B0'
-    }
-    
-    plan_names = {
-        'trial': '🆓 Free Trial',
-        'solo': '🌟 Solo Professional',
-        'team': '⭐ Team Collaboration', 
-        'business': '🏢 Enterprise Solution'
-    }
-    
-    plan_color = plan_colors.get(user_tier, '#666666')
-    plan_name = plan_names.get(user_tier, user_tier.title())
-    
-    st.sidebar.markdown(f"""
-    <div style="padding: 10px; border-left: 4px solid {plan_color}; background-color: rgba(128,128,128,0.1); border-radius: 5px; margin: 10px 0;">
-        <strong style="color: {plan_color};">{plan_name}</strong>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # Show usage stats
-    if user_id:
-        deals_current, deals_limit, can_add_deals = check_usage_limits(user_id, 'deals')
-        portfolios_current, portfolios_limit, can_add_portfolios = check_usage_limits(user_id, 'portfolios')
-        
-        st.sidebar.markdown("**This Month:**")
-        deals_text = f"∞" if deals_limit == -1 else str(deals_limit)
-        portfolios_text = f"∞" if portfolios_limit == -1 else str(portfolios_limit)
-        
-        st.sidebar.caption(f"📊 Deals: {deals_current}/{deals_text}")
-        st.sidebar.caption(f"📈 Portfolios: {portfolios_current}/{portfolios_text}")
-        
-        # Warning if approaching limits
-        if deals_limit != -1 and deals_current >= deals_limit * 0.8:
-            st.sidebar.warning("⚠️ Approaching deal limit")
-        if portfolios_limit != -1 and portfolios_current >= portfolios_limit * 0.8:
-            st.sidebar.warning("⚠️ Approaching portfolio limit")
-    
-    # Upgrade button for non-business users
-    if user_tier != 'business':
-        if st.sidebar.button("📈 **Upgrade Plan**", type="primary"):
-            st.session_state['show_pricing'] = True
-            st.rerun()
     
     # Main navigation
     st.sidebar.markdown("---")
@@ -1845,22 +1481,14 @@ def main():
     if ENHANCED_CRM_AVAILABLE:
         main_pages.append("🤝 Enhanced CRM Suite")
     
-    # Advanced modules (with subscription enforcement)
+    # Advanced modules
     advanced_pages = []
-    if DEAL_ANALYTICS_AVAILABLE and check_feature_access('advanced_analytics'):
+    if DEAL_ANALYTICS_AVAILABLE:
         advanced_pages.append("📊 Advanced Deal Analytics")
-    elif DEAL_ANALYTICS_AVAILABLE:
-        advanced_pages.append("📊 Advanced Deal Analytics 🔒")
-        
-    if DEAL_SOURCING_AVAILABLE and check_feature_access('automated_deal_sourcing'):
+    if DEAL_SOURCING_AVAILABLE:
         advanced_pages.append("🔍 Automated Deal Sourcing")
-    elif DEAL_SOURCING_AVAILABLE:
-        advanced_pages.append("🔍 Automated Deal Sourcing 🔒")
-        
-    if AI_ENHANCEMENT_AVAILABLE and check_feature_access('ai_insights'):
+    if AI_ENHANCEMENT_AVAILABLE:
         advanced_pages.append("🧠 AI Enhancement System")
-    elif AI_ENHANCEMENT_AVAILABLE:
-        advanced_pages.append("🧠 AI Enhancement System 🔒")
     
     if advanced_pages:
         main_pages.extend(advanced_pages)
@@ -1886,21 +1514,12 @@ def main():
         show_investor_matching()
     elif page == "🤝 Enhanced CRM Suite" and ENHANCED_CRM_AVAILABLE:
         show_enhanced_crm()
-    elif "📊 Advanced Deal Analytics" in page and DEAL_ANALYTICS_AVAILABLE:
-        if check_feature_access('advanced_analytics'):
-            show_advanced_deal_analytics()
-        else:
-            show_upgrade_prompt("Advanced Deal Analytics", "solo")
-    elif "🔍 Automated Deal Sourcing" in page and DEAL_SOURCING_AVAILABLE:
-        if check_feature_access('automated_deal_sourcing'):
-            show_automated_deal_sourcing()
-        else:
-            show_upgrade_prompt("Automated Deal Sourcing", "team")
-    elif "🧠 AI Enhancement System" in page and AI_ENHANCEMENT_AVAILABLE:
-        if check_feature_access('ai_insights'):
-            show_ai_enhancement_system()
-        else:
-            show_upgrade_prompt("AI Enhancement System", "solo")
+    elif page == "📊 Advanced Deal Analytics" and DEAL_ANALYTICS_AVAILABLE:
+        show_advanced_deal_analytics()
+    elif page == "🔍 Automated Deal Sourcing" and DEAL_SOURCING_AVAILABLE:
+        show_automated_deal_sourcing()
+    elif page == "🧠 AI Enhancement System" and AI_ENHANCEMENT_AVAILABLE:
+        show_ai_enhancement_system()
     else:
         st.info(f"Page '{page}' is being loaded...")
         st.write("This page is available in your current plan.")
