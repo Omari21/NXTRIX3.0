@@ -1748,6 +1748,12 @@ def show_pricing_page():
 def main():
     """Main application entry point"""
     
+    # Health check for Railway deployment
+    health_check = st.query_params.get("health", None)
+    if health_check == "check":
+        st.success("✅ Application is healthy")
+        st.stop()
+    
     # Initialize session state
     if 'authenticated' not in st.session_state:
         st.session_state['authenticated'] = False
