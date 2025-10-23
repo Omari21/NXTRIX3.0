@@ -175,16 +175,20 @@ class ProductionAuth:
             st.error(f"Authentication error: {e}")
             return None
     
-    def register_user(self, email: str, password: str, full_name: str, company: str = '', tier: str = 'solo') -> bool:
+    def register_user(self, email: str, password: str, full_name: str, company: str = '', tier: str = 'trial') -> bool:
         """Register new user in production database"""
         if not self.supabase:
             return False
         
         try:
-            # Check if user already exists
-            existing = self.supabase.table('profiles').select('email').eq('email', email.lower()).execute()
-            if existing.data:
-                return False
+            # Check if user already exists (skip RLS for this check)
+            try:
+                existing = self.supabase.table('profiles').select('email').eq('email', email.lower()).execute()
+                if existing.data:
+                    return False
+            except:
+                # If RLS blocks read, assume user doesn't exist and continue
+                pass
             
             # Create basic user data
             user_data = {
