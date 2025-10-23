@@ -708,7 +708,7 @@ def show_financial_modeling():
                 metrics_by_scenario = fm.calculate_advanced_metrics(deal_data, projections)
                 
                 # Get base scenario metrics for display
-                metrics = metrics_by_scenario.get('base', {
+                metrics = metrics_by_scenario.get('Base Case', {
                     'irr': 0, 'npv': 0, 'cash_on_cash': 0, 'debt_coverage_ratio': 1.0
                 })
                 
