@@ -175,7 +175,7 @@ class ProductionAuth:
             st.error(f"Authentication error: {e}")
             return None
     
-    def register_user(self, email: str, password: str, full_name: str, company: str = '', tier: str = 'trial') -> bool:
+    def register_user(self, email: str, password: str, full_name: str, company: str = '', tier: str = 'solo') -> bool:
         """Register new user in production database"""
         if not self.supabase:
             return False
