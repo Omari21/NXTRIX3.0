@@ -23,6 +23,22 @@ import string
 import re
 from collections import defaultdict
 import bcrypt
+import os
+
+# Configuration helper function
+def get_config(section: str, key: str, default=None):
+    """Get configuration from environment variables or secrets.toml"""
+    # Try environment variable first (for Railway deployment)
+    env_key = f"{key}" if section == "APP" else f"{key}"
+    env_value = os.getenv(env_key)
+    if env_value:
+        return env_value
+    
+    # Fallback to secrets.toml for local development
+    try:
+        return st.secrets[section][key]
+    except:
+        return default
 
 # Configure Streamlit page
 st.set_page_config(
@@ -99,9 +115,14 @@ def init_supabase():
     """Initialize Supabase client"""
     try:
         if SUPABASE_AVAILABLE:
-            supabase_url = st.secrets["SUPABASE"]["SUPABASE_URL"]
-            supabase_key = st.secrets["SUPABASE"]["SUPABASE_ANON_KEY"]
-            return create_client(supabase_url, supabase_key)
+            supabase_url = get_config("SUPABASE", "SUPABASE_URL")
+            supabase_key = get_config("SUPABASE", "SUPABASE_ANON_KEY")
+            
+            if supabase_url and supabase_key:
+                return create_client(supabase_url, supabase_key)
+            else:
+                st.error("🚨 Database Connection Failed\n\nPlease check your Supabase configuration in environment variables")
+                return None
         return None
     except Exception as e:
         st.error(f"Database connection failed: {e}")
@@ -1603,7 +1624,7 @@ def show_pricing_page():
             'billing': billing_text,
             'original_price': f"${monthly_prices['solo']}/month" if is_annual else None,
             'description': 'Perfect for individual investors',
-            'stripe_price_id': st.secrets["STRIPE"]["SOLO_ANNUAL_PRICE_ID"] if is_annual else st.secrets["STRIPE"]["SOLO_PRICE_ID"],
+            'stripe_price_id': get_config("STRIPE", "SOLO_ANNUAL_PRICE_ID") if is_annual else get_config("STRIPE", "SOLO_PRICE_ID"),
             'features': [
                 '✅ 50 deals per month',
                 '✅ Advanced financial modeling',
@@ -1621,7 +1642,7 @@ def show_pricing_page():
             'billing': billing_text,
             'original_price': f"${monthly_prices['team']}/month" if is_annual else None,
             'description': 'Most popular for growing teams',
-            'stripe_price_id': st.secrets["STRIPE"]["TEAM_ANNUAL_PRICE_ID"] if is_annual else st.secrets["STRIPE"]["TEAM_PRICE_ID"],
+            'stripe_price_id': get_config("STRIPE", "TEAM_ANNUAL_PRICE_ID") if is_annual else get_config("STRIPE", "TEAM_PRICE_ID"),
             'features': [
                 '✅ Everything in Solo +',
                 '✅ 200 deals per month',
@@ -1639,7 +1660,7 @@ def show_pricing_page():
             'billing': billing_text,
             'original_price': f"${monthly_prices['business']}/month" if is_annual else None,
             'description': 'Unlimited power for enterprises',
-            'stripe_price_id': st.secrets["STRIPE"]["BUSINESS_ANNUAL_PRICE_ID"] if is_annual else st.secrets["STRIPE"]["BUSINESS_PRICE_ID"],
+            'stripe_price_id': get_config("STRIPE", "BUSINESS_ANNUAL_PRICE_ID") if is_annual else get_config("STRIPE", "BUSINESS_PRICE_ID"),
             'features': [
                 '✅ Everything in Team +',
                 '✅ Unlimited deals & portfolios',
@@ -1701,7 +1722,7 @@ def show_pricing_page():
                     # Create Stripe checkout session with correct price ID
                     try:
                         import stripe
-                        stripe.api_key = st.secrets["STRIPE"]["STRIPE_SECRET_KEY"]
+                        stripe.api_key = get_config("STRIPE", "STRIPE_SECRET_KEY")
                         
                         checkout_session = stripe.checkout.Session.create(
                             payment_method_types=['card'],
