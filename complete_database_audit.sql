@@ -1,33 +1,95 @@
--- NXTRIX CRM - COMPLETE DATABASE AUDIT
--- Run this single query to get EVERYTHING we need
+-- 🔍 NXTRIX COMPREHENSIVE DATABASE AUDIT & REDUNDANCY CHECK
+-- This will identify EVERYTHING: tables, conflicts, redundancies, constraints, and issues
+-- Run each section separately in Supabase SQL Editor
 
--- 1. Complete Table Inventory
+-- =============================================
+-- 📋 SECTION 1: COMPLETE TABLE INVENTORY
+-- =============================================
 SELECT 
-    '📋 COMPLETE TABLE INVENTORY' as section,
-    ROW_NUMBER() OVER (ORDER BY table_name) as num,
+    '📋 ALL TABLES IN DATABASE' as audit_section,
+    ROW_NUMBER() OVER (ORDER BY table_name) as table_number,
     table_name,
-    (SELECT COUNT(*) FROM information_schema.columns WHERE table_name = t.table_name AND table_schema = 'public') as columns,
+    (SELECT COUNT(*) FROM information_schema.columns WHERE table_name = t.table_name AND table_schema = 'public') as column_count,
+    pg_size_pretty(pg_total_relation_size(('public.' || table_name)::regclass)) as table_size,
+    (SELECT COUNT(*) 
+     FROM information_schema.table_constraints 
+     WHERE table_name = t.table_name AND table_schema = 'public') as constraint_count,
     CASE 
-        WHEN table_name IN ('profiles', 'user_profiles', 'users') THEN '🔐 Authentication'
-        WHEN table_name IN ('deals', 'deal_analytics', 'deal_notifications') THEN '💼 Deal Management'
-        WHEN table_name IN ('buyer_leads', 'seller_leads', 'lead_tasks') THEN '🎯 Lead Management'
-        WHEN table_name IN ('investors', 'investor_clients', 'portfolio') THEN '💰 Investment Management'
-        WHEN table_name LIKE '%email%' OR table_name LIKE '%sms%' THEN '📧 Communication'
-        WHEN table_name LIKE '%ai%' OR table_name LIKE '%market%' THEN '🤖 AI & Analytics'
-        WHEN table_name LIKE '%subscription%' OR table_name LIKE '%billing%' THEN '💳 Billing & Subscriptions'
-        ELSE '📊 Other'
-    END as category
+        WHEN table_name IN ('profiles', 'user_profiles', 'users', 'auth_users') THEN '🔐 AUTHENTICATION'
+        WHEN table_name IN ('deals', 'deal_analytics', 'deal_notifications', 'deal_workflow') THEN '💼 DEAL MANAGEMENT'
+        WHEN table_name IN ('buyer_leads', 'seller_leads', 'lead_tasks', 'leads') THEN '🎯 LEAD MANAGEMENT'
+        WHEN table_name IN ('investors', 'investor_clients', 'portfolio', 'portfolios') THEN '💰 INVESTMENT'
+        WHEN table_name LIKE '%email%' OR table_name LIKE '%sms%' OR table_name LIKE '%communication%' THEN '📧 COMMUNICATION'
+        WHEN table_name LIKE '%ai%' OR table_name LIKE '%market%' OR table_name LIKE '%analytics%' THEN '🤖 AI & ANALYTICS'
+        WHEN table_name LIKE '%subscription%' OR table_name LIKE '%billing%' OR table_name LIKE '%payment%' THEN '💳 BILLING'
+        WHEN table_name LIKE '%notification%' OR table_name LIKE '%alert%' THEN '🔔 NOTIFICATIONS'
+        ELSE '📊 OTHER/UNKNOWN'
+    END as functional_category
 FROM information_schema.tables t
 WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
 ORDER BY 
     CASE 
-        WHEN table_name IN ('profiles', 'user_profiles', 'users') THEN 1
+        WHEN table_name IN ('profiles', 'user_profiles', 'users', 'auth_users') THEN 1
         WHEN table_name IN ('deals', 'deal_analytics', 'deal_notifications') THEN 2
         WHEN table_name IN ('buyer_leads', 'seller_leads', 'lead_tasks') THEN 3
         WHEN table_name IN ('investors', 'investor_clients', 'portfolio') THEN 4
         ELSE 5
     END,
     table_name;
+
+-- =============================================
+-- 🔍 SECTION 2: REDUNDANCY & CONFLICT DETECTION
+-- =============================================
+
+-- Check for duplicate/similar table names
+SELECT 
+    '⚠️ POTENTIAL DUPLICATE TABLES' as audit_section,
+    t1.table_name as table_1,
+    t2.table_name as table_2,
+    'Similar naming pattern - potential redundancy' as issue_type
+FROM information_schema.tables t1
+JOIN information_schema.tables t2 ON (
+    t1.table_name != t2.table_name 
+    AND t1.table_schema = 'public' 
+    AND t2.table_schema = 'public'
+    AND (
+        -- Check for singular/plural variations
+        t1.table_name = t2.table_name || 's' OR
+        t2.table_name = t1.table_name || 's' OR
+        -- Check for similar prefixes
+        LEFT(t1.table_name, LENGTH(t1.table_name)-1) = LEFT(t2.table_name, LENGTH(t2.table_name)-1) OR
+        -- Check for variations like user/users/user_profile
+        (t1.table_name LIKE '%user%' AND t2.table_name LIKE '%user%') OR
+        (t1.table_name LIKE '%deal%' AND t2.table_name LIKE '%deal%') OR
+        (t1.table_name LIKE '%lead%' AND t2.table_name LIKE '%lead%') OR
+        (t1.table_name LIKE '%subscription%' AND t2.table_name LIKE '%subscription%')
+    )
+)
+WHERE t1.table_name < t2.table_name
+ORDER BY t1.table_name;
+
+-- Check for duplicate column patterns across tables
+SELECT 
+    '🔄 COLUMN REDUNDANCY CHECK' as audit_section,
+    c1.table_name as table_1,
+    c2.table_name as table_2,
+    c1.column_name as duplicate_column,
+    c1.data_type as data_type_1,
+    c2.data_type as data_type_2,
+    CASE 
+        WHEN c1.data_type != c2.data_type THEN '⚠️ SAME COLUMN, DIFFERENT TYPES'
+        ELSE 'Same column, same type'
+    END as conflict_status
+FROM information_schema.columns c1
+JOIN information_schema.columns c2 ON (
+    c1.column_name = c2.column_name 
+    AND c1.table_name != c2.table_name
+    AND c1.table_schema = 'public' 
+    AND c2.table_schema = 'public'
+    AND c1.column_name NOT IN ('id', 'created_at', 'updated_at', 'user_id') -- Exclude common columns
+)
+WHERE c1.table_name < c2.table_name
+ORDER BY c1.column_name, c1.table_name;
 
 -- 2. Critical Tables Status Check
 SELECT 

@@ -805,6 +805,7 @@ def show_financial_modeling():
             sensitivity_results = fm.sensitivity_analysis(deal_data)
             
             # Create sensitivity chart
+            import plotly.graph_objects as go  # Ensure go is available
             variables = list(sensitivity_results.keys())
             changes = [-20, -10, 0, 10, 20]
             
@@ -826,8 +827,15 @@ def show_financial_modeling():
         st.info("Compare Hold vs Flip vs BRRRR strategies")
         
         if st.button("🔍 Analyze Exit Strategies"):
+            # Check if deal_data exists from previous analysis
+            if 'deal_data' not in st.session_state:
+                st.warning("⚠️ Please run a financial analysis first in the 'Analysis' tab to generate deal data.")
+                return
+                
+            deal_data = st.session_state['deal_data']
             exit_analysis = fm.exit_strategy_analysis(deal_data)
             
+            import plotly.graph_objects as go  # Ensure go is available
             strategies = ['Hold (10 Years)', 'Flip (6 Months)', 'BRRRR']
             returns = [exit_analysis.get('hold_return', 0), 
                       exit_analysis.get('flip_return', 0), 
