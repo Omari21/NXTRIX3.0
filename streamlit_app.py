@@ -705,19 +705,31 @@ def show_financial_modeling():
                 st.session_state['deal_data'] = deal_data
                 
                 projections = fm.generate_cash_flow_projections(deal_data)
-                metrics = fm.calculate_advanced_metrics(deal_data, projections)
+                metrics_by_scenario = fm.calculate_advanced_metrics(deal_data, projections)
+                
+                # Get base scenario metrics for display
+                metrics = metrics_by_scenario.get('base', {
+                    'irr': 0, 'npv': 0, 'cash_on_cash': 0, 'debt_coverage_ratio': 1.0
+                })
+                
+                # Calculate cap rate separately
+                monthly_rent = deal_data.get('monthly_rent', 0)
+                purchase_price = deal_data.get('purchase_price', 1)
+                annual_expenses = fm._calculate_annual_expenses(deal_data)
+                annual_noi = (monthly_rent * 12) - annual_expenses
+                cap_rate = (annual_noi / purchase_price) * 100 if purchase_price > 0 else 0
                 
                 # Display key metrics
                 col_m1, col_m2, col_m3, col_m4 = st.columns(4)
                 
                 with col_m1:
-                    st.metric("IRR", f"{metrics['irr']:.1f}%")
+                    st.metric("IRR", f"{metrics.get('irr', 0):.1f}%")
                 with col_m2:
-                    st.metric("NPV", f"${metrics['npv']:,.0f}")
+                    st.metric("NPV", f"${metrics.get('npv', 0):,.0f}")
                 with col_m3:
-                    st.metric("Cap Rate", f"{metrics['cap_rate']:.1f}%")
+                    st.metric("Cap Rate", f"{cap_rate:.1f}%")
                 with col_m4:
-                    st.metric("Cash-on-Cash", f"{metrics['cash_on_cash']:.1f}%")
+                    st.metric("Cash-on-Cash", f"{metrics.get('cash_on_cash', 0):.1f}%")
                 
                 # Cash Flow Chart
                 st.subheader("📈 10-Year Cash Flow Projection")
