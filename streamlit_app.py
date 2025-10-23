@@ -888,36 +888,32 @@ def show_deal_database():
             else:
                 deals = db_service.get_deals()
         else:
-            st.warning("⚠️ Database connection not available - showing demo data")
-            # Use same demo data as portfolio analytics
-            from models import Deal
-            from datetime import datetime
-            all_deals = [
-                Deal(
-                    id="demo1", address="123 Demo Street", purchase_price=250000,
-                    arv=320000, repair_costs=25000, monthly_rent=2500,
-                    closing_costs=7500, annual_taxes=3000, insurance=1200,
-                    hoa_fees=0, vacancy_rate=5.0,
-                    ai_score=85, property_type="Single Family", condition="Good",
-                    neighborhood_grade="B+", market_trend="Rising", status="Active",
-                    created_at=datetime.now(), updated_at=datetime.now(), notes="Demo property 1"
-                ),
-                Deal(
-                    id="demo2", address="456 Sample Ave", purchase_price=180000,
-                    arv=245000, repair_costs=15000, monthly_rent=1800,
-                    closing_costs=5400, annual_taxes=2200, insurance=900,
-                    hoa_fees=150, vacancy_rate=8.0,
-                    ai_score=78, property_type="Townhouse", condition="Fair",
-                    neighborhood_grade="B", market_trend="Stable", status="Under Contract",
-                    created_at=datetime.now(), updated_at=datetime.now(), notes="Demo property 2"
-                ),
-                Deal(
-                    id="demo3", address="789 Test Drive", purchase_price=300000,
-                    arv=385000, repair_costs=35000, monthly_rent=2800,
-                    closing_costs=9000, annual_taxes=4500, insurance=1500,
-                    hoa_fees=200, vacancy_rate=4.0,
-                    ai_score=92, property_type="Multi-Family", condition="Excellent",
-                    neighborhood_grade="A-", market_trend="Rising", status="Analyzing",
+            st.info("🎯 **Welcome to your Deal Database!**")
+            st.markdown("""
+            📋 **Your deal database is currently empty - time to add your first deal!**
+            
+            **Quick Start Guide:**
+            1. 🏠 **Add a Deal**: Use the Financial Modeling tab to analyze your first property
+            2. 💾 **Save Results**: Deals will automatically be saved to your database
+            3. 📊 **Track Performance**: Return here to view and manage all your deals
+            
+            **Why start here?**
+            - Track all your real estate investments in one place
+            - Compare different deals side-by-side
+            - Monitor market trends and property performance
+            - Make data-driven investment decisions
+            """)
+            
+            # Show empty state with helpful actions
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button("🚀 Analyze Your First Deal", type="primary"):
+                    st.switch_page("Financial Modeling")
+            with col2:
+                if st.button("📖 Learn More"):
+                    st.info("Visit the Financial Modeling tab to input property details and run comprehensive analysis!")
+            
+            all_deals = []  # Empty list for fresh start
                     created_at=datetime.now(), updated_at=datetime.now(), notes="Demo property 3"
                 )
             ]
@@ -1006,45 +1002,61 @@ def show_portfolio_analytics():
         if db_service and db_service.is_connected():
             deals = db_service.get_deals()
         else:
-            st.warning("⚠️ Database connection not available - showing demo data")
-            # Create sample demo deals for testing
-            from models import Deal
-            from datetime import datetime
-            deals = [
-                Deal(
-                    id="demo1", address="123 Demo Street", purchase_price=250000,
-                    arv=320000, repair_costs=25000, monthly_rent=2500,
-                    closing_costs=7500, annual_taxes=3000, insurance=1200,
-                    hoa_fees=0, vacancy_rate=5.0,
-                    ai_score=85, property_type="Single Family", condition="Good",
-                    neighborhood_grade="B+", market_trend="Rising", status="Active",
-                    created_at=datetime.now(), updated_at=datetime.now(), notes="Demo property 1"
-                ),
-                Deal(
-                    id="demo2", address="456 Sample Ave", purchase_price=180000,
-                    arv=245000, repair_costs=15000, monthly_rent=1800,
-                    closing_costs=5400, annual_taxes=2200, insurance=900,
-                    hoa_fees=150, vacancy_rate=8.0,
-                    ai_score=78, property_type="Townhouse", condition="Fair",
-                    neighborhood_grade="B", market_trend="Stable", status="Active",
-                    created_at=datetime.now(), updated_at=datetime.now(), notes="Demo property 2"
-                ),
-                Deal(
-                    id="demo3", address="789 Test Drive", purchase_price=300000,
-                    arv=385000, repair_costs=35000, monthly_rent=2800,
-                    closing_costs=9000, annual_taxes=4500, insurance=1500,
-                    hoa_fees=200, vacancy_rate=4.0,
-                    ai_score=92, property_type="Multi-Family", condition="Excellent",
-                    neighborhood_grade="A-", market_trend="Rising", status="Active",
-                    created_at=datetime.now(), updated_at=datetime.now(), notes="Demo property 3"
-                )
+            st.info("📊 **Your Portfolio Analytics Dashboard**")
+            st.markdown("""
+            🎯 **Get started with your real estate portfolio tracking!**
+            
+            **What you'll see here once you add deals:**
+            - 📈 **Portfolio Performance**: Total value, ROI, and cash flow metrics
+            - 📊 **Visual Analytics**: Charts showing portfolio growth and trends  
+            - 🏠 **Property Breakdown**: Analysis by property type and location
+            - 💰 **Financial Summary**: Income, expenses, and profitability insights
+            
+            **Next Steps:**
+            1. Add your first property in the Financial Modeling section
+            2. Save the analysis to build your portfolio database
+            3. Return here to see your portfolio performance metrics
+            """)
+            
+            # Show helpful guidance for new users
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button("🏠 Add First Property", type="primary"):
+                    st.switch_page("Financial Modeling")
+            with col2:
+                if st.button("📋 View Deal Database"):
+                    st.switch_page("Deal Database")
+            
+            deals = []  # Empty list for clean start
             ]
     except Exception as e:
         st.error(f"Error loading portfolio data: {e}")
         deals = []
     
     if not deals:
-        st.info("No portfolio data available. Add some deals first!")
+        st.info("🎯 **Ready to build your real estate portfolio?**")
+        st.markdown("""
+        📈 **Your portfolio is waiting for your first deal!**
+        
+        **Get Started:**
+        1. 🏠 Analyze a property in the Financial Modeling section
+        2. 💾 Save your analysis to add it to your portfolio
+        3. 📊 Track performance and growth right here
+        
+        **Why portfolio tracking matters:**
+        - Monitor total return on investment across all properties
+        - Identify your best performing assets
+        - Track cash flow and equity growth over time
+        - Make informed decisions for future investments
+        """)
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("🚀 Analyze First Property", type="primary"):
+                st.switch_page("Financial Modeling")
+        with col2:
+            if st.button("💡 Learn More"):
+                st.info("The Financial Modeling tab helps you analyze deals and automatically saves them to your portfolio!")
         return
     
     # Portfolio Overview Metrics
