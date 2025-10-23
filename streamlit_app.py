@@ -1790,12 +1790,10 @@ def show_pricing_page():
             
             st.markdown("</div>", unsafe_allow_html=True)
     
-    # Money-back guarantee
+    # Payment information
     st.markdown("---")
     st.markdown("""
-    ### 💯 **30-Day Money-Back Guarantee**
-    
-    **Not satisfied?** Get a full refund within 30 days, no questions asked.
+    ### � **Secure Payment Processing**
     
     - 🔒 **Secure payments** powered by Stripe
     - 💳 **All major cards** accepted  
