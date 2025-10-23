@@ -701,6 +701,9 @@ def show_financial_modeling():
                     'expense_ratio': expense_ratio / 100
                 }
                 
+                # Store deal_data in session state for other tabs
+                st.session_state['deal_data'] = deal_data
+                
                 projections = fm.generate_cash_flow_projections(deal_data)
                 metrics = fm.calculate_advanced_metrics(deal_data, projections)
                 
@@ -755,6 +758,12 @@ def show_financial_modeling():
         st.info("Run thousands of scenarios to understand risk and return distributions")
         
         if st.button("🔄 Run Monte Carlo Simulation"):
+            # Check if deal_data exists from previous analysis
+            if 'deal_data' not in st.session_state:
+                st.warning("⚠️ Please run a financial analysis first in the 'Analysis' tab to generate deal data.")
+                return
+                
+            deal_data = st.session_state['deal_data']
             with st.spinner("Running 1,000 simulations..."):
                 monte_results = fm.monte_carlo_simulation(deal_data, 1000)
                 
@@ -775,6 +784,12 @@ def show_financial_modeling():
         st.info("Understand how key variables impact your returns")
         
         if st.button("📊 Run Sensitivity Analysis"):
+            # Check if deal_data exists from previous analysis
+            if 'deal_data' not in st.session_state:
+                st.warning("⚠️ Please run a financial analysis first in the 'Analysis' tab to generate deal data.")
+                return
+                
+            deal_data = st.session_state['deal_data']
             sensitivity_results = fm.sensitivity_analysis(deal_data)
             
             # Create sensitivity chart
