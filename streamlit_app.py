@@ -190,9 +190,8 @@ class ProductionAuth:
                 # If RLS blocks read, assume user doesn't exist and continue
                 pass
             
-            # Create basic user data
+            # Create basic user data - remove id to let database auto-generate
             user_data = {
-                'id': str(uuid.uuid4()),
                 'email': email.lower(),
                 'password_hash': self.hash_password(password),
                 'full_name': full_name,
