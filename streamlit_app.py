@@ -186,7 +186,7 @@ class ProductionAuth:
             if existing.data:
                 return False
             
-            # Create new user
+            # Create basic user data
             user_data = {
                 'id': str(uuid.uuid4()),
                 'email': email.lower(),
@@ -195,14 +195,24 @@ class ProductionAuth:
                 'company': company,
                 'subscription_tier': tier,
                 'created_at': datetime.now().isoformat(),
-                'trial_started_at': datetime.now().isoformat(),
-                'trial_expires_at': (datetime.now() + timedelta(days=7)).isoformat(),
-                'onboarding_completed': False,
-                'trial_active': True
+                'onboarding_completed': False
             }
             
-            result = self.supabase.table('profiles').insert(user_data).execute()
-            return bool(result.data)
+            # Try to add trial columns (will work after schema update)
+            try:
+                user_data.update({
+                    'trial_started_at': datetime.now().isoformat(),
+                    'trial_expires_at': (datetime.now() + timedelta(days=7)).isoformat(),
+                    'trial_active': True
+                })
+                result = self.supabase.table('profiles').insert(user_data).execute()
+                return bool(result.data)
+            except Exception as trial_error:
+                # Fallback: register without trial columns
+                st.warning("Registering with basic profile (please update database schema for trial features)")
+                result = self.supabase.table('profiles').insert(user_data).execute()
+                return bool(result.data)
+                
         except Exception as e:
             st.error(f"Registration error: {e}")
             return False
