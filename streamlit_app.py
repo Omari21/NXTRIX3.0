@@ -195,6 +195,8 @@ class ProductionAuth:
                 'company': company,
                 'subscription_tier': tier,
                 'created_at': datetime.now().isoformat(),
+                'trial_started_at': datetime.now().isoformat(),
+                'trial_expires_at': (datetime.now() + timedelta(days=7)).isoformat(),
                 'onboarding_completed': False,
                 'trial_active': True
             }
@@ -206,10 +208,44 @@ class ProductionAuth:
             return False
 
 # Subscription and Feature Access Control
+def check_trial_status() -> tuple:
+    """Check if trial is still active and return status"""
+    user_tier = st.session_state.get('user_tier', 'trial')
+    
+    # If not on trial, return active status
+    if user_tier != 'trial':
+        return True, None, None
+    
+    # Get trial expiration date from session or database
+    trial_expires_at = st.session_state.get('trial_expires_at')
+    if not trial_expires_at:
+        return True, None, None  # No expiration date found, assume active
+    
+    try:
+        expiry_date = datetime.fromisoformat(trial_expires_at.replace('Z', '+00:00'))
+        current_date = datetime.now()
+        
+        if current_date > expiry_date:
+            # Trial expired
+            days_expired = (current_date - expiry_date).days
+            return False, expiry_date, days_expired
+        else:
+            # Trial still active
+            days_remaining = (expiry_date - current_date).days
+            return True, expiry_date, days_remaining
+    except:
+        # If date parsing fails, assume trial is active
+        return True, None, None
+
 def check_feature_access(feature_name: str, required_tier: str = 'solo') -> bool:
     """Check if user has access to a specific feature based on their subscription"""
     if not SUBSCRIPTION_AVAILABLE:
         return True  # Allow access if subscription system not available
+    
+    # First check if trial is expired
+    trial_active, expiry_date, days_info = check_trial_status()
+    if not trial_active:
+        return False  # Trial expired, no access to features
     
     user_id = st.session_state.get('user_id')
     user_tier = st.session_state.get('user_tier', 'trial')
@@ -358,6 +394,7 @@ def show_authentication_ui():
                         st.session_state['user_tier'] = user['subscription_tier']
                         st.session_state['user_id'] = user['id']
                         st.session_state['user_email'] = user['email']
+                        st.session_state['trial_expires_at'] = user.get('trial_expires_at')
                         st.success("✅ Login successful!")
                         time.sleep(1)
                         st.rerun()
@@ -1948,8 +1985,17 @@ def main():
         if st.button("🎨 Interface Preferences", use_container_width=True):
             show_interface_settings()
     
-    # Plan info and logout
-    st.sidebar.info(f"📊 **{user_tier.title()} Plan**")
+    # Plan info and trial status
+    if user_tier == 'trial':
+        trial_active, expiry_date, days_info = check_trial_status()
+        if trial_active and days_info is not None:
+            st.sidebar.info(f"🆓 **Free Trial** - {days_info} days left")
+        elif not trial_active:
+            st.sidebar.error(f"⏰ **Trial Expired** - Upgrade required")
+        else:
+            st.sidebar.info(f"🆓 **Free Trial**")
+    else:
+        st.sidebar.info(f"📊 **{user_tier.title()} Plan**")
     
     if st.sidebar.button("🚪 Logout", use_container_width=True):
         # Clear session state
