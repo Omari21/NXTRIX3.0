@@ -734,8 +734,14 @@ def show_financial_modeling():
                 # Cash Flow Chart
                 st.subheader("📈 10-Year Cash Flow Projection")
                 
-                years = list(range(1, 11))
-                annual_cf = projections.get('annual_cash_flow', [0] * 10)
+                # Get Base Case projections for display
+                base_projections = projections.get('Base Case')
+                if base_projections is not None:
+                    years = base_projections['year'].tolist()
+                    annual_cf = base_projections['cash_flow'].tolist()
+                else:
+                    years = list(range(1, 11))
+                    annual_cf = [0] * 10
                 
                 import plotly.graph_objects as go
                 fig = go.Figure()
@@ -750,14 +756,24 @@ def show_financial_modeling():
                 
                 # Cash Flow Table
                 st.subheader("💰 Detailed Cash Flow Table")
-                cf_df = pd.DataFrame({
-                    'Year': years,
-                    'Gross Rent': projections.get('gross_rent', [0] * 10),
-                    'Operating Expenses': projections.get('expenses', [0] * 10),
-                    'NOI': projections.get('noi', [0] * 10),
-                    'Debt Service': projections.get('debt_service', [0] * 10),
-                    'Cash Flow': annual_cf
-                })
+                if base_projections is not None:
+                    cf_df = pd.DataFrame({
+                        'Year': base_projections['year'].astype(int),
+                        'Gross Rent': base_projections['gross_rent'],
+                        'Operating Expenses': base_projections['operating_expenses'],
+                        'NOI': base_projections['noi'],
+                        'Debt Service': base_projections['debt_service'],
+                        'Cash Flow': base_projections['cash_flow']
+                    })
+                else:
+                    cf_df = pd.DataFrame({
+                        'Year': years,
+                        'Gross Rent': [0] * 10,
+                        'Operating Expenses': [0] * 10,
+                        'NOI': [0] * 10,
+                        'Debt Service': [0] * 10,
+                        'Cash Flow': [0] * 10
+                    })
                 
                 # Format as currency
                 for col in ['Gross Rent', 'Operating Expenses', 'NOI', 'Debt Service', 'Cash Flow']:
@@ -1131,11 +1147,19 @@ def show_investor_portal():
         return
     
     # Investor authentication (simplified for demo)
-    if 'investor_authenticated' not in st.session_state:
+    # Check if user is already authenticated with main system
+    if 'authenticated' in st.session_state and st.session_state.authenticated:
+        # Use main authentication for investor portal
+        st.session_state.investor_authenticated = True
+        st.session_state.investor_id = st.session_state.get('user_id', 'demo_user')
+        st.session_state.investor_name = st.session_state.get('user_email', 'User').split('@')[0].title()
+        st.success(f"✅ Welcome to Investor Portal, {st.session_state.investor_name}!")
+    elif 'investor_authenticated' not in st.session_state:
         st.session_state.investor_authenticated = False
     
     if not st.session_state.investor_authenticated:
         st.subheader("🔐 Investor Login")
+        st.info("💡 Use your main NXTRIX account credentials to access the investor portal")
         
         with st.form("investor_login"):
             email = st.text_input("Email")
@@ -1143,15 +1167,33 @@ def show_investor_portal():
             submitted = st.form_submit_button("Login")
             
             if submitted and email and password:
-                # Demo authentication - in production use real auth
-                if email.endswith("@investor.com"):
-                    st.session_state.investor_authenticated = True
-                    st.session_state.investor_id = "demo_investor_123"
-                    st.session_state.investor_name = email.split('@')[0].title()
-                    st.success("✅ Login successful!")
-                    st.rerun()
-                else:
-                    st.error("❌ Invalid credentials")
+                # Use the same authentication as main system
+                try:
+                    if db_service and db_service.is_connected():
+                        # Check credentials against main user database
+                        user = db_service.authenticate_user(email, password)
+                        if user:
+                            st.session_state.investor_authenticated = True
+                            st.session_state.investor_id = user.get('id', 'demo_user')
+                            st.session_state.investor_name = email.split('@')[0].title()
+                            st.success("✅ Login successful!")
+                            st.rerun()
+                        else:
+                            st.error("❌ Invalid credentials")
+                    else:
+                        # Demo authentication for development
+                        if email.endswith("@investor.com"):
+                            st.session_state.investor_authenticated = True
+                            st.session_state.investor_id = "demo_investor_123"
+                            st.session_state.investor_name = email.split('@')[0].title()
+                            st.success("✅ Login successful!")
+                            st.rerun()
+                        else:
+                            st.error("❌ Invalid credentials")
+                except Exception as e:
+                    st.error(f"❌ Authentication error: {str(e)}")
+        
+        return  # Don't show portal content until authenticated
         return
     
     # Investor Dashboard
