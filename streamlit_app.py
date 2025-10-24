@@ -914,9 +914,6 @@ def show_deal_database():
                     st.info("Visit the Financial Modeling tab to input property details and run comprehensive analysis!")
             
             all_deals = []  # Empty list for fresh start
-                    created_at=datetime.now(), updated_at=datetime.now(), notes="Demo property 3"
-                )
-            ]
             
             if search_term:
                 deals = [d for d in all_deals if search_term.lower() in d.address.lower()]
@@ -1028,7 +1025,6 @@ def show_portfolio_analytics():
                     st.switch_page("Deal Database")
             
             deals = []  # Empty list for clean start
-            ]
     except Exception as e:
         st.error(f"Error loading portfolio data: {e}")
         deals = []
