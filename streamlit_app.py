@@ -631,7 +631,36 @@ def show_dashboard():
         fig.update_layout(title="Monthly Revenue Growth", yaxis_title="Revenue ($)")
         st.plotly_chart(fig, use_container_width=True)
     
+    # Quick Actions Section
+    st.markdown("---")
+    st.subheader("⚡ Quick Actions")
+    
+    # Quick action buttons in columns
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        if st.button("🏠 Add New Deal", key="dashboard_add_deal", type="primary"):
+            st.session_state.current_page = "💹 Financial Modeling"
+            st.rerun()
+    
+    with col2:
+        if st.button("📋 Add Property Lead", key="dashboard_add_lead", type="secondary"):
+            st.session_state.current_page = "🎯 Automated Deal Sourcing"
+            st.session_state.show_add_lead_form = True
+            st.rerun()
+    
+    with col3:
+        if st.button("👥 Add Investor", key="dashboard_add_investor", type="secondary"):
+            st.session_state.current_page = "💼 Investor Portal"
+            st.rerun()
+    
+    with col4:
+        if st.button("📊 View Reports", key="dashboard_view_reports", type="secondary"):
+            st.session_state.current_page = "📈 Portfolio Analytics"
+            st.rerun()
+
     # Recent Activities
+    st.markdown("---")
     st.subheader("🕒 Recent Activities")
     activities = [
         "New lead added: John Smith - $450K budget",
