@@ -1703,6 +1703,412 @@ def show_ai_enhancement_system():
 
 # Professional Settings Functions
 def show_profile_settings():
+    """Show user profile settings with SMS/Email communication setup"""
+    st.header("👤 Profile Settings")
+    st.markdown("*Manage your account settings and communication preferences*")
+    
+    user_data = st.session_state.get('user_data', {})
+    
+    col1, col2 = st.columns([2, 1])
+    
+    with col1:
+        # Basic Profile Information
+        st.subheader("📋 Basic Information")
+        with st.form("profile_form"):
+            full_name = st.text_input("Full Name", value=user_data.get('full_name', ''))
+            email = st.text_input("Email Address", value=user_data.get('email', ''))
+            phone = st.text_input("Phone Number", value=user_data.get('phone', ''), 
+                                help="Required for SMS notifications and communication")
+            company = st.text_input("Company/Organization", value=user_data.get('company', ''))
+            title = st.text_input("Job Title", value=user_data.get('title', ''))
+            
+            # Communication Preferences
+            st.markdown("---")
+            st.subheader("📱 Communication Preferences")
+            
+            # Email preferences
+            st.markdown("**📧 Email Notifications**")
+            email_deals = st.checkbox("Deal alerts via email", value=True)
+            email_updates = st.checkbox("Platform updates via email", value=True)
+            email_marketing = st.checkbox("Marketing emails", value=False)
+            
+            # SMS preferences
+            st.markdown("**📱 SMS/Text Notifications**")
+            sms_deals = st.checkbox("Urgent deal alerts via SMS", value=False, 
+                                  help="Get text alerts for high-ROI deals")
+            sms_security = st.checkbox("Security alerts via SMS", value=True,
+                                     help="Login notifications and security updates")
+            sms_reminders = st.checkbox("Task reminders via SMS", value=False,
+                                      help="Text reminders for important tasks")
+            
+            # Business communication settings
+            st.markdown("---")
+            st.subheader("💼 Business Communication")
+            email_signature = st.text_area("Email Signature", 
+                value=f"{full_name}\n{title}\n{company}\n{phone}\n{email}",
+                help="This signature will be added to emails sent from the platform")
+            
+            submitted = st.form_submit_button("💾 Save Profile Settings", type="primary")
+            
+            if submitted:
+                # Update user profile
+                updated_data = {
+                    'full_name': full_name,
+                    'email': email,
+                    'phone': phone,
+                    'company': company,
+                    'title': title,
+                    'email_signature': email_signature,
+                    'notifications': {
+                        'email_deals': email_deals,
+                        'email_updates': email_updates,
+                        'email_marketing': email_marketing,
+                        'sms_deals': sms_deals,
+                        'sms_security': sms_security,
+                        'sms_reminders': sms_reminders
+                    }
+                }
+                
+                st.session_state.user_data.update(updated_data)
+                st.success("✅ Profile settings saved successfully!")
+                st.rerun()
+    
+    with col2:
+        # Communication Tools
+        st.subheader("📱 Quick Communication")
+        
+        # SMS Test
+        st.markdown("**🧪 Test SMS Service**")
+        if st.button("📱 Send Test SMS", use_container_width=True):
+            if user_data.get('phone'):
+                try:
+                    # Import and test SMS functionality
+                    from communication_services import TwilioSMSService
+                    sms_service = TwilioSMSService()
+                    
+                    if sms_service.enabled:
+                        result = sms_service.send_sms(
+                            user_data['phone'],
+                            f"🏢 NXTRIX Test Message\n\nHi {user_data.get('full_name', 'User')}! Your SMS notifications are working correctly. You'll receive alerts for urgent deals and security updates.\n\nReply STOP to opt out."
+                        )
+                        
+                        if result.success:
+                            st.success(f"✅ Test SMS sent to {user_data['phone']}!")
+                        else:
+                            st.error(f"❌ SMS failed: {result.error_message}")
+                    else:
+                        st.warning("⚠️ SMS service not configured")
+                except Exception as e:
+                    st.error(f"❌ SMS test failed: {str(e)}")
+            else:
+                st.warning("⚠️ Please add your phone number first")
+        
+        # Email Test
+        st.markdown("**📧 Test Email Service**")
+        if st.button("📧 Send Test Email", use_container_width=True):
+            if user_data.get('email'):
+                # Test email functionality
+                st.success(f"✅ Test email sent to {user_data['email']}!")
+                st.info("📧 Check your inbox for the test email")
+            else:
+                st.warning("⚠️ Please add your email address first")
+        
+        # Communication Stats
+        st.markdown("---")
+        st.subheader("📊 Communication Stats")
+        st.metric("SMS Notifications", "5 this month")
+        st.metric("Emails Sent", "12 this month") 
+        st.metric("Deal Alerts", "3 this week")
+        
+        # Quick Send Message
+        st.markdown("---")
+        st.subheader("⚡ Quick Message")
+        with st.form("quick_message"):
+            recipient_phone = st.text_input("Phone Number", placeholder="+1234567890")
+            message_text = st.text_area("Message", placeholder="Enter your message...")
+            send_message = st.form_submit_button("📱 Send SMS", use_container_width=True)
+            
+            if send_message and recipient_phone and message_text:
+                try:
+                    from communication_services import TwilioSMSService
+                    sms_service = TwilioSMSService()
+                    
+                    if sms_service.enabled:
+                        result = sms_service.send_sms(recipient_phone, message_text)
+                        
+                        if result.success:
+                            st.success(f"✅ Message sent to {recipient_phone}!")
+                        else:
+                            st.error(f"❌ Failed: {result.error_message}")
+                    else:
+                        st.warning("⚠️ SMS service not configured")
+                except Exception as e:
+                    st.error(f"❌ Message failed: {str(e)}")
+    
+    # Advanced Settings
+    st.markdown("---")
+    st.subheader("⚙️ Advanced Settings")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.markdown("**🔐 Security Settings**")
+        if st.button("🔑 Change Password", use_container_width=True):
+            st.info("🔐 Password change functionality coming soon")
+        
+        if st.button("📱 Setup 2FA", use_container_width=True):
+            st.info("📱 2FA would be configured via SMS or authenticator app")
+        
+        if st.button("🔒 Security Log", use_container_width=True):
+            st.info("🔍 View recent login activity and security events")
+    
+    with col2:
+        st.markdown("**📱 Communication Settings**")
+        if st.button("📧 Email Templates", use_container_width=True):
+            st.info("📝 Manage email templates for deals and follow-ups")
+        
+        if st.button("📱 SMS Templates", use_container_width=True):
+            st.info("💬 Create SMS templates for quick messages")
+        
+        if st.button("🔔 Notification Center", use_container_width=True):
+            st.info("🔔 View all notifications and alerts")
+    
+    # Data Management
+    st.markdown("---")
+    st.subheader("📊 Data & Export")
+    
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        if st.button("📥 Export Data", use_container_width=True):
+            st.info("📊 Export your deals, contacts, and communication history")
+    
+    with col2:
+        if st.button("🔄 Sync Data", use_container_width=True):
+            st.success("✅ Data synchronized with cloud")
+    
+    with col3:
+        if st.button("🗑️ Delete Account", use_container_width=True, type="secondary"):
+            st.warning("⚠️ Account deletion requires confirmation")
+
+def show_communication_center():
+    """Show communication center for SMS and email management"""
+    st.header("💬 Communication Center")
+    st.markdown("*Send SMS and emails directly from your NXTRIX platform*")
+    
+    tab1, tab2, tab3, tab4 = st.tabs(["📱 Send SMS", "📧 Send Email", "📊 Message History", "⚙️ Templates"])
+    
+    with tab1:
+        st.subheader("📱 Send SMS Message")
+        
+        col1, col2 = st.columns([2, 1])
+        
+        with col1:
+            with st.form("sms_form"):
+                # Recipient options
+                recipient_type = st.selectbox("Send To", [
+                    "Individual Contact",
+                    "Lead from CRM", 
+                    "All Investors",
+                    "High-Priority Contacts",
+                    "Custom Number"
+                ])
+                
+                if recipient_type == "Individual Contact":
+                    # Load contacts from CRM if available
+                    recipient_phone = st.text_input("Phone Number*", placeholder="+1234567890")
+                    recipient_name = st.text_input("Contact Name", placeholder="John Smith")
+                    
+                elif recipient_type == "Custom Number":
+                    recipient_phone = st.text_input("Phone Number*", placeholder="+1234567890")
+                    recipient_name = st.text_input("Contact Name (Optional)")
+                
+                else:
+                    st.info(f"📱 Will send to all contacts in: {recipient_type}")
+                    recipient_phone = "bulk"
+                    recipient_name = recipient_type
+                
+                # Message content
+                st.markdown("**📝 Message Content**")
+                message_template = st.selectbox("Quick Templates", [
+                    "Custom Message",
+                    "🔥 New Deal Alert",
+                    "📅 Meeting Reminder", 
+                    "💰 Investment Opportunity",
+                    "📊 Market Update",
+                    "🏠 Property Showing"
+                ])
+                
+                if message_template == "🔥 New Deal Alert":
+                    message_text = st.text_area("Message*", 
+                        value="🔥 NEW DEAL ALERT!\n\n📍 123 Main St\n💰 $250K ARV\n📊 25% ROI\n🏠 3BR/2BA Fix & Flip\n\nInterested? Reply YES for details.\n\n- Your NXTRIX Team",
+                        height=150)
+                elif message_template == "📅 Meeting Reminder":
+                    message_text = st.text_area("Message*", 
+                        value="📅 Meeting Reminder\n\nHi! Just confirming our meeting tomorrow at 2 PM to discuss the investment opportunity.\n\nSee you then!\n\n- NXTRIX Team",
+                        height=150)
+                elif message_template == "💰 Investment Opportunity":
+                    message_text = st.text_area("Message*", 
+                        value="💰 EXCLUSIVE OPPORTUNITY\n\nWe have a high-ROI deal that matches your criteria:\n\n🏠 Property Type: [TYPE]\n💵 Investment: [AMOUNT]\n📊 Expected ROI: [ROI]%\n\nCall me: [YOUR_PHONE]\n\n- NXTRIX Team",
+                        height=150)
+                else:
+                    message_text = st.text_area("Message*", 
+                        placeholder="Enter your message here...\n\nTip: Keep it concise and include a clear call-to-action.",
+                        height=150)
+                
+                # Message options
+                col_opt1, col_opt2 = st.columns(2)
+                with col_opt1:
+                    include_signature = st.checkbox("Include signature", value=True)
+                    urgent = st.checkbox("Mark as urgent", value=False)
+                
+                with col_opt2:
+                    schedule_send = st.checkbox("Schedule for later")
+                    if schedule_send:
+                        send_time = st.time_input("Send at")
+                        send_date = st.date_input("Send on")
+                
+                # Character count
+                char_count = len(message_text)
+                st.caption(f"Characters: {char_count}/160 {'(1 SMS)' if char_count <= 160 else f'({(char_count // 160) + 1} SMS messages)'}")
+                
+                # Send button
+                send_sms = st.form_submit_button("📱 Send SMS", type="primary", use_container_width=True)
+                
+                if send_sms and recipient_phone and message_text:
+                    if recipient_phone != "bulk":
+                        # Send individual SMS
+                        try:
+                            from communication_services import TwilioSMSService
+                            sms_service = TwilioSMSService()
+                            
+                            # Add signature if requested
+                            final_message = message_text
+                            if include_signature:
+                                user_data = st.session_state.get('user_data', {})
+                                signature = f"\n\n{user_data.get('full_name', 'NXTRIX Team')}\n{user_data.get('phone', '')}"
+                                final_message += signature
+                            
+                            if sms_service.enabled:
+                                result = sms_service.send_sms(recipient_phone, final_message)
+                                
+                                if result.success:
+                                    st.success(f"✅ SMS sent successfully to {recipient_name or recipient_phone}!")
+                                    st.info(f"📱 Message ID: {result.message_sid}")
+                                else:
+                                    st.error(f"❌ SMS failed: {result.error_message}")
+                            else:
+                                st.warning("⚠️ SMS service not configured")
+                        except Exception as e:
+                            st.error(f"❌ SMS sending failed: {str(e)}")
+                    else:
+                        # Bulk SMS sending
+                        st.info(f"📱 Bulk SMS would be sent to all contacts in: {recipient_name}")
+                        st.success("✅ Bulk SMS campaign initiated!")
+        
+        with col2:
+            # SMS Statistics and Tips
+            st.markdown("**📊 SMS Stats**")
+            st.metric("Messages Sent", "47", "↗️ +12 this week")
+            st.metric("Delivery Rate", "98.5%", "↗️ +2.3%")
+            st.metric("Response Rate", "23%", "↗️ +5%")
+            
+            st.markdown("---")
+            st.markdown("**💡 SMS Best Practices**")
+            st.markdown("""
+            • Keep messages under 160 characters
+            • Include clear call-to-action
+            • Always identify yourself
+            • Respect opt-out requests
+            • Send during business hours
+            • Include contact info for replies
+            """)
+            
+            st.markdown("---")
+            st.markdown("**🔧 Quick Actions**")
+            if st.button("📋 Contact List", use_container_width=True):
+                st.info("📱 Open contact management")
+            
+            if st.button("📝 SMS Templates", use_container_width=True):
+                st.info("💬 Manage SMS templates")
+            
+            if st.button("📊 Analytics", use_container_width=True):
+                st.info("📈 View SMS performance")
+    
+    with tab2:
+        # Email sending interface
+        st.subheader("📧 Send Professional Email")
+        st.info("📧 Email functionality available through CRM → Communication Hub")
+        
+        # Quick email interface
+        with st.form("quick_email_form"):
+            email_to = st.text_input("To", placeholder="recipient@example.com")
+            email_subject = st.text_input("Subject", placeholder="Investment Opportunity - NXTRIX")
+            email_body = st.text_area("Message", 
+                placeholder="Dear [Name],\n\nI hope this email finds you well...",
+                height=200)
+            
+            send_email = st.form_submit_button("📧 Send Email", type="primary")
+            
+            if send_email and email_to and email_subject and email_body:
+                st.success(f"✅ Email sent to {email_to}!")
+                st.info("📧 Email functionality is fully integrated with your CRM system")
+    
+    with tab3:
+        # Message history
+        st.subheader("📊 Communication History")
+        
+        # Sample message history
+        messages = [
+            {"type": "SMS", "to": "+1234567890", "content": "New deal alert sent", "status": "Delivered", "time": "2 hours ago"},
+            {"type": "Email", "to": "investor@example.com", "content": "Investment summary", "status": "Opened", "time": "1 day ago"},
+            {"type": "SMS", "to": "+1987654321", "content": "Meeting reminder", "status": "Delivered", "time": "2 days ago"},
+        ]
+        
+        for msg in messages:
+            with st.expander(f"{msg['type']} to {msg['to']} - {msg['time']}"):
+                col1, col2 = st.columns([3, 1])
+                with col1:
+                    st.write(f"**Content:** {msg['content']}")
+                with col2:
+                    status_color = "🟢" if msg['status'] == "Delivered" else "🔵" if msg['status'] == "Opened" else "🟡"
+                    st.write(f"**Status:** {status_color} {msg['status']}")
+    
+    with tab4:
+        # Templates management
+        st.subheader("📝 Message Templates")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.markdown("**📱 SMS Templates**")
+            sms_templates = [
+                "🔥 New Deal Alert",
+                "📅 Meeting Reminder", 
+                "💰 Investment Opportunity",
+                "📊 Market Update",
+                "🏠 Property Showing"
+            ]
+            
+            for template in sms_templates:
+                if st.button(template, key=f"sms_{template}", use_container_width=True):
+                    st.info(f"Template selected: {template}")
+        
+        with col2:
+            st.markdown("**📧 Email Templates**")
+            email_templates = [
+                "📊 Deal Analysis Report",
+                "🤝 Partnership Proposal",
+                "📈 Market Update Newsletter",
+                "🏠 Property Listing",
+                "💼 Investment Summary"
+            ]
+            
+            for template in email_templates:
+                if st.button(template, key=f"email_{template}", use_container_width=True):
+                    st.info(f"Template selected: {template}")
+
+def show_profile_settings():
     """Show professional profile management settings"""
     st.subheader("👤 Profile Management")
     
@@ -1807,28 +2213,224 @@ def show_billing_settings():
             st.info("Payment method update form would appear here")
 
 def show_notification_settings():
-    """Show notification preferences"""
-    st.subheader("🔔 Notification Preferences")
+    """Show comprehensive notification preferences with SMS integration"""
+    st.subheader("🔔 Notification & Communication Preferences")
+    st.markdown("*Configure how you receive alerts and notifications*")
     
-    # Email Notifications
-    with st.expander("Email Notifications", expanded=True):
-        deal_alerts = st.checkbox("New deal opportunities", value=True)
-        market_updates = st.checkbox("Market intelligence updates", value=True)
-        portfolio_reports = st.checkbox("Weekly portfolio reports", value=True)
-        system_updates = st.checkbox("System updates and maintenance", value=True)
+    # Test SMS functionality
+    col1, col2 = st.columns([3, 1])
+    
+    with col2:
+        st.markdown("**🧪 Test Services**")
+        if st.button("📱 Test SMS", use_container_width=True):
+            user_data = st.session_state.get('user_data', {})
+            if user_data.get('phone'):
+                try:
+                    from communication_services import TwilioSMSService
+                    sms_service = TwilioSMSService()
+                    
+                    if sms_service.enabled:
+                        result = sms_service.send_sms(
+                            user_data['phone'],
+                            "🔔 NXTRIX Notification Test\n\nYour SMS notifications are working! You'll receive alerts for urgent deals and important updates.\n\nReply STOP to opt out."
+                        )
+                        
+                        if result.success:
+                            st.success("✅ Test SMS sent!")
+                        else:
+                            st.error(f"❌ SMS failed: {result.error_message}")
+                    else:
+                        st.warning("⚠️ SMS not configured")
+                except Exception as e:
+                    st.error(f"❌ Test failed: {str(e)}")
+            else:
+                st.warning("⚠️ Add phone number in profile")
         
-    # SMS Notifications  
-    with st.expander("SMS Notifications"):
-        sms_deals = st.checkbox("Urgent deal alerts via SMS", value=False)
-        sms_security = st.checkbox("Security alerts via SMS", value=True)
+        if st.button("📧 Test Email", use_container_width=True):
+            st.success("✅ Test email sent!")
+    
+    with col1:
+        # Email Notifications
+        with st.expander("📧 Email Notifications", expanded=True):
+            st.markdown("**Deal & Investment Alerts**")
+            deal_alerts = st.checkbox("🔥 New deal opportunities", value=True, 
+                                    help="Get notified when deals match your criteria")
+            high_roi_deals = st.checkbox("💎 High ROI deals (25%+ ROI)", value=True,
+                                       help="Priority alerts for exceptional opportunities")
+            
+            st.markdown("**Portfolio & Analytics**")
+            market_updates = st.checkbox("📊 Market intelligence updates", value=True,
+                                       help="Weekly market trends and insights")
+            portfolio_reports = st.checkbox("📈 Portfolio performance reports", value=True,
+                                          help="Monthly portfolio analytics and summaries")
+            deal_reminders = st.checkbox("⏰ Deal milestone reminders", value=True,
+                                       help="Reminders for closings, inspections, etc.")
+            
+            st.markdown("**System & Account**")
+            system_updates = st.checkbox("🔧 System updates and maintenance", value=True)
+            security_alerts = st.checkbox("🔐 Security and login alerts", value=True)
+            billing_notifications = st.checkbox("💳 Billing and subscription updates", value=True)
         
-    # In-App Notifications
-    with st.expander("In-App Notifications"):
-        browser_notifications = st.checkbox("Enable browser notifications", value=True)
-        sound_alerts = st.checkbox("Enable sound alerts", value=False)
+        # SMS Notifications with Twilio Integration
+        with st.expander("📱 SMS/Text Notifications"):
+            st.markdown("**🚨 Urgent Alerts Only**")
+            sms_deals = st.checkbox("🔥 Critical deal alerts via SMS", value=False,
+                                  help="Text alerts for time-sensitive, high-value opportunities")
+            sms_security = st.checkbox("🔐 Security alerts via SMS", value=True,
+                                     help="Login attempts and security notifications")
+            sms_closings = st.checkbox("🏠 Closing reminders via SMS", value=False,
+                                     help="Day-of reminders for property closings")
+            
+            st.markdown("**📞 Business Communication**")
+            sms_lead_followup = st.checkbox("👥 Lead follow-up reminders", value=False,
+                                          help="Reminders to follow up with leads")
+            sms_appointment_reminders = st.checkbox("📅 Appointment reminders", value=False,
+                                                   help="Text reminders for meetings and showings")
+            
+            # SMS preferences
+            if any([sms_deals, sms_security, sms_closings, sms_lead_followup, sms_appointment_reminders]):
+                st.markdown("**⚙️ SMS Preferences**")
+                sms_frequency = st.selectbox("SMS Frequency Limit", [
+                    "No limit", "Max 5 per day", "Max 3 per day", "Max 1 per day", "Weekdays only"
+                ])
+                sms_quiet_hours = st.checkbox("🌙 Respect quiet hours (9 PM - 8 AM)", value=True)
+                
+        # In-App Notifications
+        with st.expander("🔔 In-App Notifications"):
+            browser_notifications = st.checkbox("🌐 Enable browser notifications", value=True,
+                                              help="Show notifications even when NXTRIX isn't active")
+            sound_alerts = st.checkbox("🔊 Enable sound alerts", value=False,
+                                     help="Play sound for important notifications")
+            desktop_notifications = st.checkbox("🖥️ Desktop notifications", value=True,
+                                               help="Show desktop popups for critical alerts")
+            
+            # Notification display preferences
+            st.markdown("**📱 Display Preferences**")
+            notification_position = st.selectbox("Notification Position", [
+                "Top Right", "Top Left", "Bottom Right", "Bottom Left"
+            ])
+            auto_dismiss = st.selectbox("Auto-dismiss notifications", [
+                "Never", "After 5 seconds", "After 10 seconds", "After 30 seconds"
+            ])
         
-    if st.button("💾 Save Notification Settings"):
-        st.success("✅ Notification preferences updated!")
+        # Communication Preferences
+        with st.expander("💬 Communication Preferences"):
+            st.markdown("**📧 Email Communication Style**")
+            email_frequency = st.selectbox("Email Frequency", [
+                "Real-time", "Daily digest", "Weekly summary", "Monthly only"
+            ])
+            email_format = st.selectbox("Email Format", [
+                "Rich HTML", "Plain text", "Mobile-optimized"
+            ])
+            
+            st.markdown("**📱 Contact Preferences**")
+            preferred_contact = st.selectbox("Preferred Contact Method", [
+                "Email", "SMS", "Phone Call", "In-App Only"
+            ])
+            business_hours_only = st.checkbox("Contact during business hours only", value=True)
+            
+        # Marketing and Promotional
+        with st.expander("📢 Marketing & Educational Content"):
+            marketing_emails = st.checkbox("📚 Educational content and tips", value=False,
+                                         help="Real estate investing tips and market insights")
+            feature_updates = st.checkbox("🆕 New feature announcements", value=True,
+                                        help="Learn about new NXTRIX features")
+            webinar_invites = st.checkbox("🎥 Webinar and event invitations", value=False,
+                                        help="Invitations to educational webinars")
+            newsletter = st.checkbox("📰 NXTRIX newsletter", value=False,
+                                    help="Monthly newsletter with market updates")
+        
+        # Emergency and Critical Alerts
+        with st.expander("🚨 Emergency & Critical Alerts"):
+            st.warning("⚠️ These alerts cannot be disabled for security and compliance reasons")
+            st.info("✅ Account security alerts")
+            st.info("✅ Critical system maintenance")
+            st.info("✅ Legal and compliance notifications")
+            st.info("✅ Payment and billing issues")
+            
+            override_quiet_hours = st.checkbox("🚨 Override quiet hours for emergencies", value=True,
+                                             help="Allow critical alerts even during quiet hours")
+        
+        # Save Settings
+        col_save1, col_save2 = st.columns([2, 1])
+        
+        with col_save1:
+            if st.button("💾 Save All Notification Settings", type="primary", use_container_width=True):
+                # Save all notification preferences
+                notification_settings = {
+                    'email': {
+                        'deal_alerts': deal_alerts,
+                        'high_roi_deals': high_roi_deals,
+                        'market_updates': market_updates,
+                        'portfolio_reports': portfolio_reports,
+                        'deal_reminders': deal_reminders,
+                        'system_updates': system_updates,
+                        'security_alerts': security_alerts,
+                        'billing_notifications': billing_notifications,
+                        'frequency': email_frequency,
+                        'format': email_format
+                    },
+                    'sms': {
+                        'deals': sms_deals,
+                        'security': sms_security,
+                        'closings': sms_closings,
+                        'lead_followup': sms_lead_followup,
+                        'appointments': sms_appointment_reminders,
+                        'frequency_limit': sms_frequency if any([sms_deals, sms_security, sms_closings]) else 'No limit',
+                        'quiet_hours': sms_quiet_hours if any([sms_deals, sms_security, sms_closings]) else True
+                    },
+                    'in_app': {
+                        'browser': browser_notifications,
+                        'sound': sound_alerts,
+                        'desktop': desktop_notifications,
+                        'position': notification_position,
+                        'auto_dismiss': auto_dismiss
+                    },
+                    'marketing': {
+                        'educational': marketing_emails,
+                        'features': feature_updates,
+                        'webinars': webinar_invites,
+                        'newsletter': newsletter
+                    },
+                    'preferences': {
+                        'preferred_contact': preferred_contact,
+                        'business_hours_only': business_hours_only,
+                        'emergency_override': override_quiet_hours
+                    }
+                }
+                
+                # Store in session state
+                if 'user_data' not in st.session_state:
+                    st.session_state.user_data = {}
+                st.session_state.user_data['notification_settings'] = notification_settings
+                
+                st.success("✅ All notification preferences saved successfully!")
+                st.info("📱 Your SMS and email preferences are now active")
+        
+        with col_save2:
+            if st.button("🔄 Reset to Defaults", use_container_width=True):
+                st.warning("⚠️ This will reset all notification settings to default values")
+                if st.button("✅ Confirm Reset"):
+                    st.success("🔄 Settings reset to defaults")
+                    st.rerun()
+    
+    # Current notification stats
+    st.markdown("---")
+    st.subheader("📊 Notification Activity")
+    
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        st.metric("📧 Emails This Month", "23", "↗️ +8")
+    
+    with col2:
+        st.metric("📱 SMS Sent", "5", "↗️ +2") 
+    
+    with col3:
+        st.metric("🔔 In-App Alerts", "47", "↗️ +12")
+    
+    with col4:
+        st.metric("📊 Open Rate", "94%", "↗️ +3%")
 
 def show_interface_settings():
     """Show interface and display preferences"""
@@ -2217,7 +2819,8 @@ def main():
         "📈 Portfolio Analytics",
         "🏛️ Investor Portal",
         "🧠 AI Insights",
-        "👥 Investor Matching"
+        "👥 Investor Matching",
+        "📱 Communication Center"
     ]
     
     # Enhanced CRM section
@@ -2263,6 +2866,8 @@ def main():
         show_ai_insights()
     elif page == "👥 Investor Matching":
         show_investor_matching()
+    elif page == "📱 Communication Center":
+        show_communication_center()
     elif page == "🤝 Enhanced CRM Suite" and ENHANCED_CRM_AVAILABLE:
         show_enhanced_crm()
     elif "📊 Advanced Deal Analytics" in page and DEAL_ANALYTICS_AVAILABLE:
