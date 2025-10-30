@@ -639,10 +639,12 @@ def show_sourcing_dashboard(sourcing: AutomatedDealSourcing):
     with col1:
         if st.button("➕ Add New Property Lead", use_container_width=True, key="quick_add_lead"):
             st.session_state.show_add_lead_form = True
+            st.rerun()
     
     with col2:
         if st.button("🎯 Set Investor Criteria", use_container_width=True, key="quick_set_criteria"):
             st.session_state.show_criteria_form = True
+            st.rerun()
     
     with col3:
         if st.button("📊 Run Deal Analysis", use_container_width=True, key="quick_run_analysis"):
@@ -656,6 +658,7 @@ def show_property_leads_management(sourcing: AutomatedDealSourcing):
     # Add new lead button
     if st.button("➕ Add New Property Lead", key="main_add_lead"):
         st.session_state.show_add_lead_form = True
+        st.rerun()
     
     # Show add lead form if requested
     if st.session_state.get('show_add_lead_form', False):
@@ -869,6 +872,7 @@ def show_investor_criteria_management(sourcing: AutomatedDealSourcing):
     # Add new criteria button
     if st.button("➕ Add New Investor Criteria", key="main_add_criteria"):
         st.session_state.show_criteria_form = True
+        st.rerun()
     
     # Show add criteria form if requested
     if st.session_state.get('show_criteria_form', False):
