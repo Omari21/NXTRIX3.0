@@ -637,15 +637,15 @@ def show_sourcing_dashboard(sourcing: AutomatedDealSourcing):
     col1, col2, col3 = st.columns(3)
     
     with col1:
-        if st.button("➕ Add New Property Lead", use_container_width=True):
+        if st.button("➕ Add New Property Lead", use_container_width=True, key="quick_add_lead"):
             st.session_state.show_add_lead_form = True
     
     with col2:
-        if st.button("🎯 Set Investor Criteria", use_container_width=True):
+        if st.button("🎯 Set Investor Criteria", use_container_width=True, key="quick_set_criteria"):
             st.session_state.show_criteria_form = True
     
     with col3:
-        if st.button("📊 Run Deal Analysis", use_container_width=True):
+        if st.button("📊 Run Deal Analysis", use_container_width=True, key="quick_run_analysis"):
             st.success("🔄 Running automated deal analysis...")
 
 def show_property_leads_management(sourcing: AutomatedDealSourcing):
@@ -654,7 +654,7 @@ def show_property_leads_management(sourcing: AutomatedDealSourcing):
     st.subheader("🏠 Property Leads Management")
     
     # Add new lead button
-    if st.button("➕ Add New Property Lead"):
+    if st.button("➕ Add New Property Lead", key="main_add_lead"):
         st.session_state.show_add_lead_form = True
     
     # Show add lead form if requested
@@ -867,7 +867,7 @@ def show_investor_criteria_management(sourcing: AutomatedDealSourcing):
     st.subheader("🎯 Investor Criteria Management")
     
     # Add new criteria button
-    if st.button("➕ Add New Investor Criteria"):
+    if st.button("➕ Add New Investor Criteria", key="main_add_criteria"):
         st.session_state.show_criteria_form = True
     
     # Show add criteria form if requested
