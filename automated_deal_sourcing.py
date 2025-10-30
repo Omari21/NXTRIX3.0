@@ -609,14 +609,27 @@ def show_sourcing_dashboard(sourcing: AutomatedDealSourcing):
         df_activity = pd.DataFrame(activity_data)
         st.dataframe(df_activity, use_container_width=True)
     else:
-        st.info("📝 No property leads found. Add some leads or generate sample data to get started!")
+        st.info("🎯 **Ready to start automated deal sourcing?**")
+        st.markdown("""
+        📝 **Your property lead pipeline is currently empty.**
         
-        if st.button("🎲 Generate Sample Leads for Demo"):
-            sample_leads = sourcing.generate_sample_leads(25)
-            for lead in sample_leads:
-                sourcing.add_property_lead(lead)
-            st.success("✅ Generated 25 sample property leads!")
-            st.rerun()
+        **Get Started:**
+        1. 🏠 **Add Property Lead**: Click the button above to manually add properties you're tracking
+        2. 🤖 **Set Criteria**: Configure your investment criteria to automate lead scoring
+        3. 📊 **Track Performance**: Monitor lead conversion and deal success rates
+        
+        **Why use automated sourcing?**
+        - Track potential deals systematically
+        - Score properties against your investment criteria
+        - Never miss a good opportunity
+        - Build a consistent deal pipeline
+        """)
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            st.info("💡 **Tip**: Start by adding one property lead to see how the system works!")
+        with col2:
+            st.info("🎯 **Goal**: Build a consistent pipeline of quality investment opportunities")
     
     # Quick actions
     st.subheader("⚡ Quick Actions")
@@ -646,7 +659,7 @@ def show_property_leads_management(sourcing: AutomatedDealSourcing):
     
     # Show add lead form if requested
     if st.session_state.get('show_add_lead_form', False):
-        if st.button("❌ Close Form"):
+        if st.button("❌ Close Form", key="close_lead_form"):
             st.session_state.show_add_lead_form = False
             st.rerun()
         show_add_property_lead_form(sourcing)
@@ -859,7 +872,7 @@ def show_investor_criteria_management(sourcing: AutomatedDealSourcing):
     
     # Show add criteria form if requested
     if st.session_state.get('show_criteria_form', False):
-        if st.button("❌ Close Form"):
+        if st.button("❌ Close Form", key="close_criteria_form"):
             st.session_state.show_criteria_form = False
             st.rerun()
         show_add_investor_criteria_form(sourcing)

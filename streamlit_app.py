@@ -1366,83 +1366,74 @@ def show_investor_matching():
     
     with tab1:
         st.subheader("🔥 Hot Deal Matches")
+        st.info("🎯 **Ready to connect deals with investors?**")
+        st.markdown("""
+        📝 **Your deal matching system is currently empty.**
         
-        matches = [
-            {"deal": "123 Oak Street - $245K SFR", "investor": "John Smith", "match_score": 92, "status": "Pending"},
-            {"deal": "456 Pine Ave - $380K Duplex", "investor": "Sarah Johnson", "match_score": 88, "status": "Interested"},
-            {"deal": "789 Elm Drive - $195K Fixer", "investor": "Mike Chen", "match_score": 85, "status": "Reviewing"},
-        ]
+        **How deal matching works:**
+        1. 🏠 **Add Deals**: Import properties from your Deal Database
+        2. 👥 **Build Network**: Add qualified investors with their criteria
+        3. 🤖 **Auto-Match**: System finds best investor-deal matches
+        4. 📧 **Connect**: Send deals directly to interested investors
         
-        for match in matches:
-            with st.expander(f"🏠 {match['deal']} ↔️ {match['investor']} ({match['match_score']}% match)"):
-                col1, col2, col3 = st.columns(3)
-                
-                with col1:
-                    st.write("**Deal Details:**")
-                    st.write(f"Property: {match['deal']}")
-                    st.write(f"Match Score: {match['match_score']}%")
-                
-                with col2:
-                    st.write("**Investor Profile:**")
-                    st.write(f"Name: {match['investor']}")
-                    st.write(f"Status: {match['status']}")
-                
-                with col3:
-                    if st.button(f"📧 Send Deal", key=f"send_{match['deal']}"):
-                        st.success("✅ Deal sent to investor!")
-                    if st.button(f"📞 Schedule Call", key=f"call_{match['deal']}"):
-                        st.success("✅ Call scheduled!")
+        **Get Started:**
+        - Add some deals in the Financial Modeling section
+        - Build your investor network in the next tab
+        - Let AI find the perfect matches automatically
+        """)
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            st.info("💡 **Tip**: Add your first deal to see how matching works!")
+        with col2:
+            st.info("🎯 **Goal**: Build a network of qualified investors for faster deal flow")
     
     with tab2:
         st.subheader("👥 Investor Network")
+        st.info("🌟 **Build Your Investor Network**")
+        st.markdown("""
+        📊 **Your investor network is ready to grow!**
         
-        investors = [
-            {"name": "John Smith", "type": "Fix & Flip", "budget": "$200K-400K", "active_deals": 3},
-            {"name": "Sarah Johnson", "type": "Buy & Hold", "budget": "$300K-600K", "active_deals": 5},
-            {"name": "Mike Chen", "type": "BRRRR", "budget": "$150K-350K", "active_deals": 2},
-            {"name": "Lisa Wilson", "type": "Wholesale", "budget": "$100K-250K", "active_deals": 8},
-        ]
+        **Why build an investor network?**
+        - 🚀 **Faster Deals**: Connect properties with interested investors instantly
+        - 💰 **Better Terms**: Multiple investors create competitive interest
+        - 📈 **Scale Business**: Handle more deals with automated matching
+        - 🎯 **Quality Leads**: Only connect with pre-qualified investors
         
-        for inv in investors:
-            with st.expander(f"👤 {inv['name']} - {inv['type']}"):
-                col1, col2 = st.columns(2)
-                
-                with col1:
-                    st.write(f"**Strategy:** {inv['type']}")
-                    st.write(f"**Budget Range:** {inv['budget']}")
-                
-                with col2:
-                    st.write(f"**Active Deals:** {inv['active_deals']}")
-                    if st.button(f"📋 View Profile", key=f"profile_{inv['name']}"):
-                        st.info(f"Viewing {inv['name']}'s detailed profile...")
+        **Next Steps:**
+        1. Add investor profiles with their investment criteria
+        2. Import deals from your portfolio
+        3. Let the system automatically find matches
+        4. Send deals to interested investors with one click
+        """)
+        
+        if st.button("➕ Add First Investor", type="primary"):
+            st.info("💡 Coming soon: Investor profile creation form")
     
     with tab3:
         st.subheader("📊 Matching Performance")
+        st.info("📈 **Track Your Matching Success**")
+        st.markdown("""
+        🎯 **Performance metrics will appear here once you start matching deals with investors.**
         
-        # Matching statistics
-        col1, col2, col3, col4 = st.columns(4)
+        **What you'll track:**
+        - 📊 **Match Success Rate**: How many matches convert to actual deals
+        - ⏱️ **Time to Close**: Average time from match to closing
+        - 💰 **Deal Volume**: Total value of deals matched
+        - 👥 **Investor Engagement**: Most active investors in your network
         
+        **Benefits of tracking:**
+        - Identify your best investors
+        - Improve deal presentation
+        - Optimize matching criteria
+        - Scale your business efficiently
+        """)
+        
+        col1, col2 = st.columns(2)
         with col1:
-            st.metric("Total Matches", "127", "+12 this week")
-        
+            st.info("🎯 **Goal**: Achieve 70%+ match success rate")
         with col2:
-            st.metric("Success Rate", "73%", "+5% vs last month")
-        
-        with col3:
-            st.metric("Avg Match Score", "86%", "↗️ Improving")
-        
-        with col4:
-            st.metric("Active Investors", "24", "+3 new this month")
-        
-        # Matching trends
-        st.subheader("📈 Match Success Trends")
-        
-        weeks = ["Week 1", "Week 2", "Week 3", "Week 4"]
-        success_rates = [68, 71, 75, 73]
-        
-        fig = go.Figure(data=go.Bar(x=weeks, y=success_rates, marker_color='#4CAF50'))
-        fig.update_layout(title="Weekly Match Success Rate", yaxis_title="Success Rate (%)")
-        st.plotly_chart(fig, use_container_width=True)
+            st.info("📈 **Focus**: Build quality investor relationships")
 
 def show_advanced_deal_analytics():
     """Advanced Deal Analytics Module"""
