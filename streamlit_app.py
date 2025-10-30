@@ -1437,7 +1437,215 @@ def show_investor_matching():
         """)
         
         if st.button("➕ Add First Investor", type="primary"):
-            st.info("💡 Coming soon: Investor profile creation form")
+            st.session_state.show_investor_form = True
+            st.rerun()
+        
+        # Show investor registration form if triggered
+        if st.session_state.get('show_investor_form', False):
+            st.markdown("---")
+            st.subheader("� Add New Investor Profile")
+            
+            with st.form("investor_registration_form", clear_on_submit=True):
+                st.markdown("**Basic Information**")
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    investor_name = st.text_input("Full Name/Entity Name *", placeholder="John Smith or ABC Investment LLC")
+                    investor_email = st.text_input("Email Address *", placeholder="investor@example.com")
+                    investor_phone = st.text_input("Phone Number", placeholder="(555) 123-4567")
+                
+                with col2:
+                    investor_type = st.selectbox("Investor Type *", [
+                        "Individual Investor",
+                        "Accredited Investor", 
+                        "Family Office",
+                        "Private Equity Fund",
+                        "Real Estate Fund",
+                        "Institutional Investor",
+                        "Investment Company",
+                        "Pension Fund",
+                        "Endowment Fund",
+                        "Sovereign Wealth Fund"
+                    ])
+                    
+                    accredited_status = st.selectbox("Accreditation Status", [
+                        "Not Disclosed",
+                        "Non-Accredited",
+                        "Accredited Individual",
+                        "Accredited Entity",
+                        "Qualified Institutional Buyer",
+                        "Qualified Purchaser"
+                    ])
+                    
+                    experience_level = st.selectbox("Investment Experience", [
+                        "Beginner (0-2 years)",
+                        "Intermediate (3-7 years)", 
+                        "Advanced (8-15 years)",
+                        "Expert (15+ years)"
+                    ])
+                
+                st.markdown("---")
+                st.markdown("**Investment Criteria**")
+                
+                col1, col2 = st.columns(2)
+                with col1:
+                    min_investment = st.number_input("Minimum Investment Amount ($)", min_value=0, value=50000, step=10000)
+                    max_investment = st.number_input("Maximum Investment Amount ($)", min_value=0, value=500000, step=25000)
+                    
+                    property_types = st.multiselect("Preferred Property Types", [
+                        "Single Family Homes",
+                        "Multi-Family (2-4 units)",
+                        "Apartment Buildings (5+ units)",
+                        "Condominiums",
+                        "Townhomes",
+                        "Commercial Office",
+                        "Retail Properties",
+                        "Industrial/Warehouse", 
+                        "Mixed-Use",
+                        "Land Development",
+                        "Mobile Home Parks",
+                        "Storage Facilities"
+                    ])
+                
+                with col2:
+                    preferred_markets = st.text_area("Target Markets/Cities", 
+                                                   placeholder="Atlanta, Charlotte, Nashville, etc.",
+                                                   height=80)
+                    
+                    investment_strategy = st.multiselect("Investment Strategies", [
+                        "Buy & Hold Rental",
+                        "Fix & Flip",
+                        "BRRRR (Buy, Rehab, Rent, Refinance, Repeat)",
+                        "Wholesale",
+                        "Commercial Real Estate",
+                        "Development Projects",
+                        "Ground-Up Construction",
+                        "Value-Add Opportunities",
+                        "Distressed Properties",
+                        "Turnkey Investments"
+                    ])
+                
+                col1, col2 = st.columns(2)
+                with col1:
+                    target_roi = st.slider("Minimum Target ROI (%)", 5, 50, 15)
+                    max_renovation_budget = st.number_input("Max Renovation Budget ($)", min_value=0, value=50000, step=5000)
+                
+                with col2:
+                    investment_timeline = st.selectbox("Investment Timeline", [
+                        "Immediate (0-30 days)",
+                        "Short-term (1-3 months)",
+                        "Medium-term (3-6 months)", 
+                        "Long-term (6+ months)",
+                        "Flexible"
+                    ])
+                    
+                    funding_method = st.multiselect("Funding Methods", [
+                        "Cash Purchase",
+                        "Conventional Financing",
+                        "Hard Money Lending",
+                        "Private Lending", 
+                        "Partnership/JV",
+                        "Seller Financing",
+                        "Bridge Loans",
+                        "Commercial Loans"
+                    ])
+                
+                st.markdown("---")
+                st.markdown("**Additional Preferences**")
+                
+                col1, col2 = st.columns(2)
+                with col1:
+                    risk_tolerance = st.selectbox("Risk Tolerance", [
+                        "Conservative (Low Risk)",
+                        "Moderate (Medium Risk)",
+                        "Aggressive (High Risk)",
+                        "Very Aggressive (Very High Risk)"
+                    ])
+                    
+                    deal_involvement = st.selectbox("Preferred Involvement Level", [
+                        "Passive Investment Only",
+                        "Light Involvement",
+                        "Active Partnership",
+                        "Full Control/Management"
+                    ])
+                
+                with col2:
+                    communication_preference = st.multiselect("Communication Preferences", [
+                        "Email Updates",
+                        "Phone Calls", 
+                        "Text/SMS",
+                        "Video Calls",
+                        "In-Person Meetings",
+                        "Monthly Reports",
+                        "Quarterly Reviews"
+                    ])
+                    
+                    deal_frequency = st.selectbox("Deal Frequency Interest", [
+                        "1-2 deals per year",
+                        "3-5 deals per year",
+                        "6-10 deals per year",
+                        "10+ deals per year",
+                        "As opportunities arise"
+                    ])
+                
+                additional_notes = st.text_area("Additional Notes/Requirements", 
+                                               placeholder="Any specific requirements, partnership terms, or additional information...",
+                                               height=100)
+                
+                st.markdown("---")
+                
+                # Form submission
+                col1, col2, col3 = st.columns([1, 2, 1])
+                with col2:
+                    submitted = st.form_submit_button("💾 Add Investor to Network", type="primary", use_container_width=True)
+                
+                if submitted and investor_name and investor_email and investor_type:
+                    # Create investor profile
+                    investor_data = {
+                        'id': str(uuid.uuid4()),
+                        'name': investor_name,
+                        'email': investor_email,
+                        'phone': investor_phone,
+                        'type': investor_type,
+                        'accredited_status': accredited_status,
+                        'experience_level': experience_level,
+                        'min_investment': min_investment,
+                        'max_investment': max_investment,
+                        'property_types': property_types,
+                        'preferred_markets': preferred_markets,
+                        'investment_strategy': investment_strategy,
+                        'target_roi': target_roi,
+                        'max_renovation_budget': max_renovation_budget,
+                        'investment_timeline': investment_timeline,
+                        'funding_method': funding_method,
+                        'risk_tolerance': risk_tolerance,
+                        'deal_involvement': deal_involvement,
+                        'communication_preference': communication_preference,
+                        'deal_frequency': deal_frequency,
+                        'additional_notes': additional_notes,
+                        'created_at': datetime.now().isoformat(),
+                        'status': 'Active'
+                    }
+                    
+                    # Store in session state (in production, save to database)
+                    if 'investors' not in st.session_state:
+                        st.session_state.investors = []
+                    st.session_state.investors.append(investor_data)
+                    
+                    st.success(f"✅ Investor profile created successfully for {investor_name}!")
+                    st.info("💡 This investor will now appear in your matching system for relevant deals.")
+                    
+                    # Reset form state
+                    st.session_state.show_investor_form = False
+                    st.rerun()
+                    
+                elif submitted:
+                    st.error("❌ Please fill in all required fields marked with *")
+            
+            # Option to cancel
+            if st.button("❌ Cancel", key="cancel_investor_form"):
+                st.session_state.show_investor_form = False
+                st.rerun()
     
     with tab3:
         st.subheader("📊 Matching Performance")
