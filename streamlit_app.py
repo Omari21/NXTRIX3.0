@@ -907,8 +907,7 @@ def show_deal_database():
             # Show empty state with helpful actions
             col1, col2 = st.columns(2)
             with col1:
-                if st.button("🚀 Analyze Your First Deal", type="primary"):
-                    st.switch_page("Financial Modeling")
+                st.info("🚀 **Next Step**: Use the sidebar to navigate to '💹 Financial Modeling' to analyze your first property!")
             with col2:
                 if st.button("📖 Learn More"):
                     st.info("Visit the Financial Modeling tab to input property details and run comprehensive analysis!")
@@ -1018,11 +1017,9 @@ def show_portfolio_analytics():
             # Show helpful guidance for new users
             col1, col2 = st.columns(2)
             with col1:
-                if st.button("🏠 Add First Property", type="primary"):
-                    st.switch_page("Financial Modeling")
+                st.info("🏠 **Add Properties**: Use the sidebar to go to '💹 Financial Modeling' to add your first property!")
             with col2:
-                if st.button("📋 View Deal Database"):
-                    st.switch_page("Deal Database")
+                st.info("📋 **View Database**: Use the sidebar to go to '🗄️ Deal Database' to see all your deals!")
             
             deals = []  # Empty list for clean start
     except Exception as e:
@@ -1048,8 +1045,7 @@ def show_portfolio_analytics():
         
         col1, col2 = st.columns(2)
         with col1:
-            if st.button("🚀 Analyze First Property", type="primary"):
-                st.switch_page("Financial Modeling")
+            st.info("🚀 **Get Started**: Use the sidebar to navigate to '💹 Financial Modeling' to analyze your first property!")
         with col2:
             if st.button("💡 Learn More"):
                 st.info("The Financial Modeling tab helps you analyze deals and automatically saves them to your portfolio!")
