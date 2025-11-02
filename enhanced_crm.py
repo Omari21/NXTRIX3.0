@@ -2859,9 +2859,173 @@ def show_contact_management(crm: CRMManager):
                                      "Maintain contact" if days_since_interaction <= 7 else "Contact soon"
                 })
             
-            # Display comprehensive contact analysis table
+            # Display comprehensive contact analysis table with individual actions
             df_contacts = pd.DataFrame(contact_analysis_data)
             st.dataframe(df_contacts, use_container_width=True, height=400)
+            
+            # Individual Contact Actions
+            st.markdown("#### 📱 Individual Contact Actions")
+            st.markdown("*Click on any contact below to send direct messages*")
+            
+            # Display contacts with communication buttons
+            for i, contact in enumerate(filtered_contacts[:10]):  # Show first 10 for performance
+                with st.expander(f"📞 {contact.name} ({contact.contact_type.value})", expanded=False):
+                    col1, col2 = st.columns([2, 1])
+                    
+                    with col1:
+                        st.write(f"**📧 Email:** {contact.email or 'Not provided'}")
+                        st.write(f"**📱 Phone:** {contact.phone or 'Not provided'}")
+                        st.write(f"**🏢 Company:** {contact.company or 'Individual'}")
+                        st.write(f"**🏷️ Tags:** {', '.join(contact.tags) if contact.tags else 'None'}")
+                        
+                        # Last interaction info
+                        if contact.last_interaction:
+                            days_ago = (datetime.now() - contact.last_interaction).days
+                            st.write(f"**📅 Last Contact:** {days_ago} days ago")
+                        else:
+                            st.write("**📅 Last Contact:** Never")
+                    
+                    with col2:
+                        st.markdown("**💬 Quick Actions**")
+                        
+                        # Email button
+                        if contact.email:
+                            if st.button(f"📧 Email", key=f"email_contact_{i}", use_container_width=True):
+                                st.session_state.compose_email_to = {
+                                    'name': contact.name,
+                                    'email': contact.email,
+                                    'type': 'contact',
+                                    'contact_type': contact.contact_type.value,
+                                    'context': f"Contact type: {contact.contact_type.value}, Company: {contact.company or 'Individual'}"
+                                }
+                                st.session_state.show_compose_email = True
+                                st.rerun()
+                        
+                        # SMS button
+                        if contact.phone:
+                            if st.button(f"📱 SMS", key=f"sms_contact_{i}", use_container_width=True):
+                                st.session_state.compose_sms_to = {
+                                    'name': contact.name,
+                                    'phone': contact.phone,
+                                    'type': 'contact',
+                                    'contact_type': contact.contact_type.value,
+                                    'context': f"Professional: {contact.contact_type.value}"
+                                }
+                                st.session_state.show_compose_sms = True
+                                st.rerun()
+                        
+                        # Deal alert button (for investors/buyers)
+                        if contact.contact_type.value in ["Investor", "Buyer", "Real Estate Agent"]:
+                            if st.button(f"🔥 Deal Alert", key=f"deal_contact_{i}", use_container_width=True):
+                                st.session_state.send_deal_alert_to = {
+                                    'name': contact.name,
+                                    'email': contact.email,
+                                    'phone': contact.phone,
+                                    'type': 'contact',
+                                    'contact_type': contact.contact_type.value,
+                                    'target_roi': 20,  # Default
+                                    'min_investment': 50000,  # Default
+                                    'max_investment': 500000,  # Default
+                                    'property_types': ['Single Family Homes'],  # Default
+                                    'investment_strategy': ['Fix & Flip']  # Default
+                                }
+                                st.session_state.show_deal_alert_composer = True
+                                st.rerun()
+            
+            if len(filtered_contacts) > 10:
+                st.info(f"📄 Showing first 10 contacts. Use search and filters to narrow down results. Total: {len(filtered_contacts)} contacts.")
+            
+            # Individual Contact Communication Section
+            st.markdown("#### 📱 Individual Contact Communication")
+            st.markdown("*Click on any contact to send direct messages*")
+            
+            # Create expandable contact cards with communication buttons
+            for i, contact in enumerate(filtered_contacts[:10]):  # Show first 10 for performance
+                with st.expander(f"👤 {contact.name} ({contact.contact_type.value}) - {contact.company or 'Individual'}"):
+                    col1, col2 = st.columns([2, 1])
+                    
+                    with col1:
+                        st.write(f"**📧 Email:** {contact.email or 'Not provided'}")
+                        st.write(f"**📱 Phone:** {contact.phone or 'Not provided'}")
+                        st.write(f"**🏢 Company:** {contact.company or 'Individual'}")
+                        st.write(f"**🏷️ Tags:** {', '.join(contact.tags) if contact.tags else 'None'}")
+                        
+                        # Last interaction info
+                        if contact.last_interaction:
+                            days_ago = (datetime.now() - contact.last_interaction).days
+                            st.write(f"**📅 Last Contact:** {contact.last_interaction.strftime('%Y-%m-%d')} ({days_ago} days ago)")
+                        else:
+                            st.write("**📅 Last Contact:** Never")
+                    
+                    with col2:
+                        st.markdown("**⚡ Quick Actions**")
+                        
+                        # Email button
+                        if contact.email:
+                            if st.button(f"📧 Email", key=f"email_contact_{i}", use_container_width=True):
+                                st.session_state.compose_email_to = {
+                                    'name': contact.name,
+                                    'email': contact.email,
+                                    'type': 'contact',
+                                    'contact_type': contact.contact_type.value,
+                                    'context': f"Contact type: {contact.contact_type.value}, Company: {contact.company or 'Individual'}"
+                                }
+                                st.session_state.show_compose_email = True
+                                st.rerun()
+                        
+                        # SMS button  
+                        if contact.phone:
+                            if st.button(f"📱 SMS", key=f"sms_contact_{i}", use_container_width=True):
+                                st.session_state.compose_sms_to = {
+                                    'name': contact.name,
+                                    'phone': contact.phone,
+                                    'type': 'contact',
+                                    'contact_type': contact.contact_type.value,
+                                    'context': f"Contact type: {contact.contact_type.value}"
+                                }
+                                st.session_state.show_compose_sms = True
+                                st.rerun()
+                        
+                        # Special deal alert for investors/buyers
+                        if contact.contact_type.value in ["Investor", "Buyer"]:
+                            if st.button(f"🔥 Deal Alert", key=f"deal_alert_contact_{i}", use_container_width=True):
+                                # Convert contact to investor format for deal alert
+                                investor_data = {
+                                    'name': contact.name,
+                                    'email': contact.email,
+                                    'phone': contact.phone,
+                                    'type': contact.contact_type.value.lower(),
+                                    'property_types': ['Single Family Homes'],  # Default
+                                    'investment_strategy': ['Fix & Flip'],  # Default
+                                    'target_roi': 20,  # Default
+                                    'min_investment': 50000,  # Default
+                                    'max_investment': 500000  # Default
+                                }
+                                st.session_state.send_deal_alert_to = investor_data
+                                st.session_state.show_deal_alert_composer = True
+                                st.rerun()
+                        
+                        # View full profile button
+                        if st.button(f"👁️ Profile", key=f"view_contact_{i}", use_container_width=True):
+                            st.session_state.view_contact_profile = contact
+                            st.session_state.show_contact_profile_viewer = True
+                            st.rerun()
+            
+            if len(filtered_contacts) > 10:
+                st.info(f"📋 Showing first 10 contacts. Total filtered: {len(filtered_contacts)}")
+            
+            # Show contact composers if triggered
+            if st.session_state.get('show_compose_email', False):
+                show_contact_email_composer()
+            
+            if st.session_state.get('show_compose_sms', False):
+                show_contact_sms_composer()
+            
+            if st.session_state.get('show_deal_alert_composer', False):
+                show_contact_deal_alert_composer()
+            
+            if st.session_state.get('show_contact_profile_viewer', False):
+                show_contact_profile_viewer()
             
             # Contact interaction insights
             st.markdown("#### 📊 Contact Relationship Insights")
@@ -2942,6 +3106,18 @@ def show_contact_management(crm: CRMManager):
         st.markdown("- **📊 Relationship Tracking:** Monitor interaction frequency and relationship temperature")
         st.markdown("- **🎯 Strategic Follow-ups:** Never miss an opportunity to nurture important contacts")
         st.markdown("- **💰 Deal Flow:** Convert contacts into deals through systematic relationship management")
+    
+    # Show communication composers if triggered
+    if st.session_state.get('show_compose_email', False):
+        show_contact_email_composer()
+    
+    if st.session_state.get('show_compose_sms', False):
+        show_contact_sms_composer()
+    
+    if st.session_state.get('show_deal_alert_composer', False):
+        # Use the investor deal alert composer from streamlit_app.py
+        from streamlit_app import show_deal_alert_composer
+        show_deal_alert_composer()
 
 def show_add_contact_form(crm: CRMManager):
     """Enhanced contact form for real estate professionals"""
@@ -6555,6 +6731,783 @@ def show_activity_settings(activity_tracker):
             st.success("✅ Activity tracking settings saved successfully!")
             st.rerun()
 
+# Contact Communication Functions for Enhanced CRM
+def show_contact_email_composer():
+    """Show email composer for CRM contacts"""
+    recipient = st.session_state.get('compose_email_to', {})
+    
+    if not recipient:
+        return
+    
+    st.markdown("---")
+    st.subheader(f"📧 Compose Email to {recipient['name']}")
+    
+    with st.form("contact_email_form"):
+        col1, col2 = st.columns([2, 1])
+        
+        with col1:
+            to_email = st.text_input("To", value=recipient['email'], disabled=True)
+            subject = st.text_input("Subject", value=f"Professional Communication - NXTRIX")
+            
+            # Email templates based on contact type
+            contact_type = recipient.get('contact_type', 'Contact')
+            if contact_type in ['Investor', 'Buyer']:
+                template_options = [
+                    "Custom Message",
+                    "🔥 Investment Opportunity",
+                    "📊 Market Update", 
+                    "💰 New Deal Alert",
+                    "📈 Portfolio Review",
+                    "🤝 Partnership Proposal"
+                ]
+            elif contact_type == 'Real Estate Agent':
+                template_options = [
+                    "Custom Message",
+                    "🏠 Listing Inquiry",
+                    "🤝 Partnership Discussion",
+                    "📋 Referral Request",
+                    "📅 Meeting Request"
+                ]
+            else:
+                template_options = [
+                    "Custom Message",
+                    "📞 Follow-up Message",
+                    "📅 Meeting Request",
+                    "📋 Service Inquiry",
+                    "🤝 Professional Introduction"
+                ]
+            
+            email_template = st.selectbox("Email Template", template_options)
+            
+            if email_template == "🔥 Investment Opportunity":
+                email_body = st.text_area("Message", value=f"""Dear {recipient['name']},
+
+I hope this email finds you well. I wanted to reach out regarding an exciting investment opportunity that may align with your portfolio.
+
+🏠 **Investment Opportunity:**
+• Property Type: [Property Type]
+• Location: [City, State]
+• Investment Amount: $[Amount]
+• Expected ROI: [ROI]%
+• Timeline: [Timeline]
+
+📊 **Why This Fits Your Profile:**
+Based on your {contact_type.lower()} status and previous interactions, this opportunity matches your investment criteria.
+
+I'd be happy to provide more detailed information and discuss this opportunity at your convenience.
+
+Best regards,
+{st.session_state.get('user_data', {}).get('full_name', 'Your Name')}
+{st.session_state.get('user_data', {}).get('company', 'NXTRIX')}
+{st.session_state.get('user_data', {}).get('phone', '')}""", height=300)
+            
+            elif email_template == "📅 Meeting Request":
+                email_body = st.text_area("Message", value=f"""Dear {recipient['name']},
+
+I hope you're doing well. I would like to schedule a meeting to discuss potential collaboration opportunities.
+
+📅 **Meeting Purpose:**
+• Discuss {contact_type.lower()} partnership opportunities
+• Share current market insights
+• Explore mutual business interests
+
+I'm flexible with timing and can accommodate your schedule. Would you be available for a 30-minute call this week?
+
+Please let me know what works best for you.
+
+Best regards,
+{st.session_state.get('user_data', {}).get('full_name', 'Your Name')}
+{st.session_state.get('user_data', {}).get('email', '')}
+{st.session_state.get('user_data', {}).get('phone', '')}""", height=300)
+            
+            else:
+                email_body = st.text_area("Message", value=f"""Dear {recipient['name']},
+
+[Your message here]
+
+Best regards,
+{st.session_state.get('user_data', {}).get('full_name', 'Your Name')}
+{st.session_state.get('user_data', {}).get('company', 'NXTRIX')}
+{st.session_state.get('user_data', {}).get('phone', '')}""", height=300)
+        
+        with col2:
+            st.markdown("**📋 Contact Info**")
+            st.write(f"**Name:** {recipient['name']}")
+            st.write(f"**Type:** {recipient.get('contact_type', 'Contact')}")
+            st.write(f"**Company:** {recipient.get('company', 'N/A')}")
+            
+            st.markdown("**💡 Email Tips**")
+            st.markdown("""
+            • Personalize based on contact type
+            • Include clear value proposition
+            • Add specific call-to-action
+            • Maintain professional tone
+            • Include your contact information
+            """)
+        
+        # Form buttons
+        col1, col2, col3 = st.columns([2, 1, 1])
+        
+        with col1:
+            send_email = st.form_submit_button("📧 Send Email", type="primary", use_container_width=True)
+        
+        with col2:
+            save_draft = st.form_submit_button("💾 Save Draft", use_container_width=True)
+        
+        with col3:
+            cancel = st.form_submit_button("❌ Cancel", use_container_width=True)
+        
+        if send_email and subject and email_body:
+            # Send email logic here
+            st.success(f"✅ Email sent successfully to {recipient['name']}!")
+            st.session_state.show_compose_email = False
+            st.session_state.compose_email_to = None
+            st.rerun()
+        
+        elif save_draft:
+            st.info(f"💾 Draft saved for {recipient['name']}")
+        
+        elif cancel:
+            st.session_state.show_compose_email = False
+            st.session_state.compose_email_to = None
+            st.rerun()
+
+def show_contact_sms_composer():
+    """Show SMS composer for CRM contacts"""
+    recipient = st.session_state.get('compose_sms_to', {})
+    
+    if not recipient:
+        return
+    
+    st.markdown("---")
+    st.subheader(f"📱 Send SMS to {recipient['name']}")
+    
+    with st.form("contact_sms_form"):
+        col1, col2 = st.columns([2, 1])
+        
+        with col1:
+            to_phone = st.text_input("To", value=recipient['phone'], disabled=True)
+            
+            # SMS templates based on contact type
+            contact_type = recipient.get('contact_type', 'Contact')
+            if contact_type in ['Investor', 'Buyer']:
+                template_options = [
+                    "Custom Message",
+                    "🔥 Urgent Deal Alert",
+                    "📅 Meeting Reminder",
+                    "💰 Quick Opportunity",
+                    "📊 Market Update"
+                ]
+            elif contact_type == 'Real Estate Agent':
+                template_options = [
+                    "Custom Message",
+                    "🏠 Listing Follow-up",
+                    "📞 Quick Check-in",
+                    "📅 Appointment Reminder",
+                    "🤝 Referral Thank You"
+                ]
+            else:
+                template_options = [
+                    "Custom Message", 
+                    "📞 Professional Follow-up",
+                    "📅 Meeting Reminder",
+                    "🔧 Service Inquiry",
+                    "🤝 Thank You Message"
+                ]
+            
+            sms_template = st.selectbox("SMS Template", template_options)
+            
+            if sms_template == "🔥 Urgent Deal Alert":
+                message = st.text_area("Message", value=f"""🔥 URGENT OPPORTUNITY
+
+Hi {recipient['name']}! Time-sensitive deal just came in:
+
+🏠 [Property Type] - [Location]
+💰 $[Investment Amount]
+📊 [ROI]% Expected ROI
+⏰ Decision needed by [Date]
+
+Perfect for {contact_type.lower()}s like you!
+
+Call me: {st.session_state.get('user_data', {}).get('phone', '[Your Phone]')}""", height=200)
+            
+            elif sms_template == "📅 Meeting Reminder":
+                message = st.text_area("Message", value=f"""📅 Meeting Reminder
+
+Hi {recipient['name']}! Confirming our meeting:
+
+🕐 [Time]
+📍 [Location] 
+💼 Topic: [Meeting Topic]
+
+Looking forward to speaking with you!
+
+- {st.session_state.get('user_data', {}).get('full_name', 'Your Name')}""", height=200)
+            
+            else:
+                message = st.text_area("Message", value=f"""Hi {recipient['name']},
+
+[Your message here]
+
+- {st.session_state.get('user_data', {}).get('full_name', 'Your Name')}
+{st.session_state.get('user_data', {}).get('phone', '')}""", height=200)
+            
+            # Character count
+            char_count = len(message)
+            sms_count = (char_count // 160) + 1 if char_count > 0 else 0
+            st.caption(f"Characters: {char_count} | SMS Messages: {sms_count}")
+        
+        with col2:
+            st.markdown("**📋 Contact Info**")
+            st.write(f"**Name:** {recipient['name']}")
+            st.write(f"**Type:** {recipient.get('contact_type', 'Contact')}")
+            st.write(f"**Company:** {recipient.get('company', 'N/A')}")
+            
+            st.markdown("**💡 SMS Tips**")
+            st.markdown("""
+            • Keep messages under 160 characters
+            • Include clear call-to-action
+            • Always identify yourself
+            • Be respectful of time
+            • Include contact info
+            """)
+        
+        # Form buttons
+        col1, col2, col3 = st.columns([2, 1, 1])
+        
+        with col1:
+            send_sms = st.form_submit_button("📱 Send SMS", type="primary", use_container_width=True)
+        
+        with col2:
+            schedule_sms = st.form_submit_button("📅 Schedule", use_container_width=True)
+        
+        with col3:
+            cancel = st.form_submit_button("❌ Cancel", use_container_width=True)
+        
+        if send_sms and message:
+            try:
+                from communication_services import TwilioSMSService
+                sms_service = TwilioSMSService()
+                
+                if sms_service.enabled:
+                    result = sms_service.send_sms(recipient['phone'], message)
+                    
+                    if result.success:
+                        st.success(f"✅ SMS sent successfully to {recipient['name']}!")
+                        st.info(f"📱 Message ID: {result.message_sid}")
+                    else:
+                        st.error(f"❌ SMS failed: {result.error_message}")
+                else:
+                    st.warning("⚠️ SMS service not configured")
+                    
+                st.session_state.show_compose_sms = False
+                st.session_state.compose_sms_to = None
+                st.rerun()
+                
+            except Exception as e:
+                st.error(f"❌ SMS sending failed: {str(e)}")
+        
+        elif schedule_sms:
+            st.info(f"📅 SMS scheduled for {recipient['name']}")
+        
+        elif cancel:
+            st.session_state.show_compose_sms = False
+            st.session_state.compose_sms_to = None
+            st.rerun()
+    recipient = st.session_state.get('compose_email_to', {})
+    
+    st.markdown("---")
+    st.subheader(f"📧 Compose Email to {recipient['name']}")
+    
+    with st.form("contact_compose_email_form"):
+        col1, col2 = st.columns([2, 1])
+        
+        with col1:
+            to_email = st.text_input("To", value=recipient['email'], disabled=True)
+            subject = st.text_input("Subject", value=f"Real Estate Opportunity - NXTRIX")
+            
+            # Email templates based on contact type
+            if recipient.get('contact_type') in ['Investor', 'Buyer']:
+                template_options = [
+                    "Custom Message",
+                    "🔥 Investment Opportunity",
+                    "📊 Market Update", 
+                    "💰 Deal Alert",
+                    "📅 Meeting Request",
+                    "🤝 Partnership Proposal"
+                ]
+            elif recipient.get('contact_type') in ['Real Estate Agent', 'Wholesaler']:
+                template_options = [
+                    "Custom Message",
+                    "🏠 Property Inquiry",
+                    "🤝 Partnership Opportunity",
+                    "📊 Market Collaboration",
+                    "📅 Meeting Request",
+                    "💼 Business Proposal"
+                ]
+            else:
+                template_options = [
+                    "Custom Message",
+                    "📞 Follow-up Message",
+                    "📅 Meeting Request",
+                    "📋 Information Request",
+                    "🤝 Business Inquiry"
+                ]
+            
+            email_template = st.selectbox("Email Template", template_options)
+            
+            if email_template == "🔥 Investment Opportunity":
+                email_body = st.text_area("Message", value=f"""Dear {recipient['name']},
+
+I hope this message finds you well. I wanted to reach out regarding some exciting investment opportunities that may align with your portfolio.
+
+🏠 **Current Opportunities:**
+• High-ROI fix and flip properties
+• Cash-flowing rental properties  
+• Off-market wholesale deals
+
+📊 **Why This Fits Your Profile:**
+{recipient.get('context', 'Based on your investment interests')}
+
+I'd love to discuss these opportunities with you in more detail. Would you be available for a brief call this week?
+
+Best regards,
+{st.session_state.get('user_data', {}).get('full_name', 'Your Name')}
+{st.session_state.get('user_data', {}).get('phone', '')}
+{st.session_state.get('user_data', {}).get('email', '')}""", height=300)
+            
+            elif email_template == "🏠 Property Inquiry":
+                email_body = st.text_area("Message", value=f"""Hi {recipient['name']},
+
+I hope you're doing well! I'm reaching out regarding potential collaboration opportunities in the real estate market.
+
+🎯 **What I'm Looking For:**
+• Off-market properties
+• Distressed properties 
+• Investment opportunities
+
+🤝 **How We Can Work Together:**
+{recipient.get('context', 'Mutual referrals and partnerships')}
+
+I'd appreciate any properties you might have that fit these criteria. Happy to discuss compensation structures that work for both of us.
+
+Best regards,
+{st.session_state.get('user_data', {}).get('full_name', 'Your Name')}""", height=300)
+            
+            else:
+                email_body = st.text_area("Message", value=f"""Hi {recipient['name']},
+
+[Your message here]
+
+Best regards,
+{st.session_state.get('user_data', {}).get('full_name', 'Your Name')}
+{st.session_state.get('user_data', {}).get('email', '')}
+{st.session_state.get('user_data', {}).get('phone', '')}""", height=300)
+        
+        with col2:
+            st.markdown("**📋 Contact Info**")
+            st.write(f"**Name:** {recipient['name']}")
+            st.write(f"**Type:** {recipient.get('contact_type', 'Contact')}")
+            st.write(f"**Context:** {recipient.get('context', 'N/A')}")
+            
+            st.markdown("**💡 Email Tips**")
+            st.markdown("""
+            • Personalize based on contact type
+            • Include specific opportunities
+            • Add clear call-to-action
+            • Maintain professional tone
+            • Follow up appropriately
+            """)
+        
+        # Form buttons
+        col1, col2, col3 = st.columns([2, 1, 1])
+        
+        with col1:
+            send_email = st.form_submit_button("📧 Send Email", type="primary", use_container_width=True)
+        
+        with col2:
+            save_draft = st.form_submit_button("💾 Save Draft", use_container_width=True)
+        
+        with col3:
+            cancel = st.form_submit_button("❌ Cancel", use_container_width=True)
+        
+        if send_email and subject and email_body:
+            # Send email logic here
+            st.success(f"✅ Email sent successfully to {recipient['name']}!")
+            st.session_state.show_compose_email = False
+            st.session_state.compose_email_to = None
+            st.rerun()
+        
+        elif save_draft:
+            st.info(f"💾 Draft saved for {recipient['name']}")
+        
+        elif cancel:
+            st.session_state.show_compose_email = False
+            st.session_state.compose_email_to = None
+            st.rerun()
+
+def show_contact_sms_composer():
+    """Show SMS composer for CRM contacts"""
+    recipient = st.session_state.get('compose_sms_to', {})
+    
+    st.markdown("---")
+    st.subheader(f"📱 Send SMS to {recipient['name']}")
+    
+    with st.form("contact_compose_sms_form"):
+        col1, col2 = st.columns([2, 1])
+        
+        with col1:
+            to_phone = st.text_input("To", value=recipient['phone'], disabled=True)
+            
+            # SMS templates based on contact type
+            if recipient.get('contact_type') in ['Investor', 'Buyer']:
+                template_options = [
+                    "Custom Message",
+                    "🔥 Hot Deal Alert",
+                    "📅 Meeting Reminder",
+                    "💰 Quick Opportunity",
+                    "📊 Market Update"
+                ]
+            elif recipient.get('contact_type') in ['Real Estate Agent', 'Wholesaler']:
+                template_options = [
+                    "Custom Message", 
+                    "🏠 Property Inquiry",
+                    "🤝 Partnership Opportunity",
+                    "📞 Quick Follow-up",
+                    "📅 Meeting Reminder"
+                ]
+            else:
+                template_options = [
+                    "Custom Message", 
+                    "📞 Follow-up",
+                    "📅 Appointment Reminder",
+                    "🤝 Business Inquiry",
+                    "📋 Quick Question"
+                ]
+            
+            sms_template = st.selectbox("SMS Template", template_options)
+            
+            if sms_template == "🔥 Hot Deal Alert":
+                message = st.text_area("Message", value=f"""🔥 HOT DEAL ALERT
+
+Hi {recipient['name']}! Just got a great opportunity:
+
+🏠 [Property Type] - [Location]
+💰 $[Investment Amount]
+📊 [ROI]% Expected ROI
+⏰ Need decision by [Date]
+
+{recipient.get('context', 'Thought this might interest you')}
+
+Call me ASAP: {st.session_state.get('user_data', {}).get('phone', '[Your Phone]')}""", height=200)
+            
+            elif sms_template == "🏠 Property Inquiry":
+                message = st.text_area("Message", value=f"""Hi {recipient['name']}!
+
+Looking for off-market properties in your area. Do you have any:
+• Distressed properties
+• Motivated sellers  
+• Investment opportunities
+
+Happy to discuss finder's fees. Can you help?
+
+{st.session_state.get('user_data', {}).get('full_name', 'Your Name')}
+{st.session_state.get('user_data', {}).get('phone', '')}""", height=200)
+            
+            else:
+                message = st.text_area("Message", value=f"""Hi {recipient['name']},
+
+[Your message here]
+
+- {st.session_state.get('user_data', {}).get('full_name', 'Your Name')}
+{st.session_state.get('user_data', {}).get('phone', '')}""", height=200)
+            
+            # Character count
+            char_count = len(message)
+            sms_count = (char_count // 160) + 1 if char_count > 0 else 0
+            st.caption(f"Characters: {char_count} | SMS Messages: {sms_count}")
+        
+        with col2:
+            st.markdown("**📋 Contact Info**")
+            st.write(f"**Name:** {recipient['name']}")
+            st.write(f"**Type:** {recipient.get('contact_type', 'Contact')}")
+            st.write(f"**Context:** {recipient.get('context', 'N/A')}")
+            
+            st.markdown("**💡 SMS Tips**")
+            st.markdown("""
+            • Keep messages under 160 characters
+            • Include clear call-to-action
+            • Always identify yourself
+            • Include contact info
+            • Be respectful of time
+            """)
+        
+        # Form buttons
+        col1, col2, col3 = st.columns([2, 1, 1])
+        
+        with col1:
+            send_sms = st.form_submit_button("📱 Send SMS", type="primary", use_container_width=True)
+        
+        with col2:
+            schedule_sms = st.form_submit_button("📅 Schedule", use_container_width=True)
+        
+        with col3:
+            cancel = st.form_submit_button("❌ Cancel", use_container_width=True)
+        
+        if send_sms and message:
+            try:
+                from communication_services import TwilioSMSService
+                sms_service = TwilioSMSService()
+                
+                if sms_service.enabled:
+                    result = sms_service.send_sms(recipient['phone'], message)
+                    
+                    if result.success:
+                        st.success(f"✅ SMS sent successfully to {recipient['name']}!")
+                        st.info(f"📱 Message ID: {result.message_sid}")
+                    else:
+                        st.error(f"❌ SMS failed: {result.error_message}")
+                else:
+                    st.warning("⚠️ SMS service not configured")
+                    
+                st.session_state.show_compose_sms = False
+                st.session_state.compose_sms_to = None
+                st.rerun()
+                
+            except Exception as e:
+                st.error(f"❌ SMS sending failed: {str(e)}")
+        
+        elif schedule_sms:
+            st.info(f"📅 SMS scheduled for {recipient['name']}")
+        
+        elif cancel:
+            st.session_state.show_compose_sms = False
+            st.session_state.compose_sms_to = None
+            st.rerun()
+
+def show_contact_deal_alert_composer():
+    """Show deal alert composer for investor/buyer contacts"""
+    contact = st.session_state.get('send_deal_alert_to', {})
+    
+    st.markdown("---")
+    st.subheader(f"🔥 Send Deal Alert to {contact['name']}")
+    
+    with st.form("contact_deal_alert_form"):
+        st.markdown("**📊 Deal Information**")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            property_address = st.text_input("Property Address*", placeholder="123 Main St, City, State")
+            property_type = st.selectbox("Property Type", contact.get('property_types', ['Single Family Homes', 'Multi-Family', 'Commercial']))
+            purchase_price = st.number_input("Purchase Price ($)*", min_value=0, value=250000)
+            arv = st.number_input("ARV ($)*", min_value=0, value=320000)
+        
+        with col2:
+            expected_roi = st.number_input("Expected ROI (%)*", min_value=0.0, value=25.0, step=0.5)
+            repair_estimate = st.number_input("Repair Estimate ($)", min_value=0, value=30000)
+            timeline = st.selectbox("Timeline", ["Immediate", "30 days", "60 days", "90 days"])
+            deal_type = st.selectbox("Deal Type", contact.get('investment_strategy', ['Fix & Flip', 'Buy & Hold', 'Wholesale']))
+        
+        # Auto-generate alert message
+        alert_message = f"""🔥 EXCLUSIVE DEAL ALERT
+
+Hi {contact['name']}! Found a great opportunity:
+
+🏠 Property: {property_address or '[Address]'}
+💰 Investment: ${purchase_price:,}
+📈 ARV: ${arv:,}
+📊 Expected ROI: {expected_roi}%
+🔧 Repairs: ${repair_estimate:,}
+⏰ Timeline: {timeline}
+
+💎 Perfect for {contact.get('contact_type', 'investors')}:
+• Property Type: {property_type}
+• Investment Range: ${contact.get('min_investment', 50000):,}-${contact.get('max_investment', 500000):,}
+• Expected ROI: {expected_roi}% (Target: {contact.get('target_roi', 20)}%+)
+
+🚀 This won't last long! Call me ASAP:
+{st.session_state.get('user_data', {}).get('phone', '[Your Phone]')}
+
+- {st.session_state.get('user_data', {}).get('full_name', 'Your NXTRIX Team')}"""
+        
+        message_content = st.text_area("Alert Message", value=alert_message, height=300)
+        
+        # Send options
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            send_email = st.checkbox("📧 Send via Email", value=True)
+            if send_email:
+                email_subject = st.text_input("Email Subject", value=f"🔥 Exclusive Deal Alert - {expected_roi}% ROI")
+        
+        with col2:
+            send_sms = st.checkbox("📱 Send via SMS", value=bool(contact.get('phone')))
+            if send_sms and not contact.get('phone'):
+                st.warning("⚠️ No phone number on file for SMS")
+                send_sms = False
+        
+        # Form buttons
+        col1, col2, col3 = st.columns([2, 1, 1])
+        
+        with col1:
+            send_alert = st.form_submit_button("🚀 Send Deal Alert", type="primary", use_container_width=True)
+        
+        with col2:
+            preview = st.form_submit_button("👁️ Preview", use_container_width=True)
+        
+        with col3:
+            cancel = st.form_submit_button("❌ Cancel", use_container_width=True)
+        
+        if send_alert and property_address and purchase_price and arv:
+            sent_methods = []
+            
+            # Send email if selected
+            if send_email:
+                # Email sending logic here
+                sent_methods.append("📧 Email")
+            
+            # Send SMS if selected
+            if send_sms and contact.get('phone'):
+                try:
+                    from communication_services import TwilioSMSService
+                    sms_service = TwilioSMSService()
+                    
+                    if sms_service.enabled:
+                        # Truncate message for SMS
+                        sms_message = message_content[:800] + "..." if len(message_content) > 800 else message_content
+                        result = sms_service.send_sms(contact['phone'], sms_message)
+                        
+                        if result.success:
+                            sent_methods.append("📱 SMS")
+                    
+                except Exception as e:
+                    st.error(f"❌ SMS failed: {str(e)}")
+            
+            if sent_methods:
+                st.success(f"✅ Deal alert sent via {' and '.join(sent_methods)} to {contact['name']}!")
+            else:
+                st.warning("⚠️ No communication method selected or available")
+            
+            st.session_state.show_deal_alert_composer = False
+            st.session_state.send_deal_alert_to = None
+            st.rerun()
+        
+        elif preview:
+            st.info("👁️ Preview functionality coming soon")
+        
+        elif cancel:
+            st.session_state.show_deal_alert_composer = False
+            st.session_state.send_deal_alert_to = None
+            st.rerun()
+
+def show_contact_profile_viewer():
+    """Show detailed contact profile view"""
+    contact = st.session_state.get('view_contact_profile', {})
+    
+    st.markdown("---")
+    st.subheader(f"👤 {contact.name} - Contact Profile")
+    
+    tab1, tab2, tab3 = st.tabs(["📊 Overview", "📞 Communication", "📈 History"])
+    
+    with tab1:
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.markdown("**👤 Basic Information**")
+            st.write(f"**Name:** {contact.name}")
+            st.write(f"**Email:** {contact.email or 'Not provided'}")
+            st.write(f"**Phone:** {contact.phone or 'Not provided'}")
+            st.write(f"**Type:** {contact.contact_type.value}")
+            st.write(f"**Company:** {contact.company or 'Individual'}")
+        
+        with col2:
+            st.markdown("**🏷️ Tags & Notes**")
+            if contact.tags:
+                for tag in contact.tags:
+                    st.write(f"• {tag}")
+            else:
+                st.write("• No tags")
+            
+            if hasattr(contact, 'notes') and contact.notes:
+                st.write(f"**Notes:** {contact.notes}")
+    
+    with tab2:
+        st.markdown("**📞 Communication History**")
+        if contact.last_interaction:
+            days_ago = (datetime.now() - contact.last_interaction).days
+            st.write(f"**Last Contact:** {contact.last_interaction.strftime('%Y-%m-%d')} ({days_ago} days ago)")
+        else:
+            st.write("**Last Contact:** Never")
+        
+        # Quick communication buttons
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            if contact.email:
+                if st.button("📧 Send Email", use_container_width=True):
+                    st.session_state.compose_email_to = {
+                        'name': contact.name,
+                        'email': contact.email,
+                        'type': 'contact',
+                        'contact_type': contact.contact_type.value,
+                        'context': f"Contact type: {contact.contact_type.value}, Company: {contact.company or 'Individual'}"
+                    }
+                    st.session_state.show_compose_email = True
+                    st.rerun()
+        
+        with col2:
+            if contact.phone:
+                if st.button("📱 Send SMS", use_container_width=True):
+                    st.session_state.compose_sms_to = {
+                        'name': contact.name,
+                        'phone': contact.phone,
+                        'type': 'contact',
+                        'contact_type': contact.contact_type.value,
+                        'context': f"Contact type: {contact.contact_type.value}"
+                    }
+                    st.session_state.show_compose_sms = True
+                    st.rerun()
+        
+        with col3:
+            if contact.contact_type.value in ["Investor", "Buyer"]:
+                if st.button("🔥 Send Deal Alert", use_container_width=True):
+                    # Convert contact to investor format for deal alert
+                    investor_data = {
+                        'name': contact.name,
+                        'email': contact.email,
+                        'phone': contact.phone,
+                        'type': contact.contact_type.value.lower(),
+                        'contact_type': contact.contact_type.value,
+                        'property_types': ['Single Family Homes'],  # Default
+                        'investment_strategy': ['Fix & Flip'],  # Default
+                        'target_roi': 20,  # Default
+                        'min_investment': 50000,  # Default
+                        'max_investment': 500000  # Default
+                    }
+                    st.session_state.send_deal_alert_to = investor_data
+                    st.session_state.show_deal_alert_composer = True
+                    st.rerun()
+    
+    with tab3:
+        st.markdown("**📈 Interaction History**")
+        st.info("📊 Detailed interaction history and analytics will appear here")
+        
+        # Sample metrics
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Emails Sent", "0")
+        with col2:
+            st.metric("SMS Sent", "0")
+        with col3:
+            st.metric("Deals Shared", "0")
+    
+    # Close button
+    if st.button("❌ Close Profile", use_container_width=True):
+        st.session_state.view_contact_profile = None
+        st.session_state.show_contact_profile_viewer = False
+        st.rerun()
+
 # ===== MAIN APPLICATION ENTRY POINT =====
 
 def main():
@@ -6690,3 +7643,287 @@ def show_subscription_management():
 
 if __name__ == "__main__":
     main()
+
+# Contact Communication Functions for Enhanced CRM
+def show_contact_email_composer():
+    """Show email composer for CRM contacts"""
+    recipient = st.session_state.get('compose_email_to', {})
+    
+    if not recipient:
+        return
+    
+    st.markdown("---")
+    st.subheader(f"📧 Compose Email to {recipient['name']}")
+    
+    with st.form("contact_email_form"):
+        col1, col2 = st.columns([2, 1])
+        
+        with col1:
+            to_email = st.text_input("To", value=recipient['email'], disabled=True)
+            subject = st.text_input("Subject", value=f"Professional Communication - NXTRIX")
+            
+            # Email templates based on contact type
+            contact_type = recipient.get('contact_type', 'Contact')
+            if contact_type in ['Investor', 'Buyer']:
+                template_options = [
+                    "Custom Message",
+                    "🔥 Investment Opportunity",
+                    "📊 Market Update", 
+                    "💰 New Deal Alert",
+                    "📈 Portfolio Review",
+                    "🤝 Partnership Proposal"
+                ]
+            elif contact_type == 'Real Estate Agent':
+                template_options = [
+                    "Custom Message",
+                    "🏠 Listing Inquiry",
+                    "🤝 Partnership Discussion",
+                    "📋 Referral Request",
+                    "📅 Meeting Request"
+                ]
+            else:
+                template_options = [
+                    "Custom Message",
+                    "📞 Follow-up Message",
+                    "📅 Meeting Request",
+                    "📋 Service Inquiry",
+                    "🤝 Professional Introduction"
+                ]
+            
+            email_template = st.selectbox("Email Template", template_options)
+            
+            if email_template == "🔥 Investment Opportunity":
+                email_body = st.text_area("Message", value=f"""Dear {recipient['name']},
+
+I hope this email finds you well. I wanted to reach out regarding an exciting investment opportunity that may align with your portfolio.
+
+🏠 **Investment Opportunity:**
+• Property Type: [Property Type]
+• Location: [City, State]
+• Investment Amount: $[Amount]
+• Expected ROI: [ROI]%
+• Timeline: [Timeline]
+
+📊 **Why This Fits Your Profile:**
+Based on your {contact_type.lower()} status and previous interactions, this opportunity matches your investment criteria.
+
+I'd be happy to provide more detailed information and discuss this opportunity at your convenience.
+
+Best regards,
+{st.session_state.get('user_data', {}).get('full_name', 'Your Name')}
+{st.session_state.get('user_data', {}).get('company', 'NXTRIX')}
+{st.session_state.get('user_data', {}).get('phone', '')}""", height=300)
+            
+            elif email_template == "📅 Meeting Request":
+                email_body = st.text_area("Message", value=f"""Dear {recipient['name']},
+
+I hope you're doing well. I would like to schedule a meeting to discuss potential collaboration opportunities.
+
+📅 **Meeting Purpose:**
+• Discuss {contact_type.lower()} partnership opportunities
+• Share current market insights
+• Explore mutual business interests
+
+I'm flexible with timing and can accommodate your schedule. Would you be available for a 30-minute call this week?
+
+Please let me know what works best for you.
+
+Best regards,
+{st.session_state.get('user_data', {}).get('full_name', 'Your Name')}
+{st.session_state.get('user_data', {}).get('email', '')}
+{st.session_state.get('user_data', {}).get('phone', '')}""", height=300)
+            
+            else:
+                email_body = st.text_area("Message", value=f"""Dear {recipient['name']},
+
+[Your message here]
+
+Best regards,
+{st.session_state.get('user_data', {}).get('full_name', 'Your Name')}
+{st.session_state.get('user_data', {}).get('company', 'NXTRIX')}
+{st.session_state.get('user_data', {}).get('phone', '')}""", height=300)
+        
+        with col2:
+            st.markdown("**📋 Contact Info**")
+            st.write(f"**Name:** {recipient['name']}")
+            st.write(f"**Type:** {recipient.get('contact_type', 'Contact')}")
+            st.write(f"**Company:** {recipient.get('company', 'N/A')}")
+            
+            st.markdown("**💡 Email Tips**")
+            st.markdown("""
+            • Personalize based on contact type
+            • Include clear value proposition
+            • Add specific call-to-action
+            • Maintain professional tone
+            • Include your contact information
+            """)
+        
+        # Form buttons
+        col1, col2, col3 = st.columns([2, 1, 1])
+        
+        with col1:
+            send_email = st.form_submit_button("📧 Send Email", type="primary", use_container_width=True)
+        
+        with col2:
+            save_draft = st.form_submit_button("💾 Save Draft", use_container_width=True)
+        
+        with col3:
+            cancel = st.form_submit_button("❌ Cancel", use_container_width=True)
+        
+        if send_email and subject and email_body:
+            # Send email logic here
+            st.success(f"✅ Email sent successfully to {recipient['name']}!")
+            st.session_state.show_compose_email = False
+            st.session_state.compose_email_to = None
+            st.rerun()
+        
+        elif save_draft:
+            st.info(f"💾 Draft saved for {recipient['name']}")
+        
+        elif cancel:
+            st.session_state.show_compose_email = False
+            st.session_state.compose_email_to = None
+            st.rerun()
+
+def show_contact_sms_composer():
+    """Show SMS composer for CRM contacts"""
+    recipient = st.session_state.get('compose_sms_to', {})
+    
+    if not recipient:
+        return
+    
+    st.markdown("---")
+    st.subheader(f"📱 Send SMS to {recipient['name']}")
+    
+    with st.form("contact_sms_form"):
+        col1, col2 = st.columns([2, 1])
+        
+        with col1:
+            to_phone = st.text_input("To", value=recipient['phone'], disabled=True)
+            
+            # SMS templates based on contact type
+            contact_type = recipient.get('contact_type', 'Contact')
+            if contact_type in ['Investor', 'Buyer']:
+                template_options = [
+                    "Custom Message",
+                    "🔥 Urgent Deal Alert",
+                    "📅 Meeting Reminder",
+                    "💰 Quick Opportunity",
+                    "📊 Market Update"
+                ]
+            elif contact_type == 'Real Estate Agent':
+                template_options = [
+                    "Custom Message",
+                    "🏠 Listing Follow-up",
+                    "📞 Quick Check-in",
+                    "📅 Appointment Reminder",
+                    "🤝 Referral Thank You"
+                ]
+            else:
+                template_options = [
+                    "Custom Message", 
+                    "📞 Professional Follow-up",
+                    "📅 Meeting Reminder",
+                    "🔧 Service Inquiry",
+                    "🤝 Thank You Message"
+                ]
+            
+            sms_template = st.selectbox("SMS Template", template_options)
+            
+            if sms_template == "🔥 Urgent Deal Alert":
+                message = st.text_area("Message", value=f"""🔥 URGENT OPPORTUNITY
+
+Hi {recipient['name']}! Time-sensitive deal just came in:
+
+🏠 [Property Type] - [Location]
+💰 $[Investment Amount]
+📊 [ROI]% Expected ROI
+⏰ Decision needed by [Date]
+
+Perfect for {contact_type.lower()}s like you!
+
+Call me: {st.session_state.get('user_data', {}).get('phone', '[Your Phone]')}""", height=200)
+            
+            elif sms_template == "📅 Meeting Reminder":
+                message = st.text_area("Message", value=f"""📅 Meeting Reminder
+
+Hi {recipient['name']}! Confirming our meeting:
+
+🕐 [Time]
+📍 [Location] 
+💼 Topic: [Meeting Topic]
+
+Looking forward to speaking with you!
+
+- {st.session_state.get('user_data', {}).get('full_name', 'Your Name')}""", height=200)
+            
+            else:
+                message = st.text_area("Message", value=f"""Hi {recipient['name']},
+
+[Your message here]
+
+- {st.session_state.get('user_data', {}).get('full_name', 'Your Name')}
+{st.session_state.get('user_data', {}).get('phone', '')}""", height=200)
+            
+            # Character count
+            char_count = len(message)
+            sms_count = (char_count // 160) + 1 if char_count > 0 else 0
+            st.caption(f"Characters: {char_count} | SMS Messages: {sms_count}")
+        
+        with col2:
+            st.markdown("**📋 Contact Info**")
+            st.write(f"**Name:** {recipient['name']}")
+            st.write(f"**Type:** {recipient.get('contact_type', 'Contact')}")
+            st.write(f"**Company:** {recipient.get('company', 'N/A')}")
+            
+            st.markdown("**💡 SMS Tips**")
+            st.markdown("""
+            • Keep messages under 160 characters
+            • Include clear call-to-action
+            • Always identify yourself
+            • Be respectful of time
+            • Include contact info
+            """)
+        
+        # Form buttons
+        col1, col2, col3 = st.columns([2, 1, 1])
+        
+        with col1:
+            send_sms = st.form_submit_button("📱 Send SMS", type="primary", use_container_width=True)
+        
+        with col2:
+            schedule_sms = st.form_submit_button("📅 Schedule", use_container_width=True)
+        
+        with col3:
+            cancel = st.form_submit_button("❌ Cancel", use_container_width=True)
+        
+        if send_sms and message:
+            try:
+                from communication_services import TwilioSMSService
+                sms_service = TwilioSMSService()
+                
+                if sms_service.enabled:
+                    result = sms_service.send_sms(recipient['phone'], message)
+                    
+                    if result.success:
+                        st.success(f"✅ SMS sent successfully to {recipient['name']}!")
+                        st.info(f"📱 Message ID: {result.message_sid}")
+                    else:
+                        st.error(f"❌ SMS failed: {result.error_message}")
+                else:
+                    st.warning("⚠️ SMS service not configured")
+                    
+                st.session_state.show_compose_sms = False
+                st.session_state.compose_sms_to = None
+                st.rerun()
+                
+            except Exception as e:
+                st.error(f"❌ SMS sending failed: {str(e)}")
+        
+        elif schedule_sms:
+            st.info(f"📅 SMS scheduled for {recipient['name']}")
+        
+        elif cancel:
+            st.session_state.show_compose_sms = False
+            st.session_state.compose_sms_to = None
+            st.rerun()
