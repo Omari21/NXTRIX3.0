@@ -49,19 +49,26 @@ def get_config(section: str, key: str, default=None):
     except:
         return default
 
-# Configure Streamlit page
-st.set_page_config(
-    page_title="NXTRIX Platform - Production",
-    page_icon="🏢",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
+# Configure Streamlit page (only once per session)
+if 'page_configured' not in st.session_state:
+    st.set_page_config(
+        page_title="NXTRIX Platform - Production",
+        page_icon="🏢",
+        layout="wide",
+        initial_sidebar_state="expanded"
+    )
+    st.session_state.page_configured = True
 
-# Initialize Stripe Payment System
-if STRIPE_AVAILABLE:
-    stripe_system = StripePaymentSystem(founder_pricing=False)  # Regular pricing for platform
+# Initialize Stripe Payment System (only once per session)
+if 'stripe_system_initialized' not in st.session_state:
+    if STRIPE_AVAILABLE:
+        stripe_system = StripePaymentSystem(founder_pricing=False)  # Regular pricing for platform
+    else:
+        stripe_system = None
+    st.session_state.stripe_system_initialized = True
+    st.session_state.stripe_system = stripe_system
 else:
-    stripe_system = None
+    stripe_system = st.session_state.stripe_system
 
 # Subscription and Access Control
 def check_subscription_access(feature_tier_required):

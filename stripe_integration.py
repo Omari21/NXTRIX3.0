@@ -12,9 +12,10 @@ import json
 try:
     import stripe
     STRIPE_IMPORT_SUCCESS = True
+    STRIPE_IMPORT_ERROR = None
 except Exception as e:
-    st.error(f"❌ Failed to import Stripe library: {str(e)}")
     STRIPE_IMPORT_SUCCESS = False
+    STRIPE_IMPORT_ERROR = str(e)
     # Create a dummy stripe module to prevent further errors
     class DummyStripe:
         api_key = None
@@ -31,7 +32,9 @@ class StripePaymentSystem:
         
         # Check if Stripe import was successful
         if not STRIPE_IMPORT_SUCCESS:
-            st.warning("⚠️ Stripe library not available - payment features disabled")
+            if 'stripe_import_warning_shown' not in st.session_state:
+                st.error(f"❌ Failed to import Stripe library: {STRIPE_IMPORT_ERROR}")
+                st.session_state.stripe_import_warning_shown = True
             return
             
         try:
@@ -47,15 +50,23 @@ class StripePaymentSystem:
                         stripe.Product.list(limit=1)
                         self.stripe_available = True
                     else:
-                        st.warning("⚠️ Stripe API key not configured")
+                        if 'stripe_key_warning_shown' not in st.session_state:
+                            st.warning("⚠️ Stripe API key not configured")
+                            st.session_state.stripe_key_warning_shown = True
                 else:
-                    st.warning("⚠️ Stripe library has configuration issues - payments temporarily unavailable")
+                    if 'stripe_config_warning_shown' not in st.session_state:
+                        st.warning("⚠️ Stripe library has configuration issues - payments temporarily unavailable")
+                        st.session_state.stripe_config_warning_shown = True
                     stripe.api_key = None
             except AttributeError:
-                st.warning("⚠️ Stripe library not properly initialized - payments temporarily unavailable")
+                if 'stripe_init_warning_shown' not in st.session_state:
+                    st.warning("⚠️ Stripe library not properly initialized - payments temporarily unavailable")
+                    st.session_state.stripe_init_warning_shown = True
                 stripe.api_key = None
             except Exception as e:
-                st.warning(f"⚠️ Stripe connection issue: {str(e)}")
+                if 'stripe_connection_warning_shown' not in st.session_state:
+                    st.warning(f"⚠️ Stripe connection issue: {str(e)}")
+                    st.session_state.stripe_connection_warning_shown = True
                 stripe.api_key = None
                 
             self.publishable_key = os.getenv('STRIPE_PUBLISHABLE_KEY')
@@ -63,7 +74,9 @@ class StripePaymentSystem:
             self.founder_pricing = founder_pricing
             
         except Exception as e:
-            st.error(f"❌ Stripe initialization error: {str(e)}")
+            if 'stripe_error_shown' not in st.session_state:
+                st.error(f"❌ Stripe initialization error: {str(e)}")
+                st.session_state.stripe_error_shown = True
             stripe.api_key = None
             self.stripe_available = False
         
