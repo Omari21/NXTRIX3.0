@@ -2197,7 +2197,15 @@ def show_billing_settings():
     with col1:
         st.markdown("#### 💳 Current Subscription")
         
-        if STRIPE_AVAILABLE and stripe_system and stripe_system.is_stripe_available():
+        # Extra defensive check for Stripe availability
+        stripe_working = False
+        try:
+            stripe_working = STRIPE_AVAILABLE and stripe_system and stripe_system.is_stripe_available()
+        except Exception as e:
+            st.warning(f"⚠️ Stripe system check failed: {str(e)}")
+            stripe_working = False
+        
+        if stripe_working:
             # Get real subscription data from Stripe
             user_email = st.session_state.get('user_data', {}).get('email', 'user@example.com')
             try:

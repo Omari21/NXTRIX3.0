@@ -4,35 +4,59 @@ Handles subscription creation, upgrades, and billing management
 """
 
 import streamlit as st
-import stripe
 import os
 from datetime import datetime, timedelta
 import json
+
+# Safe Stripe import with error handling
+try:
+    import stripe
+    STRIPE_IMPORT_SUCCESS = True
+except Exception as e:
+    st.error(f"❌ Failed to import Stripe library: {str(e)}")
+    STRIPE_IMPORT_SUCCESS = False
+    # Create a dummy stripe module to prevent further errors
+    class DummyStripe:
+        api_key = None
+        class apps:
+            Secret = None
+    stripe = DummyStripe()
 
 class StripePaymentSystem:
     """Complete Stripe integration for subscription management"""
     
     def __init__(self, founder_pricing=True):
         """Initialize Stripe with production keys"""
+        self.stripe_available = False
+        
+        # Check if Stripe import was successful
+        if not STRIPE_IMPORT_SUCCESS:
+            st.warning("⚠️ Stripe library not available - payment features disabled")
+            return
+            
         try:
             # Set the API key first
             stripe.api_key = os.getenv('STRIPE_SECRET_KEY')
             
-            # Test Stripe initialization to catch the 'NoneType' error early
-            if stripe.api_key:
-                try:
-                    # This will trigger the AttributeError if there's a Stripe configuration issue
-                    stripe.Product.list(limit=1)
-                except AttributeError as e:
-                    if "'NoneType' object has no attribute 'Secret'" in str(e):
-                        st.error("❌ Stripe library configuration error. Please check Stripe installation.")
-                        stripe.api_key = None
+            # Check for the specific Stripe library issue
+            try:
+                # This will fail if stripe.apps.Secret is None
+                if hasattr(stripe.apps, 'Secret') and stripe.apps.Secret is not None:
+                    # Test Stripe initialization
+                    if stripe.api_key:
+                        stripe.Product.list(limit=1)
+                        self.stripe_available = True
                     else:
-                        raise e
-                except Exception as e:
-                    st.warning(f"⚠️ Stripe connection issue: {str(e)}")
-            else:
-                st.warning("⚠️ Stripe API key not configured")
+                        st.warning("⚠️ Stripe API key not configured")
+                else:
+                    st.warning("⚠️ Stripe library has configuration issues - payments temporarily unavailable")
+                    stripe.api_key = None
+            except AttributeError:
+                st.warning("⚠️ Stripe library not properly initialized - payments temporarily unavailable")
+                stripe.api_key = None
+            except Exception as e:
+                st.warning(f"⚠️ Stripe connection issue: {str(e)}")
+                stripe.api_key = None
                 
             self.publishable_key = os.getenv('STRIPE_PUBLISHABLE_KEY')
             self.webhook_secret = os.getenv('STRIPE_WEBHOOK_SECRET')
@@ -41,6 +65,7 @@ class StripePaymentSystem:
         except Exception as e:
             st.error(f"❌ Stripe initialization error: {str(e)}")
             stripe.api_key = None
+            self.stripe_available = False
         
         # Pricing configuration - switches between Founder and Regular pricing
         if founder_pricing:
@@ -78,7 +103,7 @@ class StripePaymentSystem:
     
     def is_stripe_available(self):
         """Check if Stripe is properly configured and available"""
-        return stripe.api_key is not None
+        return STRIPE_IMPORT_SUCCESS and self.stripe_available and stripe.api_key is not None
     
     def create_customer(self, email, name, phone=None):
         """Create a new Stripe customer"""
@@ -177,8 +202,12 @@ class StripePaymentSystem:
         """Get all subscriptions for a customer"""
         try:
             # Check if Stripe is properly initialized
-            if not stripe.api_key:
-                st.warning("⚠️ Stripe not configured - subscription data unavailable")
+            if not self.is_stripe_available():
+                return []
+            
+            # Additional check for the specific Secret attribute issue
+            if not hasattr(stripe.apps, 'Secret') or stripe.apps.Secret is None:
+                st.warning("⚠️ Stripe library configuration issue - subscription data unavailable")
                 return []
             
             customers = stripe.Customer.list(email=customer_email)
@@ -189,7 +218,10 @@ class StripePaymentSystem:
             subscriptions = stripe.Subscription.list(customer=customer.id)
             return subscriptions.data
         except AttributeError as e:
-            st.warning(f"⚠️ Stripe configuration issue: {str(e)}")
+            if "'NoneType' object has no attribute 'Secret'" in str(e):
+                st.warning("⚠️ Stripe library has internal configuration issues - subscription data temporarily unavailable")
+            else:
+                st.warning(f"⚠️ Stripe configuration issue: {str(e)}")
             return []
         except Exception as e:
             st.warning(f"⚠️ Error fetching subscriptions: {str(e)}")
