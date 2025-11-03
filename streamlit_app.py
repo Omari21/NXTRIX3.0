@@ -41,7 +41,9 @@ try:
     STRIPE_AVAILABLE = True
 except ImportError:
     STRIPE_AVAILABLE = False
-    st.warning("⚠️ Stripe integration not available - payment features disabled")
+    # Only show this message in development, not production
+    if os.getenv('STREAMLIT_ENV') != 'production':
+        st.info("ℹ️ Payment features will be available once configured")
 
 # Configuration helper function
 def get_config(section: str, key: str, default=None):
@@ -60,6 +62,21 @@ def get_config(section: str, key: str, default=None):
 
 # Initialize Stripe Payment System (only once per session)
 if 'stripe_system_initialized' not in st.session_state:
+    # Check if we're running in demo mode (no secrets available)
+    demo_mode = False
+    try:
+        # Test if secrets are available
+        test_secret = st.secrets.get("APP", {}).get("BASE_URL", None)
+        if not test_secret or test_secret == "placeholder":
+            demo_mode = True
+    except:
+        demo_mode = True
+    
+    if demo_mode and 'demo_notice_shown' not in st.session_state:
+        st.info("🔄 **NXTRIX Platform** - Demo Mode Active")
+        st.caption("Full features available with proper configuration")
+        st.session_state.demo_notice_shown = True
+    
     if STRIPE_AVAILABLE:
         stripe_system = StripePaymentSystem(founder_pricing=False)  # Regular pricing for platform
     else:
