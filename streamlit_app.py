@@ -5,6 +5,15 @@ Now with CONSOLIDATED NAVIGATION for optimal user experience
 """
 
 import streamlit as st
+
+# Configure Streamlit page FIRST - before any other Streamlit operations
+st.set_page_config(
+    page_title="NXTRIX Platform - Production",
+    page_icon="🏢",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
 import pandas as pd
 import numpy as np
 import plotly.express as px
@@ -48,16 +57,6 @@ def get_config(section: str, key: str, default=None):
         return st.secrets[section][key]
     except:
         return default
-
-# Configure Streamlit page (only once per session)
-if 'page_configured' not in st.session_state:
-    st.set_page_config(
-        page_title="NXTRIX Platform - Production",
-        page_icon="🏢",
-        layout="wide",
-        initial_sidebar_state="expanded"
-    )
-    st.session_state.page_configured = True
 
 # Initialize Stripe Payment System (only once per session)
 if 'stripe_system_initialized' not in st.session_state:
