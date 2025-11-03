@@ -32,9 +32,11 @@ class StripePaymentSystem:
         
         # Check if Stripe import was successful
         if not STRIPE_IMPORT_SUCCESS:
-            if 'stripe_import_warning_shown' not in st.session_state:
-                st.error(f"❌ Failed to import Stripe library: {STRIPE_IMPORT_ERROR}")
-                st.session_state.stripe_import_warning_shown = True
+            # Only show error in development mode, not production
+            if os.getenv('STREAMLIT_ENV') != 'production':
+                if 'stripe_import_warning_shown' not in st.session_state:
+                    st.info(f"ℹ️ Payment system temporarily unavailable: {STRIPE_IMPORT_ERROR}")
+                    st.session_state.stripe_import_warning_shown = True
             return
             
         try:
@@ -50,22 +52,22 @@ class StripePaymentSystem:
                         stripe.Product.list(limit=1)
                         self.stripe_available = True
                     else:
-                        if 'stripe_key_warning_shown' not in st.session_state:
-                            st.warning("⚠️ Stripe API key not configured")
+                        if 'stripe_key_warning_shown' not in st.session_state and os.getenv('STREAMLIT_ENV') != 'production':
+                            st.info("ℹ️ Payment processing will be available once configured")
                             st.session_state.stripe_key_warning_shown = True
                 else:
-                    if 'stripe_config_warning_shown' not in st.session_state:
-                        st.warning("⚠️ Stripe library has configuration issues - payments temporarily unavailable")
+                    if 'stripe_config_warning_shown' not in st.session_state and os.getenv('STREAMLIT_ENV') != 'production':
+                        st.info("ℹ️ Payment system temporarily unavailable")
                         st.session_state.stripe_config_warning_shown = True
                     stripe.api_key = None
             except AttributeError:
-                if 'stripe_init_warning_shown' not in st.session_state:
-                    st.warning("⚠️ Stripe library not properly initialized - payments temporarily unavailable")
+                if 'stripe_init_warning_shown' not in st.session_state and os.getenv('STREAMLIT_ENV') != 'production':
+                    st.info("ℹ️ Payment system initializing...")
                     st.session_state.stripe_init_warning_shown = True
                 stripe.api_key = None
             except Exception as e:
-                if 'stripe_connection_warning_shown' not in st.session_state:
-                    st.warning(f"⚠️ Stripe connection issue: {str(e)}")
+                if 'stripe_connection_warning_shown' not in st.session_state and os.getenv('STREAMLIT_ENV') != 'production':
+                    st.info("ℹ️ Payment system temporarily unavailable")
                     st.session_state.stripe_connection_warning_shown = True
                 stripe.api_key = None
                 
@@ -74,8 +76,8 @@ class StripePaymentSystem:
             self.founder_pricing = founder_pricing
             
         except Exception as e:
-            if 'stripe_error_shown' not in st.session_state:
-                st.error(f"❌ Stripe initialization error: {str(e)}")
+            if 'stripe_error_shown' not in st.session_state and os.getenv('STREAMLIT_ENV') != 'production':
+                st.info("ℹ️ Payment system initialization in progress...")
                 st.session_state.stripe_error_shown = True
             stripe.api_key = None
             self.stripe_available = False
@@ -220,7 +222,8 @@ class StripePaymentSystem:
             
             # Additional check for the specific Secret attribute issue
             if not hasattr(stripe.apps, 'Secret') or stripe.apps.Secret is None:
-                st.warning("⚠️ Stripe library configuration issue - subscription data unavailable")
+                if os.getenv('STREAMLIT_ENV') != 'production':
+                    st.info("ℹ️ Payment system temporarily unavailable")
                 return []
             
             customers = stripe.Customer.list(email=customer_email)
@@ -232,12 +235,15 @@ class StripePaymentSystem:
             return subscriptions.data
         except AttributeError as e:
             if "'NoneType' object has no attribute 'Secret'" in str(e):
-                st.warning("⚠️ Stripe library has internal configuration issues - subscription data temporarily unavailable")
+                if os.getenv('STREAMLIT_ENV') != 'production':
+                    st.info("ℹ️ Payment system temporarily unavailable")
             else:
-                st.warning(f"⚠️ Stripe configuration issue: {str(e)}")
+                if os.getenv('STREAMLIT_ENV') != 'production':
+                    st.info("ℹ️ Payment configuration in progress")
             return []
         except Exception as e:
-            st.warning(f"⚠️ Error fetching subscriptions: {str(e)}")
+            if os.getenv('STREAMLIT_ENV') != 'production':
+                st.info("ℹ️ Payment data temporarily unavailable")
             return []
         except stripe.error.StripeError as e:
             st.error(f"Error fetching subscriptions: {str(e)}")
