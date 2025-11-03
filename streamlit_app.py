@@ -2197,10 +2197,30 @@ def show_billing_settings():
     with col1:
         st.markdown("#### 💳 Current Subscription")
         
-        if STRIPE_AVAILABLE and stripe_system:
+        if STRIPE_AVAILABLE and stripe_system and stripe_system.is_stripe_available():
             # Get real subscription data from Stripe
             user_email = st.session_state.get('user_data', {}).get('email', 'user@example.com')
-            subscriptions = stripe_system.get_customer_subscriptions(user_email)
+            try:
+                subscriptions = stripe_system.get_customer_subscriptions(user_email)
+                
+                if subscriptions:
+                    current_sub = subscriptions[0]
+                    plan_name = current_sub.metadata.get('plan_tier', 'Professional').title()
+                    amount = current_sub['items']['data'][0]['price']['unit_amount'] / 100
+                    status = current_sub['status'].title()
+                    next_payment = datetime.fromtimestamp(current_sub['current_period_end']).strftime('%b %d, %Y')
+                else:
+                    # No active subscription found
+                    plan_name = "Starter"
+                    amount = 0.00
+                    status = "Trial"
+                    next_payment = "N/A"
+            except Exception as e:
+                st.warning(f"⚠️ Unable to fetch subscription data: {str(e)}")
+                plan_name = "Professional"
+                amount = 119.00
+                status = "Active"
+                next_payment = "Nov 15, 2025"
             
             if subscriptions:
                 current_sub = subscriptions[0]

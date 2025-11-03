@@ -14,10 +14,33 @@ class StripePaymentSystem:
     
     def __init__(self, founder_pricing=True):
         """Initialize Stripe with production keys"""
-        stripe.api_key = os.getenv('STRIPE_SECRET_KEY')
-        self.publishable_key = os.getenv('STRIPE_PUBLISHABLE_KEY')
-        self.webhook_secret = os.getenv('STRIPE_WEBHOOK_SECRET')
-        self.founder_pricing = founder_pricing
+        try:
+            # Set the API key first
+            stripe.api_key = os.getenv('STRIPE_SECRET_KEY')
+            
+            # Test Stripe initialization to catch the 'NoneType' error early
+            if stripe.api_key:
+                try:
+                    # This will trigger the AttributeError if there's a Stripe configuration issue
+                    stripe.Product.list(limit=1)
+                except AttributeError as e:
+                    if "'NoneType' object has no attribute 'Secret'" in str(e):
+                        st.error("❌ Stripe library configuration error. Please check Stripe installation.")
+                        stripe.api_key = None
+                    else:
+                        raise e
+                except Exception as e:
+                    st.warning(f"⚠️ Stripe connection issue: {str(e)}")
+            else:
+                st.warning("⚠️ Stripe API key not configured")
+                
+            self.publishable_key = os.getenv('STRIPE_PUBLISHABLE_KEY')
+            self.webhook_secret = os.getenv('STRIPE_WEBHOOK_SECRET')
+            self.founder_pricing = founder_pricing
+            
+        except Exception as e:
+            st.error(f"❌ Stripe initialization error: {str(e)}")
+            stripe.api_key = None
         
         # Pricing configuration - switches between Founder and Regular pricing
         if founder_pricing:
@@ -53,9 +76,17 @@ class StripePaymentSystem:
                 }
             }
     
+    def is_stripe_available(self):
+        """Check if Stripe is properly configured and available"""
+        return stripe.api_key is not None
+    
     def create_customer(self, email, name, phone=None):
         """Create a new Stripe customer"""
         try:
+            if not self.is_stripe_available():
+                st.warning("⚠️ Stripe not configured - customer creation unavailable")
+                return None
+                
             customer = stripe.Customer.create(
                 email=email,
                 name=name,
@@ -103,6 +134,10 @@ class StripePaymentSystem:
     def create_checkout_session(self, customer_email, plan_tier, billing_frequency='monthly'):
         """Create a Stripe Checkout session for subscription signup"""
         try:
+            if not self.is_stripe_available():
+                st.warning("⚠️ Stripe not configured - checkout unavailable")
+                return None
+                
             price_config = self.PRICING_CONFIG[plan_tier][billing_frequency]
             
             if not price_config['price_id']:
@@ -141,6 +176,11 @@ class StripePaymentSystem:
     def get_customer_subscriptions(self, customer_email):
         """Get all subscriptions for a customer"""
         try:
+            # Check if Stripe is properly initialized
+            if not stripe.api_key:
+                st.warning("⚠️ Stripe not configured - subscription data unavailable")
+                return []
+            
             customers = stripe.Customer.list(email=customer_email)
             if not customers.data:
                 return []
@@ -148,6 +188,12 @@ class StripePaymentSystem:
             customer = customers.data[0]
             subscriptions = stripe.Subscription.list(customer=customer.id)
             return subscriptions.data
+        except AttributeError as e:
+            st.warning(f"⚠️ Stripe configuration issue: {str(e)}")
+            return []
+        except Exception as e:
+            st.warning(f"⚠️ Error fetching subscriptions: {str(e)}")
+            return []
         except stripe.error.StripeError as e:
             st.error(f"Error fetching subscriptions: {str(e)}")
             return []
