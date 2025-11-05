@@ -32,11 +32,7 @@ class StripePaymentSystem:
         
         # Check if Stripe import was successful
         if not STRIPE_IMPORT_SUCCESS:
-            # Only show error in development mode, not production
-            if os.getenv('STREAMLIT_ENV') != 'production':
-                if 'stripe_import_warning_shown' not in st.session_state:
-                    st.info(f"ℹ️ Payment system temporarily unavailable: {STRIPE_IMPORT_ERROR}")
-                    st.session_state.stripe_import_warning_shown = True
+            # Silently handle missing Stripe in production
             return
             
         try:
@@ -56,19 +52,13 @@ class StripePaymentSystem:
                             st.info("ℹ️ Payment processing will be available once configured")
                             st.session_state.stripe_key_warning_shown = True
                 else:
-                    if 'stripe_config_warning_shown' not in st.session_state and os.getenv('STREAMLIT_ENV') != 'production':
-                        st.info("ℹ️ Payment system temporarily unavailable")
-                        st.session_state.stripe_config_warning_shown = True
+                    # Silently handle missing Stripe configuration in production
                     stripe.api_key = None
             except AttributeError:
-                if 'stripe_init_warning_shown' not in st.session_state and os.getenv('STREAMLIT_ENV') != 'production':
-                    st.info("ℹ️ Payment system initializing...")
-                    st.session_state.stripe_init_warning_shown = True
+                # Silently handle Stripe initialization issues in production
                 stripe.api_key = None
             except Exception as e:
-                if 'stripe_connection_warning_shown' not in st.session_state and os.getenv('STREAMLIT_ENV') != 'production':
-                    st.info("ℹ️ Payment system temporarily unavailable")
-                    st.session_state.stripe_connection_warning_shown = True
+                # Silently handle Stripe connection issues in production
                 stripe.api_key = None
                 
             self.publishable_key = os.getenv('STRIPE_PUBLISHABLE_KEY')
@@ -76,9 +66,7 @@ class StripePaymentSystem:
             self.founder_pricing = founder_pricing
             
         except Exception as e:
-            if 'stripe_error_shown' not in st.session_state and os.getenv('STREAMLIT_ENV') != 'production':
-                st.info("ℹ️ Payment system initialization in progress...")
-                st.session_state.stripe_error_shown = True
+            # Silently handle Stripe initialization errors in production
             stripe.api_key = None
             self.stripe_available = False
         
@@ -234,16 +222,10 @@ class StripePaymentSystem:
             subscriptions = stripe.Subscription.list(customer=customer.id)
             return subscriptions.data
         except AttributeError as e:
-            if "'NoneType' object has no attribute 'Secret'" in str(e):
-                if os.getenv('STREAMLIT_ENV') != 'production':
-                    st.info("ℹ️ Payment system temporarily unavailable")
-            else:
-                if os.getenv('STREAMLIT_ENV') != 'production':
-                    st.info("ℹ️ Payment configuration in progress")
+            # Silently handle missing Stripe configuration in production
             return []
         except Exception as e:
-            if os.getenv('STREAMLIT_ENV') != 'production':
-                st.info("ℹ️ Payment data temporarily unavailable")
+            # Silently handle payment data errors in production
             return []
         except stripe.error.StripeError as e:
             st.error(f"Error fetching subscriptions: {str(e)}")

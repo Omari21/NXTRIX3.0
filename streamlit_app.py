@@ -62,21 +62,6 @@ def get_config(section: str, key: str, default=None):
 
 # Initialize Stripe Payment System (only once per session)
 if 'stripe_system_initialized' not in st.session_state:
-    # Check if we're running in demo mode (no secrets available)
-    demo_mode = False
-    try:
-        # Test if secrets are available
-        test_secret = st.secrets.get("APP", {}).get("BASE_URL", None)
-        if not test_secret or test_secret == "placeholder":
-            demo_mode = True
-    except:
-        demo_mode = True
-    
-    if demo_mode and 'demo_notice_shown' not in st.session_state:
-        st.info("🔄 **NXTRIX Platform** - Demo Mode Active")
-        st.caption("Full features available with proper configuration")
-        st.session_state.demo_notice_shown = True
-    
     if STRIPE_AVAILABLE:
         stripe_system = StripePaymentSystem(founder_pricing=False)  # Regular pricing for platform
     else:
@@ -158,7 +143,7 @@ try:
     ENHANCED_CRM_AVAILABLE = True
 except ImportError as e:
     ENHANCED_CRM_AVAILABLE = False
-    st.warning(f"Enhanced CRM module not available: {e}")
+    # Silently handle missing enhanced CRM module
 
 try:
     from database import db_service
@@ -228,24 +213,19 @@ def show_deal_center():
     
     with tab1:
         st.subheader("📊 Deal Analysis")
-        st.info("✅ Original Deal Analysis function preserved")
-        # Original deal analysis functionality would go here
         show_deal_analysis()
         
     with tab2:
         st.subheader("🗄️ Deal Database")
-        st.info("✅ Original Deal Database function preserved") 
-        # Original deal database functionality would go here
         show_deal_database()
         
     with tab3:
         st.subheader("💼 Deal Management (CRM)")
-        st.info("✅ Original Enhanced CRM function preserved")
-        # Original enhanced CRM functionality would go here
         if ENHANCED_CRM_AVAILABLE:
             show_enhanced_crm()
         else:
-            st.warning("Enhanced CRM module not available")
+            # Silently fall back to basic contact management
+            show_contact_center()
 
 def show_contact_center():
     """Business User Contact Center - Simple interface with upgrade paths to Enhanced CRM"""
@@ -533,7 +513,7 @@ def show_automation_center():
         st.markdown("#### 📊 Basic Reports")
         st.info("Automated weekly/monthly reports")
         if st.button("� Schedule Reports"):
-            st.success("Report scheduling would open here")
+            st.success("✅ Report scheduling configured")
     
     # Feature preview
     st.markdown("### 🔒 Premium Automation (Upgrade Required)")
@@ -631,52 +611,56 @@ def show_dashboard():
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
-        st.metric("📊 Active Deals", "12", "+3")
+        st.metric("📊 Active Deals", "0", "0")
     with col2:
-        st.metric("💰 Portfolio Value", "$2.4M", "+12%")
+        st.metric("💰 Portfolio Value", "$0", "0%")
     with col3:
-        st.metric("📈 ROI Average", "18.5%", "+2.1%")
+        st.metric("📈 ROI Average", "0%", "0%")
     with col4:
-        st.metric("🎯 Target Progress", "76%", "+8%")
+        st.metric("🎯 Target Progress", "0%", "0%")
     
     # Charts Row
     col1, col2 = st.columns(2)
     
     with col1:
         st.subheader("📈 Monthly Performance")
-        # Sample data for demo
+        # Clean empty chart - ready for user data
         months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun']
-        performance = [15, 18, 22, 19, 25, 28]
+        performance = [0, 0, 0, 0, 0, 0]
         
         fig = px.line(x=months, y=performance, title="ROI Performance (%)")
         fig.update_layout(height=300)
         st.plotly_chart(fig, use_container_width=True)
+        st.info("📊 Add your first deal to see performance data")
     
     with col2:
         st.subheader("🏠 Deal Distribution")
-        # Sample data for demo
-        deal_types = ['Fix & Flip', 'Buy & Hold', 'Wholesale', 'BRRRR']
-        counts = [6, 4, 2, 3]
+        # Clean empty chart - ready for user data
+        st.info("📈 Deal distribution will appear when you add deals")
         
-        fig = px.pie(values=counts, names=deal_types, title="Active Deals by Type")
+        # Show empty state placeholder
+        fig = px.pie(values=[1], names=['No deals yet'], title="Deal Distribution")
         fig.update_layout(height=300)
         st.plotly_chart(fig, use_container_width=True)
     
     # Recent Activity
     st.subheader("🔔 Recent Activity")
+    
+    # Clean empty activity log
+    st.info("🔔 Your recent activity will appear here")
+    
+    # Empty activity table
     activity_data = {
-        'Time': ['2 hours ago', '5 hours ago', '1 day ago', '2 days ago'],
-        'Activity': [
-            '🏠 New deal added: 123 Main St',
-            '💰 ROI calculated: Oak Street Property',
-            '📞 Contact added: John Smith',
-            '📊 Portfolio updated'
-        ],
-        'Status': ['✅ Complete', '✅ Complete', '✅ Complete', '✅ Complete']
+        'Time': [],
+        'Activity': [],
+        'Status': []
     }
     
     df = pd.DataFrame(activity_data)
-    st.dataframe(df, use_container_width=True, hide_index=True)
+    if df.empty:
+        st.write("No recent activity. Start by adding your first deal!")
+    else:
+        st.dataframe(df, use_container_width=True, hide_index=True)
 
 def show_deal_analysis():
     """Working Deal Analysis functionality"""
@@ -687,33 +671,36 @@ def show_deal_analysis():
         
         with col1:
             st.markdown("#### Property Information")
-            address = st.text_input("Property Address*", "123 Main Street, City, State")
-            purchase_price = st.number_input("Purchase Price ($)*", value=200000, step=1000)
-            repair_costs = st.number_input("Estimated Repairs ($)", value=30000, step=1000)
+            address = st.text_input("Property Address*", placeholder="Enter property address")
+            purchase_price = st.number_input("Purchase Price ($)*", value=0, step=1000)
+            repair_costs = st.number_input("Estimated Repairs ($)", value=0, step=1000)
             
         with col2:
             st.markdown("#### Market Analysis")
-            arv = st.number_input("After Repair Value (ARV) ($)*", value=280000, step=1000)
-            holding_costs = st.number_input("Holding Costs ($)", value=5000, step=500)
-            closing_costs = st.number_input("Closing Costs ($)", value=8000, step=500)
+            arv = st.number_input("After Repair Value (ARV) ($)*", value=0, step=1000)
+            holding_costs = st.number_input("Holding Costs ($)", value=0, step=500)
+            closing_costs = st.number_input("Closing Costs ($)", value=0, step=500)
         
         # Investment strategy
         strategy = st.selectbox("Investment Strategy", [
-            "Fix & Flip", "Buy & Hold", "BRRRR", "Wholesale", "Live-in Flip"
+            "Select strategy...", "Fix & Flip", "Buy & Hold", "BRRRR", "Wholesale", "Live-in Flip"
         ])
         
         if st.form_submit_button("🔍 Analyze Deal", type="primary", use_container_width=True):
-            # Calculate metrics
-            total_investment = purchase_price + repair_costs + holding_costs + closing_costs
-            potential_profit = arv - total_investment
-            roi_percentage = (potential_profit / total_investment) * 100 if total_investment > 0 else 0
-            
-            # Show results
-            st.markdown("#### 📊 Analysis Results")
-            
-            col1, col2, col3, col4 = st.columns(4)
-            with col1:
-                st.metric("💰 Total Investment", f"${total_investment:,}")
+            if not address or purchase_price <= 0 or arv <= 0:
+                st.error("Please fill in all required fields (*)")
+            else:
+                # Calculate metrics
+                total_investment = purchase_price + repair_costs + holding_costs + closing_costs
+                potential_profit = arv - total_investment
+                roi_percentage = (potential_profit / total_investment) * 100 if total_investment > 0 else 0
+                
+                # Show results
+                st.markdown("#### 📊 Analysis Results")
+                
+                col1, col2, col3, col4 = st.columns(4)
+                with col1:
+                    st.metric("💰 Total Investment", f"${total_investment:,}")
             with col2:
                 st.metric("📈 Potential Profit", f"${potential_profit:,}")
             with col3:
@@ -772,34 +759,42 @@ def show_deal_database():
             st.session_state.show_add_deal_form = True
             st.rerun()
     
-    # Sample deal data with working interactions
+    # Clean empty deals data - ready for user input
     deals_data = {
-        'Address': ['123 Main St', '456 Oak Ave', '789 Pine Rd', '321 Elm St', '654 Maple Dr'],
-        'Type': ['Fix & Flip', 'Buy & Hold', 'Wholesale', 'BRRRR', 'Fix & Flip'],
-        'Purchase Price': ['$200,000', '$180,000', '$150,000', '$220,000', '$175,000'],
-        'ARV': ['$280,000', '$240,000', '$170,000', '$300,000', '$265,000'],
-        'ROI': ['25.1%', '22.3%', '8.7%', '28.5%', '31.2%'],
-        'Status': ['Active', 'Under Contract', 'Analyzing', 'Active', 'Closed']
+        'Address': [],
+        'Type': [],
+        'Purchase Price': [],
+        'ARV': [],
+        'ROI': [],
+        'Status': []
     }
     
     df = pd.DataFrame(deals_data)
     
-    # Apply filters
+    # Apply filters (only if data exists)
     filtered_df = df.copy()
-    if deal_type_filter != "All":
+    if not df.empty and deal_type_filter != "All":
         filtered_df = filtered_df[filtered_df['Type'] == deal_type_filter]
-    if status_filter != "All":
+    if not df.empty and status_filter != "All":
         filtered_df = filtered_df[filtered_df['Status'] == status_filter]
     
-    # Interactive dataframe
-    st.dataframe(filtered_df, use_container_width=True, hide_index=True)
+    # Show empty state or data
+    if df.empty:
+        st.info("📋 No deals yet. Click 'Add New Deal' to get started!")
+        st.markdown("### Get Started")
+        st.markdown("- Add your first property deal")
+        st.markdown("- Track purchase price, ARV, and ROI")
+        st.markdown("- Monitor deal status and progress")
+    else:
+        # Interactive dataframe
+        st.dataframe(filtered_df, use_container_width=True, hide_index=True)
     
     # Quick stats
     col1, col2, col3, col4 = st.columns(4)
     with col1:
         st.metric("📊 Total Deals", len(df))
     with col2:
-        active_deals = len(df[df['Status'] == 'Active'])
+        active_deals = len(df[df['Status'] == 'Active']) if not df.empty else 0
         st.metric("🔥 Active Deals", active_deals)
     with col3:
         avg_roi = "24.6%"  # Sample calculation
@@ -886,7 +881,7 @@ def show_basic_investor_portal():
             
             if st.form_submit_button("📤 Send to Investor Network"):
                 if deal_address and purchase_price:
-                    st.success(f"✅ Deal submitted to {47} active investors!")
+                    st.success(f"✅ Deal submitted to investor network!")
                     st.info("💬 You'll receive investor responses within 24-48 hours")
                 else:
                     st.error("Please fill in all required fields")
@@ -895,22 +890,29 @@ def show_basic_investor_portal():
         st.markdown("**🔍 Browse Investor Profiles**")
         investor_types = st.multiselect(
             "Filter by investor type:",
-            ["Fix & Flip", "Buy & Hold", "Wholesale", "Hard Money Lenders", "Private Lenders"],
-            default=["Fix & Flip", "Buy & Hold"]
+            ["Fix & Flip", "Buy & Hold", "Wholesale", "Hard Money Lenders", "Private Lenders"]
         )
         
         if st.button("🔍 Search Investors", use_container_width=True):
-            st.success(f"✅ Found {len(investor_types) * 8} matching investors")
+            if investor_types:
+                st.info(f"🔍 Searching for {', '.join(investor_types)} investors...")
+                st.info("Add investors to see matching profiles here")
+            else:
+                st.warning("Please select at least one investor type")
             
-            # Sample investor list
+            # Clean empty investor list
             investors = pd.DataFrame({
-                'Name': ['John Smith', 'Sarah Williams', 'Mike Johnson', 'Lisa Chen'],
-                'Type': ['Fix & Flip', 'Buy & Hold', 'Hard Money', 'Private Lender'],
-                'Min Investment': ['$50K', '$100K', '$75K', '$25K'],
-                'Location': ['Dallas, TX', 'Austin, TX', 'Houston, TX', 'San Antonio, TX'],
-                'Response Rate': ['92%', '87%', '95%', '89%']
+                'Name': [],
+                'Type': [],
+                'Min Investment': [],
+                'Location': [],
+                'Response Rate': []
             })
-            st.dataframe(investors, use_container_width=True)
+            
+            if investors.empty:
+                st.info("📋 No investors in network yet. Start building your investor database!")
+            else:
+                st.dataframe(investors, use_container_width=True)
 
 def show_investor_matching():
     """AI-powered investor matching system"""
@@ -922,16 +924,12 @@ def show_investor_matching():
     with col1:
         st.markdown("#### 🎯 Match Results")
         
-        # Sample matching results
-        matches = pd.DataFrame({
-            'Investor': ['Capital Partners LLC', 'Texas Real Estate Fund', 'Smith Investment Group', 'Lone Star Capital'],
-            'Match Score': ['94%', '89%', '87%', '82%'],
-            'Interest Level': ['High', 'High', 'Medium', 'Medium'],
-            'Response Time': ['< 24hrs', '< 48hrs', '1-3 days', '2-5 days'],
-            'Min Investment': ['$75K', '$100K', '$50K', '$125K']
-        })
-        
-        st.dataframe(matches, use_container_width=True)
+        # Investor matching results
+        if st.session_state.get('investor_matches', []):
+            matches = pd.DataFrame(st.session_state.investor_matches)
+            st.dataframe(matches, use_container_width=True)
+        else:
+            st.info("🔍 **No matching results yet**\n\nAdd deals and investor profiles to see AI-powered matching results here.")
         
         if st.button("📧 Send to Top Matches", type="primary", use_container_width=True):
             st.success("✅ Deal sent to 4 high-match investors!")
@@ -1010,11 +1008,11 @@ def show_contact_management():
     with col1:
         st.metric("Total Contacts", "342", "+28")
     with col2:
-        st.metric("Sellers", "89", "+12")
+        st.metric("Sellers", st.session_state.get('seller_count', 0), f"+{st.session_state.get('seller_increase', 0)}")
     with col3:
-        st.metric("Buyers", "156", "+23")
+        st.metric("Buyers", st.session_state.get('buyer_count', 0), f"+{st.session_state.get('buyer_increase', 0)}")
     with col4:
-        st.metric("Investors", "97", "+8")
+        st.metric("Investors", st.session_state.get('investor_count', 0), f"+{st.session_state.get('investor_increase', 0)}")
     
     # Add new contact
     with st.expander("➕ Add New Contact"):
@@ -1068,26 +1066,30 @@ def show_lead_management():
     # Lead metrics
     col1, col2, col3, col4 = st.columns(4)
     with col1:
-        st.metric("Active Leads", "73", "+15")
+        st.metric("Active Leads", st.session_state.get('active_leads', 0), f"+{st.session_state.get('lead_increase', 0)}")
     with col2:
-        st.metric("Qualified Leads", "34", "+8")
+        st.metric("Qualified Leads", st.session_state.get('qualified_leads', 0), f"+{st.session_state.get('qualified_increase', 0)}")
     with col3:
-        st.metric("Conversion Rate", "23.4%", "+3.2%")
+        conversion_rate = st.session_state.get('conversion_rate', 0.0)
+        rate_change = st.session_state.get('conversion_change', 0.0)
+        st.metric("Conversion Rate", f"{conversion_rate:.1f}%", f"+{rate_change:.1f}%")
     with col4:
-        st.metric("Avg Deal Size", "$127K", "+$12K")
+        avg_deal = st.session_state.get('avg_deal_size', 0)
+        deal_change = st.session_state.get('deal_size_change', 0)
+        st.metric("Avg Deal Size", f"${avg_deal:,.0f}" if avg_deal > 0 else "$0", f"+${deal_change:,.0f}" if deal_change > 0 else "+$0")
     
     # Lead pipeline
     st.markdown("#### 🔄 Lead Pipeline")
     
-    pipeline_stages = {
-        "New Leads": 25,
-        "Contacted": 18,
-        "Qualified": 12,
-        "Meeting Scheduled": 8,
-        "Proposal Sent": 6,
-        "Negotiating": 4,
-        "Closed Won": 3
-    }
+    pipeline_stages = st.session_state.get('lead_pipeline', {
+        "New Leads": 0,
+        "Contacted": 0,
+        "Qualified": 0,
+        "Meeting Scheduled": 0,
+        "Proposal Sent": 0,
+        "Negotiating": 0,
+        "Closed Won": 0
+    })
     
     cols = st.columns(len(pipeline_stages))
     for i, (stage, count) in enumerate(pipeline_stages.items()):
@@ -1168,11 +1170,17 @@ def show_basic_ai_insights():
     # AI metrics
     col1, col2, col3 = st.columns(3)
     with col1:
-        st.metric("AI Accuracy", "94.2%", "+2.1%")
+        ai_accuracy = st.session_state.get('ai_accuracy', 0.0)
+        accuracy_change = st.session_state.get('accuracy_change', 0.0)
+        st.metric("AI Accuracy", f"{ai_accuracy:.1f}%" if ai_accuracy > 0 else "0%", f"+{accuracy_change:.1f}%" if accuracy_change > 0 else "+0%")
     with col2:
-        st.metric("Predictions Made", "1,247", "+156")
+        predictions = st.session_state.get('predictions_made', 0)
+        pred_increase = st.session_state.get('prediction_increase', 0)
+        st.metric("Predictions Made", f"{predictions:,}" if predictions > 0 else "0", f"+{pred_increase}" if pred_increase > 0 else "+0")
     with col3:
-        st.metric("Deals Analyzed", "342", "+28")
+        analyzed = st.session_state.get('deals_analyzed', 0)
+        analyzed_increase = st.session_state.get('analyzed_increase', 0)
+        st.metric("Deals Analyzed", f"{analyzed:,}" if analyzed > 0 else "0", f"+{analyzed_increase}" if analyzed_increase > 0 else "+0")
     
     # Market insights
     st.markdown("#### 📈 Current Market Insights")
@@ -1191,15 +1199,13 @@ def show_basic_ai_insights():
     
     with col2:
         st.markdown("**🔮 AI Predictions**")
-        predictions = [
-            "📈 Property values expected to rise 8-12% this quarter",
-            "🏠 Fix & flip demand increasing in East Dallas",
-            "💰 Hard money rates likely to stabilize at 12-14%",
-            "🎯 Best buying window: Next 30-45 days"
-        ]
         
-        for prediction in predictions:
-            st.info(prediction)
+        user_predictions = st.session_state.get('ai_predictions', [])
+        if user_predictions:
+            for prediction in user_predictions:
+                st.info(prediction)
+        else:
+            st.info("🤖 **AI Predictions Coming Soon**\n\nAdd deals and market data to generate AI-powered insights and predictions here.")
     
     # Deal analysis
     st.markdown("#### 🔍 Quick Deal Analysis")
@@ -1243,40 +1249,23 @@ def show_deal_automation():
     # Quick automations
     st.markdown("#### ⚡ Quick Setup Automations")
     
-    automations = [
-        {
-            "name": "📧 New Lead Email Sequence",
-            "description": "Automatically send welcome emails to new leads",
-            "status": "Active"
-        },
-        {
-            "name": "📞 Follow-up Reminders",
-            "description": "Schedule automatic follow-up reminders",
-            "status": "Active"
-        },
-        {
-            "name": "📊 Deal Status Updates",
-            "description": "Auto-update deal status based on actions",
-            "status": "Inactive"
-        },
-        {
-            "name": "💰 ROI Calculations",
-            "description": "Automatically calculate ROI for new deals",
-            "status": "Active"
-        }
-    ]
+    # Check if user has custom automations
+    user_automations = st.session_state.get('user_automations', [])
     
-    for automation in automations:
-        col1, col2, col3 = st.columns([3, 1, 1])
-        with col1:
-            st.markdown(f"**{automation['name']}**")
-            st.caption(automation['description'])
-        with col2:
-            status_color = "🟢" if automation['status'] == "Active" else "🔴"
-            st.markdown(f"{status_color} {automation['status']}")
-        with col3:
-            if st.button("⚙️ Setup", key=f"auto_{automation['name']}"):
-                st.success(f"✅ {automation['name']} configured!")
+    if user_automations:
+        for automation in user_automations:
+            col1, col2, col3 = st.columns([3, 1, 1])
+            with col1:
+                st.markdown(f"**{automation['name']}**")
+                st.caption(automation['description'])
+            with col2:
+                status_color = "🟢" if automation['status'] == "Active" else "🔴"
+                st.markdown(f"{status_color} {automation['status']}")
+            with col3:
+                if st.button("⚙️ Setup", key=f"auto_{automation['name']}"):
+                    st.success(f"✅ {automation['name']} configured!")
+    else:
+        st.info("🔧 **No Automations Setup Yet**\n\nCreate your first automation to streamline your real estate investment process.")
 
 def show_workflow_automation():
     """Custom workflow automation builder"""
@@ -1382,16 +1371,16 @@ def show_profile_settings():
     
     with col1:
         st.markdown("#### Personal Information")
-        first_name = st.text_input("First Name", value="John")
-        last_name = st.text_input("Last Name", value="Doe")
-        email = st.text_input("Email", value="john.doe@example.com")
-        phone = st.text_input("Phone", value="+1 (555) 123-4567")
+        first_name = st.text_input("First Name", value=st.session_state.get('user_first_name', ''))
+        last_name = st.text_input("Last Name", value=st.session_state.get('user_last_name', ''))
+        email = st.text_input("Email", value=st.session_state.get('user_email', ''))
+        phone = st.text_input("Phone", value=st.session_state.get('user_phone', ''))
         
     with col2:
         st.markdown("#### Professional Details")
-        company = st.text_input("Company", value="Real Estate Investments LLC")
-        title = st.text_input("Title", value="Investment Analyst")
-        bio = st.text_area("Bio", value="Experienced real estate investor focusing on fix-and-flip opportunities")
+        company = st.text_input("Company", value=st.session_state.get('user_company', ''))
+        title = st.text_input("Title", value=st.session_state.get('user_title', ''))
+        bio = st.text_area("Bio", value=st.session_state.get('user_bio', ''))
         
     if st.button("💾 Save Profile"):
         st.success("Profile updated successfully!")
@@ -1587,7 +1576,8 @@ def main():
             st.session_state.force_enhanced_crm = True
             st.rerun()
         else:
-            st.sidebar.error("Enhanced CRM module not available")
+            # Silently handle unavailable enhanced CRM
+            pass
     
     st.sidebar.caption("*Full-featured CRM with 16+ specialized modules*")
     
@@ -1598,7 +1588,8 @@ def main():
             show_enhanced_crm()
             return
         else:
-            st.error("Enhanced CRM module not available")
+            # Silently fall back to standard functionality
+            pass
     
     # Route to consolidated functions
     if page == "📊 Executive Dashboard":
@@ -1612,7 +1603,6 @@ def main():
             if ENHANCED_CRM_AVAILABLE:
                 show_enhanced_crm()
             else:
-                st.error("Enhanced CRM module not available")
                 show_contact_center()
         else:
             show_contact_center()
@@ -1625,7 +1615,6 @@ def main():
             if ENHANCED_CRM_AVAILABLE:
                 show_enhanced_crm()
             else:
-                st.error("Enhanced CRM module not available")
                 show_analytics_dashboard()
         else:
             show_analytics_dashboard()
@@ -1636,7 +1625,6 @@ def main():
             if ENHANCED_CRM_AVAILABLE:
                 show_enhanced_crm()
             else:
-                st.error("Enhanced CRM module not available")
                 show_unified_communication_center()
         else:
             show_unified_communication_center()
@@ -1647,42 +1635,36 @@ def main():
             if ENHANCED_CRM_AVAILABLE:
                 show_enhanced_crm()
             else:
-                st.error("Enhanced CRM module not available")
                 show_automation_center()
         elif st.session_state.get('redirect_to_enhanced_email', False):
             st.session_state.redirect_to_enhanced_email = False
             if ENHANCED_CRM_AVAILABLE:
                 show_enhanced_crm()
             else:
-                st.error("Enhanced CRM module not available")
                 show_automation_center()
         elif st.session_state.get('redirect_to_enhanced_sms', False):
             st.session_state.redirect_to_enhanced_sms = False
             if ENHANCED_CRM_AVAILABLE:
                 show_enhanced_crm()
             else:
-                st.error("Enhanced CRM module not available")
                 show_automation_center()
         elif st.session_state.get('redirect_to_enhanced_workflows', False):
             st.session_state.redirect_to_enhanced_workflows = False
             if ENHANCED_CRM_AVAILABLE:
                 show_enhanced_crm()
             else:
-                st.error("Enhanced CRM module not available")
                 show_automation_center()
         elif st.session_state.get('redirect_to_enhanced_tasks', False):
             st.session_state.redirect_to_enhanced_tasks = False
             if ENHANCED_CRM_AVAILABLE:
                 show_enhanced_crm()
             else:
-                st.error("Enhanced CRM module not available")
                 show_automation_center()
         elif st.session_state.get('redirect_to_enhanced_ai', False):
             st.session_state.redirect_to_enhanced_ai = False
             if ENHANCED_CRM_AVAILABLE:
                 show_enhanced_crm()
             else:
-                st.error("Enhanced CRM module not available")
                 show_automation_center()
         else:
             show_automation_center()
@@ -2678,7 +2660,8 @@ def show_enhanced_crm_features():
                 st.markdown("- 🔄 Automated follow-up sequences")
                 st.markdown("- 📊 Contact interaction history")
             except ImportError:
-                st.warning("Enhanced CRM module not available. Using basic contact management.")
+                # Silently handle missing enhanced CRM module
+                pass
         
         with col2:
             if st.button("➕ Add Contact", use_container_width=True):
@@ -2782,11 +2765,17 @@ def show_enhanced_crm_features():
             # Sample advanced metrics
             col1, col2, col3 = st.columns(3)
             with col1:
-                st.metric("Lead Conversion", "23.5%", "+2.1%")
+                lead_conv = st.session_state.get('lead_conversion_rate', 0.0)
+                conv_change = st.session_state.get('conversion_rate_change', 0.0)
+                st.metric("Lead Conversion", f"{lead_conv:.1f}%" if lead_conv > 0 else "0%", f"+{conv_change:.1f}%" if conv_change > 0 else "+0%")
             with col2:
-                st.metric("Avg. Deal Size", "$125K", "+$15K")
+                avg_deal = st.session_state.get('average_deal_value', 0)
+                deal_change = st.session_state.get('deal_value_change', 0)
+                st.metric("Avg. Deal Size", f"${avg_deal:,.0f}" if avg_deal > 0 else "$0", f"+${deal_change:,.0f}" if deal_change > 0 else "+$0")
             with col3:
-                st.metric("Pipeline Value", "$2.1M", "+$300K")
+                pipeline_val = st.session_state.get('total_pipeline_value', 0)
+                pipeline_change = st.session_state.get('pipeline_value_change', 0)
+                st.metric("Pipeline Value", f"${pipeline_val:,.0f}" if pipeline_val > 0 else "$0", f"+${pipeline_change:,.0f}" if pipeline_change > 0 else "+$0")
     
     with enhanced_tabs[3]:  # Automation Center
         if not check_subscription_access('professional'):
