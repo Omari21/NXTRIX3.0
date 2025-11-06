@@ -5,6 +5,11 @@ Now with CONSOLIDATED NAVIGATION for optimal user experience
 """
 
 import streamlit as st
+import os
+
+# Set production environment to suppress secrets.toml warnings
+if not os.getenv('STREAMLIT_ENV'):
+    os.environ['STREAMLIT_ENV'] = 'production'
 
 # Configure Streamlit page FIRST - before any other Streamlit operations
 st.set_page_config(
