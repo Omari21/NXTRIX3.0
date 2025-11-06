@@ -108,11 +108,18 @@ class StripePaymentSystem:
         """Check if Stripe is properly configured and available"""
         return STRIPE_IMPORT_SUCCESS and self.stripe_available and stripe.api_key is not None
     
+    @property
+    def stripe(self):
+        """Expose stripe module for direct access when needed"""
+        if self.is_stripe_available():
+            return stripe
+        return None
+    
     def create_customer(self, email, name, phone=None):
         """Create a new Stripe customer"""
         try:
             if not self.is_stripe_available():
-                st.warning("⚠️ Stripe not configured - customer creation unavailable")
+                # Silently return None if Stripe not available
                 return None
                 
             customer = stripe.Customer.create(
@@ -126,7 +133,7 @@ class StripePaymentSystem:
             )
             return customer
         except stripe.error.StripeError as e:
-            st.error(f"Error creating customer: {str(e)}")
+            # Silently handle Stripe errors in production
             return None
     
     def create_subscription(self, customer_id, plan_tier, billing_frequency='monthly'):
@@ -136,7 +143,7 @@ class StripePaymentSystem:
             price_config = self.PRICING_CONFIG[plan_tier][billing_frequency]
             
             if not price_config['price_id']:
-                st.error(f"Price ID not configured for {plan_tier} {billing_frequency}")
+                # Silently handle missing price configuration
                 return None
             
             subscription = stripe.Subscription.create(
@@ -156,20 +163,20 @@ class StripePaymentSystem:
             
             return subscription
         except stripe.error.StripeError as e:
-            st.error(f"Error creating subscription: {str(e)}")
+            # Silently handle Stripe errors in production
             return None
     
     def create_checkout_session(self, customer_email, plan_tier, billing_frequency='monthly'):
         """Create a Stripe Checkout session for subscription signup"""
         try:
             if not self.is_stripe_available():
-                st.warning("⚠️ Stripe not configured - checkout unavailable")
+                # Silently return None if Stripe not configured
                 return None
                 
             price_config = self.PRICING_CONFIG[plan_tier][billing_frequency]
             
             if not price_config['price_id']:
-                st.error(f"Price ID not configured for {plan_tier} {billing_frequency}")
+                # Silently handle missing price configuration
                 return None
             
             checkout_session = stripe.checkout.Session.create(

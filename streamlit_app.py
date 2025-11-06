@@ -114,7 +114,11 @@ def show_upgrade_required(feature_name, required_tier):
 def check_trial_expiration():
     """Check if trial period has expired"""
     if 'trial_start_date' not in st.session_state:
-        st.session_state.trial_start_date = datetime.now()
+        # For existing demo accounts that were created >7 days ago, set trial start 8 days ago
+        if st.session_state.get('user_email') == 'demo@nxtrix.com':
+            st.session_state.trial_start_date = datetime.now() - timedelta(days=8)
+        else:
+            st.session_state.trial_start_date = datetime.now()
     
     if 'subscription_tier' not in st.session_state:
         st.session_state.subscription_tier = 'trial'
@@ -221,10 +225,11 @@ def show_deal_center():
         
     with tab3:
         st.subheader("💼 Deal Management (CRM)")
-        if ENHANCED_CRM_AVAILABLE:
+        # Check subscription access before showing Enhanced CRM
+        if check_subscription_access('professional') and ENHANCED_CRM_AVAILABLE:
             show_enhanced_crm()
         else:
-            # Silently fall back to basic contact management
+            # Show basic contact management for trial users or if Enhanced CRM unavailable
             show_contact_center()
 
 def show_contact_center():
@@ -296,8 +301,14 @@ def show_contact_center():
     """)
     
     if st.button("🚀 **Access Enhanced CRM Suite**", type="secondary", use_container_width=True):
-        st.session_state.redirect_to_enhanced_crm = True
-        st.rerun()
+        # Check if user has access to Enhanced CRM (Professional tier or higher)
+        if check_subscription_access('professional'):
+            st.session_state.redirect_to_enhanced_crm = True
+            st.rerun()
+        else:
+            # Redirect to upgrade page if no access
+            st.session_state.page = "subscription"
+            st.rerun()
 
 def show_analytics_dashboard():
     """Business Analytics Dashboard - Overview with upgrade path to Enhanced CRM analytics"""
@@ -385,8 +396,14 @@ def show_analytics_dashboard():
     """)
     
     if st.button("🚀 **Access Enhanced Analytics Suite**", type="secondary", use_container_width=True):
-        st.session_state.redirect_to_enhanced_analytics = True
-        st.rerun()
+        # Check if user has access to Enhanced Analytics (Professional tier or higher)
+        if check_subscription_access('professional'):
+            st.session_state.redirect_to_enhanced_analytics = True
+            st.rerun()
+        else:
+            # Redirect to upgrade page if no access
+            st.session_state.page = "subscription"
+            st.rerun()
 
 def show_unified_communication_center():
     """Business Communication Center - Simple messaging with upgrade path"""
@@ -458,8 +475,14 @@ def show_unified_communication_center():
     """)
     
     if st.button("🚀 **Access Enhanced Communication Suite**", type="secondary", use_container_width=True):
-        st.session_state.redirect_to_enhanced_comm = True
-        st.rerun()
+        # Check if user has access to Enhanced Communication (Professional tier or higher)
+        if check_subscription_access('professional'):
+            st.session_state.redirect_to_enhanced_comm = True
+            st.rerun()
+        else:
+            # Redirect to upgrade page if no access
+            st.session_state.page = "subscription"
+            st.rerun()
 
 def show_automation_center():
     """Business Automation Center - Simple automation with upgrade path"""
@@ -1457,6 +1480,10 @@ def init_session_state():
         st.session_state.user_data = {}
     if 'user_tier' not in st.session_state:
         st.session_state.user_tier = 'trial'
+    if 'subscription_tier' not in st.session_state:
+        st.session_state.subscription_tier = 'trial'
+    if 'trial_start_date' not in st.session_state:
+        st.session_state.trial_start_date = datetime.now()
 
 def show_login():
     """Show login interface"""
@@ -1483,12 +1510,14 @@ def show_login():
             # Simple demo authentication
             if email and password:
                 st.session_state.authenticated = True
+                st.session_state.user_email = email
                 st.session_state.user_data = {
                     'email': email,
                     'full_name': 'Demo User',
-                    'user_tier': 'professional'
+                    'user_tier': 'trial'  # Start everyone as trial
                 }
-                st.session_state.user_tier = 'professional'
+                st.session_state.user_tier = 'trial'
+                st.session_state.subscription_tier = 'trial'
                 st.rerun()
         
         if register_submitted:
@@ -1572,12 +1601,18 @@ def main():
     st.sidebar.markdown("### 🚀 **Power User Zone**")
     
     if st.sidebar.button("🤝 **Enhanced CRM Suite**", use_container_width=True, type="secondary"):
-        if ENHANCED_CRM_AVAILABLE:
-            st.session_state.force_enhanced_crm = True
-            st.rerun()
+        # Check if user has access to Enhanced CRM (Professional tier or higher)
+        if check_subscription_access('professional'):
+            if ENHANCED_CRM_AVAILABLE:
+                st.session_state.force_enhanced_crm = True
+                st.rerun()
+            else:
+                # Silently handle unavailable enhanced CRM
+                pass
         else:
-            # Silently handle unavailable enhanced CRM
-            pass
+            # Redirect to upgrade page if no access
+            st.session_state.page = "subscription" 
+            st.rerun()
     
     st.sidebar.caption("*Full-featured CRM with 16+ specialized modules*")
     
