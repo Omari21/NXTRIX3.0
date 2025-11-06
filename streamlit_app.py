@@ -28,6 +28,12 @@ from datetime import datetime, timedelta
 from typing import List, Optional, Dict, Any
 import uuid
 import time
+
+# Import our premium UI components
+from ui_components import apply_premium_styling, create_header, create_metric_card, create_card, create_status_badge, create_premium_badge
+
+# Apply premium styling immediately
+apply_premium_styling()
 import traceback
 import sys
 from contextlib import contextmanager
@@ -252,16 +258,17 @@ def show_contact_center():
             st.session_state.show_enhanced_crm_upgrade = True
             st.rerun()
     
-    # Simple contact metrics
+    # Premium contact metrics with enhanced styling
+    st.markdown("### 📊 Contact Overview")
     col1, col2, col3, col4 = st.columns(4)
     with col1:
-        st.metric("👥 Total Contacts", "47")
+        st.markdown(create_metric_card("Total Contacts", "47", 12.5, "👥"), unsafe_allow_html=True)
     with col2:
-        st.metric("🏛️ Investors", "23")
+        st.markdown(create_metric_card("Investors", "23", 8.3, "🏛️"), unsafe_allow_html=True)
     with col3:
-        st.metric("🎯 Buyers", "18")
+        st.markdown(create_metric_card("Buyers", "18", -5.2, "🎯"), unsafe_allow_html=True)
     with col4:
-        st.metric("📋 Leads", "31")
+        st.markdown(create_metric_card("Leads", "31", 15.7, "📋"), unsafe_allow_html=True)
     
     # Quick actions
     st.markdown("### ⚡ Quick Actions")
@@ -1492,8 +1499,10 @@ def init_session_state():
 
 def show_login():
     """Show login interface"""
-    st.title("🏢 NXTRIX Platform")
-    st.markdown("### Welcome to Your Real Estate Investment Platform")
+    # Create premium header
+    create_header()
+    
+    st.markdown("### Welcome to Your Professional Real Estate Investment Platform")
     
     col1, col2, col3 = st.columns([1, 2, 1])
     
@@ -1572,11 +1581,23 @@ def main():
         days_remaining = 7 - days_elapsed
         
         if days_remaining <= 2:
-            st.warning(f"⏰ **Trial expires in {days_remaining} days** - Upgrade to continue access")
+            st.markdown(f"""
+            <div class="trial-banner">
+                <h3>⏰ Trial Expiring Soon</h3>
+                <p>Your trial expires in <strong>{days_remaining} days</strong> - Upgrade to continue access to premium features</p>
+            </div>
+            """, unsafe_allow_html=True)
     
     # Main application header
-    st.title("🏢 NXTRIX Platform")
-    st.markdown(f"**Welcome back, {user_data.get('full_name', 'User')}!**")
+    create_header()
+    
+    # Welcome message with premium styling
+    st.markdown(f"""
+    <div class="nxtrix-card fade-in">
+        <h3>Welcome back, <strong>{user_data.get('full_name', 'User')}</strong>! {create_premium_badge()}</h3>
+        <p>Your professional real estate investment platform is ready.</p>
+    </div>
+    """, unsafe_allow_html=True)
     
     # Sidebar navigation
     st.sidebar.title("🏢 NXTRIX")
