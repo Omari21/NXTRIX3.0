@@ -3,6 +3,8 @@ NXTRIX Platform - Premium UI/UX CSS Styling
 Modern, professional design for real estate investment platform
 """
 
+import streamlit as st
+
 def apply_premium_styling():
     """Apply premium CSS styling to NXTRIX platform"""
     st.markdown("""
