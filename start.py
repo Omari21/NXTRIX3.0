@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Startup script for NXTRIX Platform on Railway
-Handles dynamic port configuration
+Startup script for NXTRIX Enterprise Platform
+Handles dynamic port configuration for enterprise CRM interface
 """
 import os
 import subprocess
@@ -20,17 +20,18 @@ def main():
         print(f"Invalid port '{port}', using default 8000")
         port = '8000'
     
-    # Build streamlit command
+    # Build streamlit command for enterprise app
     cmd = [
-        'streamlit', 'run', 'streamlit_app.py',
+        'streamlit', 'run', 'enterprise_app.py',
         '--server.port', port,
         '--server.address', '0.0.0.0',
         '--server.headless', 'true',
         '--server.enableCORS', 'false',
-        '--server.enableXsrfProtection', 'false'
+        '--server.enableXsrfProtection', 'false',
+        '--theme.base', 'light'
     ]
     
-    print(f"Starting NXTRIX Platform on port {port}")
+    print(f"Starting NXTRIX Enterprise Platform on port {port}")
     print(f"Command: {' '.join(cmd)}")
     
     # Execute streamlit
