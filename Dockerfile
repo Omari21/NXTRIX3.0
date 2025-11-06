@@ -24,12 +24,15 @@ RUN pip install -r requirements.txt
 # Copy application code
 COPY . .
 
+# Make the startup script executable
+RUN chmod +x /app/start.py
+
 # Expose port (Railway will set the PORT environment variable)
-EXPOSE $PORT
+EXPOSE 8000
 
 # Set environment variables
 ENV STREAMLIT_ENV=production
 ENV PYTHONPATH=/app
 
-# Start command
-CMD streamlit run streamlit_app.py --server.port=$PORT --server.address=0.0.0.0
+# Start command using Python script
+CMD ["python", "/app/start.py"]
