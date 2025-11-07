@@ -45,7 +45,8 @@ def inject_custom_webapp():
             if 'current_action' in st.session_state:
                 del st.session_state.current_action
     
-    webapp_html = f"""
+    # Use regular string instead of f-string to avoid CSS syntax conflicts
+    webapp_html = """
     <!DOCTYPE html>
     <html lang="en">
     <head>
@@ -111,10 +112,10 @@ def inject_custom_webapp():
                 animation: backgroundFlow 20s ease-in-out infinite;
             }
             
-            @keyframes backgroundFlow {
-                0%, 100% { opacity: 1; }
-                50% { opacity: 0.7; }
-            }
+            @keyframes backgroundFlow {{
+                0%, 100% {{ opacity: 1; }}
+                50% {{ opacity: 0.7; }}
+            }}
             
             /* Main App Container */
             .app-container {
