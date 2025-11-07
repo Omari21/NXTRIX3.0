@@ -3009,55 +3009,832 @@ def inject_custom_webapp():
                 }, 3000);
             }
             
-            // Page Content Generators
+            // Page Content Generators with Charts, Graphs, and Calendars
             function getDashboardContent() {
                 return `
-                    <div class="dashboard-grid">
-                        <div class="dashboard-card">
-                            <div class="card-header">
-                                <h3 class="card-title">Deal Pipeline</h3>
-                                <div class="card-icon">
-                                    <i class="fas fa-chart-line"></i>
+                    <div class="dashboard-overview">
+                        <!-- KPI Cards Row -->
+                        <div class="kpi-cards">
+                            <div class="kpi-card revenue">
+                                <div class="kpi-icon">
+                                    <i class="fas fa-dollar-sign"></i>
+                                </div>
+                                <div class="kpi-content">
+                                    <div class="kpi-value">$2.4M</div>
+                                    <div class="kpi-label">Revenue YTD</div>
+                                    <div class="kpi-change positive">
+                                        <i class="fas fa-arrow-up"></i> +24.5%
+                                    </div>
+                                </div>
+                                <div class="kpi-chart">
+                                    <canvas id="revenueChart" width="80" height="40"></canvas>
                                 </div>
                             </div>
-                            <div class="metrics-grid">
-                                <div class="metric-card">
-                                    <div class="metric-value">47</div>
-                                    <div class="metric-label">Active Deals</div>
+                            
+                            <div class="kpi-card deals">
+                                <div class="kpi-icon">
+                                    <i class="fas fa-handshake"></i>
                                 </div>
-                                <div class="metric-card">
-                                    <div class="metric-value">$12.4M</div>
-                                    <div class="metric-label">Total Value</div>
+                                <div class="kpi-content">
+                                    <div class="kpi-value">47</div>
+                                    <div class="kpi-label">Active Deals</div>
+                                    <div class="kpi-change positive">
+                                        <i class="fas fa-arrow-up"></i> +12
+                                    </div>
+                                </div>
+                                <div class="kpi-chart">
+                                    <canvas id="dealsChart" width="80" height="40"></canvas>
                                 </div>
                             </div>
-                            <div class="quick-actions">
-                                <button class="cta-button" onclick="handleCTA('newDeal')">
-                                    <i class="fas fa-plus"></i>
-                                    New Deal
-                                </button>
-                                <button class="cta-button cta-secondary" onclick="handleCTA('analyzeDeal')">
-                                    <i class="fas fa-analytics"></i>
-                                    Analyze
-                                </button>
+                            
+                            <div class="kpi-card contacts">
+                                <div class="kpi-icon">
+                                    <i class="fas fa-users"></i>
+                                </div>
+                                <div class="kpi-content">
+                                    <div class="kpi-value">1,247</div>
+                                    <div class="kpi-label">Contacts</div>
+                                    <div class="kpi-change positive">
+                                        <i class="fas fa-arrow-up"></i> +89
+                                    </div>
+                                </div>
+                                <div class="kpi-chart">
+                                    <canvas id="contactsChart" width="80" height="40"></canvas>
+                                </div>
+                            </div>
+                            
+                            <div class="kpi-card conversion">
+                                <div class="kpi-icon">
+                                    <i class="fas fa-percentage"></i>
+                                </div>
+                                <div class="kpi-content">
+                                    <div class="kpi-value">68%</div>
+                                    <div class="kpi-label">Conversion</div>
+                                    <div class="kpi-change positive">
+                                        <i class="fas fa-arrow-up"></i> +8.2%
+                                    </div>
+                                </div>
+                                <div class="kpi-chart">
+                                    <canvas id="conversionChart" width="80" height="40"></canvas>
+                                </div>
                             </div>
                         </div>
                         
-                        <div class="dashboard-card">
-                            <div class="card-header">
-                                <h3 class="card-title">Contact Management</h3>
-                                <div class="card-icon">
-                                    <i class="fas fa-users"></i>
+                        <!-- Main Dashboard Grid -->
+                        <div class="dashboard-grid">
+                            <!-- Revenue Chart -->
+                            <div class="dashboard-card chart-card">
+                                <div class="card-header">
+                                    <h3>Revenue Trends</h3>
+                                    <div class="chart-controls">
+                                        <select onchange="updateRevenueChart(this.value)">
+                                            <option value="7d">7 Days</option>
+                                            <option value="30d" selected>30 Days</option>
+                                            <option value="90d">90 Days</option>
+                                            <option value="1y">1 Year</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="chart-container">
+                                    <canvas id="mainRevenueChart" width="500" height="250"></canvas>
                                 </div>
                             </div>
-                            <div class="metrics-grid">
-                                <div class="metric-card">
-                                    <div class="metric-value">1,247</div>
-                                    <div class="metric-label">Total Contacts</div>
+                            
+                            <!-- Deal Pipeline Chart -->
+                            <div class="dashboard-card chart-card">
+                                <div class="card-header">
+                                    <h3>Deal Pipeline</h3>
+                                    <div class="chart-total">$12.4M Total</div>
                                 </div>
-                                <div class="metric-card">
-                                    <div class="metric-value">89</div>
-                                    <div class="metric-label">Active Investors</div>
+                                <div class="chart-container">
+                                    <canvas id="pipelineChart" width="400" height="250"></canvas>
                                 </div>
+                                <div class="pipeline-legend">
+                                    <div class="legend-item"><span class="legend-color lead"></span> Leads (23)</div>
+                                    <div class="legend-item"><span class="legend-color qualified"></span> Qualified (15)</div>
+                                    <div class="legend-item"><span class="legend-color proposal"></span> Proposal (9)</div>
+                                    <div class="legend-item"><span class="legend-color closing"></span> Closing (5)</div>
+                                </div>
+                            </div>
+                            
+                            <!-- Calendar Widget -->
+                            <div class="dashboard-card calendar-card">
+                                <div class="card-header">
+                                    <h3>Calendar</h3>
+                                    <div class="calendar-nav">
+                                        <button onclick="previousMonth()"><i class="fas fa-chevron-left"></i></button>
+                                        <span id="calendarMonth">November 2025</span>
+                                        <button onclick="nextMonth()"><i class="fas fa-chevron-right"></i></button>
+                                    </div>
+                                </div>
+                                <div class="calendar-container">
+                                    <div class="calendar-grid" id="calendarGrid">
+                                        <!-- Calendar will be generated by JavaScript -->
+                                    </div>
+                                </div>
+                                <div class="calendar-events">
+                                    <div class="event-item">
+                                        <div class="event-time">10:00 AM</div>
+                                        <div class="event-title">Property Viewing</div>
+                                    </div>
+                                    <div class="event-item">
+                                        <div class="event-time">2:30 PM</div>
+                                        <div class="event-title">Investor Meeting</div>
+                                    </div>
+                                    <div class="event-item">
+                                        <div class="event-time">4:00 PM</div>
+                                        <div class="event-title">Deal Analysis</div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Quick Actions -->
+                            <div class="dashboard-card actions-card">
+                                <div class="card-header">
+                                    <h3>Quick Actions</h3>
+                                </div>
+                                <div class="actions-grid">
+                                    <button class="action-tile" onclick="handleCTA('newDeal')">
+                                        <i class="fas fa-plus"></i>
+                                        <span>New Deal</span>
+                                    </button>
+                                    <button class="action-tile" onclick="handleCTA('addContact')">
+                                        <i class="fas fa-user-plus"></i>
+                                        <span>Add Contact</span>
+                                    </button>
+                                    <button class="action-tile" onclick="handleCTA('sendEmail')">
+                                        <i class="fas fa-envelope"></i>
+                                        <span>Send Email</span>
+                                    </button>
+                                    <button class="action-tile" onclick="handleCTA('aiAnalysis')">
+                                        <i class="fas fa-brain"></i>
+                                        <span>AI Analysis</span>
+                                    </button>
+                                    <button class="action-tile" onclick="handleCTA('generateReport')">
+                                        <i class="fas fa-chart-bar"></i>
+                                        <span>Generate Report</span>
+                                    </button>
+                                    <button class="action-tile" onclick="handleCTA('marketAnalysis')">
+                                        <i class="fas fa-search-dollar"></i>
+                                        <span>Market Research</span>
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <!-- Recent Activity -->
+                            <div class="dashboard-card activity-card">
+                                <div class="card-header">
+                                    <h3>Recent Activity</h3>
+                                    <button onclick="refreshActivity()" class="refresh-btn">
+                                        <i class="fas fa-sync-alt"></i>
+                                    </button>
+                                </div>
+                                <div class="activity-list">
+                                    <div class="activity-item">
+                                        <div class="activity-icon new-deal">
+                                            <i class="fas fa-handshake"></i>
+                                        </div>
+                                        <div class="activity-content">
+                                            <div class="activity-title">New deal created</div>
+                                            <div class="activity-subtitle">Downtown Property - $450K</div>
+                                            <div class="activity-time">2 minutes ago</div>
+                                        </div>
+                                    </div>
+                                    <div class="activity-item">
+                                        <div class="activity-icon new-contact">
+                                            <i class="fas fa-user"></i>
+                                        </div>
+                                        <div class="activity-content">
+                                            <div class="activity-title">New contact added</div>
+                                            <div class="activity-subtitle">Sarah Johnson - Investor</div>
+                                            <div class="activity-time">15 minutes ago</div>
+                                        </div>
+                                    </div>
+                                    <div class="activity-item">
+                                        <div class="activity-icon email">
+                                            <i class="fas fa-envelope"></i>
+                                        </div>
+                                        <div class="activity-content">
+                                            <div class="activity-title">Email campaign sent</div>
+                                            <div class="activity-subtitle">Monthly Newsletter - 1,247 recipients</div>
+                                            <div class="activity-time">1 hour ago</div>
+                                        </div>
+                                    </div>
+                                    <div class="activity-item">
+                                        <div class="activity-icon analysis">
+                                            <i class="fas fa-chart-line"></i>
+                                        </div>
+                                        <div class="activity-content">
+                                            <div class="activity-title">AI analysis completed</div>
+                                            <div class="activity-subtitle">Market opportunity identified</div>
+                                            <div class="activity-time">2 hours ago</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <style>
+                        .dashboard-overview {
+                            display: grid;
+                            gap: 24px;
+                        }
+                        
+                        .kpi-cards {
+                            display: grid;
+                            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+                            gap: 20px;
+                        }
+                        
+                        .kpi-card {
+                            background: var(--surface);
+                            border: 1px solid var(--border);
+                            border-radius: 16px;
+                            padding: 20px;
+                            display: grid;
+                            grid-template-columns: auto 1fr auto;
+                            align-items: center;
+                            gap: 16px;
+                            transition: all 0.3s ease;
+                        }
+                        
+                        .kpi-card:hover {
+                            transform: translateY(-4px);
+                            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+                        }
+                        
+                        .kpi-icon {
+                            width: 56px;
+                            height: 56px;
+                            border-radius: 12px;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            font-size: 24px;
+                        }
+                        
+                        .revenue .kpi-icon {
+                            background: linear-gradient(135deg, var(--success), #34d399);
+                            color: white;
+                        }
+                        
+                        .deals .kpi-icon {
+                            background: linear-gradient(135deg, var(--primary), var(--primary-light));
+                            color: white;
+                        }
+                        
+                        .contacts .kpi-icon {
+                            background: linear-gradient(135deg, var(--secondary), #38bdf8);
+                            color: white;
+                        }
+                        
+                        .conversion .kpi-icon {
+                            background: linear-gradient(135deg, var(--accent), #34d399);
+                            color: white;
+                        }
+                        
+                        .kpi-content {
+                            display: flex;
+                            flex-direction: column;
+                        }
+                        
+                        .kpi-value {
+                            font-size: 28px;
+                            font-weight: 700;
+                            color: var(--text);
+                            line-height: 1;
+                        }
+                        
+                        .kpi-label {
+                            font-size: 14px;
+                            color: var(--text-muted);
+                            margin-top: 4px;
+                        }
+                        
+                        .kpi-change {
+                            display: flex;
+                            align-items: center;
+                            gap: 4px;
+                            font-size: 12px;
+                            font-weight: 600;
+                            margin-top: 8px;
+                        }
+                        
+                        .kpi-change.positive {
+                            color: var(--success);
+                        }
+                        
+                        .kpi-chart {
+                            width: 80px;
+                            height: 40px;
+                        }
+                        
+                        .dashboard-grid {
+                            display: grid;
+                            grid-template-columns: 2fr 1fr;
+                            grid-template-rows: auto auto auto;
+                            gap: 24px;
+                        }
+                        
+                        .chart-card {
+                            grid-column: 1;
+                            min-height: 320px;
+                        }
+                        
+                        .calendar-card {
+                            grid-column: 2;
+                            grid-row: 1 / 3;
+                        }
+                        
+                        .actions-card {
+                            grid-column: 1;
+                        }
+                        
+                        .activity-card {
+                            grid-column: 2;
+                        }
+                        
+                        .chart-container {
+                            padding: 20px;
+                            height: 250px;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                        }
+                        
+                        .chart-controls select {
+                            background: var(--surface-light);
+                            border: 1px solid var(--border);
+                            color: var(--text);
+                            padding: 6px 12px;
+                            border-radius: 6px;
+                            font-size: 14px;
+                        }
+                        
+                        .pipeline-legend {
+                            display: flex;
+                            justify-content: space-around;
+                            padding: 16px;
+                            border-top: 1px solid var(--border);
+                        }
+                        
+                        .legend-item {
+                            display: flex;
+                            align-items: center;
+                            gap: 8px;
+                            font-size: 12px;
+                        }
+                        
+                        .legend-color {
+                            width: 12px;
+                            height: 12px;
+                            border-radius: 3px;
+                        }
+                        
+                        .legend-color.lead { background: #ef4444; }
+                        .legend-color.qualified { background: #f59e0b; }
+                        .legend-color.proposal { background: var(--secondary); }
+                        .legend-color.closing { background: var(--success); }
+                        
+                        .calendar-nav {
+                            display: flex;
+                            align-items: center;
+                            gap: 12px;
+                        }
+                        
+                        .calendar-nav button {
+                            background: none;
+                            border: none;
+                            color: var(--text-muted);
+                            cursor: pointer;
+                            padding: 4px;
+                            border-radius: 4px;
+                            transition: all 0.3s ease;
+                        }
+                        
+                        .calendar-nav button:hover {
+                            color: var(--text);
+                            background: var(--hover);
+                        }
+                        
+                        .calendar-grid {
+                            display: grid;
+                            grid-template-columns: repeat(7, 1fr);
+                            gap: 2px;
+                            margin-bottom: 16px;
+                        }
+                        
+                        .calendar-day {
+                            aspect-ratio: 1;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            font-size: 14px;
+                            border-radius: 6px;
+                            cursor: pointer;
+                            transition: all 0.3s ease;
+                        }
+                        
+                        .calendar-day:hover {
+                            background: var(--hover);
+                        }
+                        
+                        .calendar-day.today {
+                            background: var(--primary);
+                            color: white;
+                        }
+                        
+                        .calendar-day.has-event {
+                            background: var(--surface-light);
+                            position: relative;
+                        }
+                        
+                        .calendar-day.has-event::after {
+                            content: '';
+                            position: absolute;
+                            bottom: 2px;
+                            left: 50%;
+                            transform: translateX(-50%);
+                            width: 4px;
+                            height: 4px;
+                            background: var(--primary);
+                            border-radius: 50%;
+                        }
+                        
+                        .calendar-events {
+                            border-top: 1px solid var(--border);
+                            padding-top: 16px;
+                        }
+                        
+                        .event-item {
+                            display: flex;
+                            align-items: center;
+                            gap: 12px;
+                            padding: 8px 0;
+                            border-bottom: 1px solid var(--border);
+                        }
+                        
+                        .event-item:last-child {
+                            border-bottom: none;
+                        }
+                        
+                        .event-time {
+                            font-size: 12px;
+                            color: var(--text-muted);
+                            min-width: 60px;
+                        }
+                        
+                        .event-title {
+                            font-size: 14px;
+                            color: var(--text);
+                        }
+                        
+                        .actions-grid {
+                            display: grid;
+                            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+                            gap: 16px;
+                        }
+                        
+                        .action-tile {
+                            background: var(--surface-light);
+                            border: 1px solid var(--border);
+                            border-radius: 12px;
+                            padding: 20px 16px;
+                            cursor: pointer;
+                            transition: all 0.3s ease;
+                            display: flex;
+                            flex-direction: column;
+                            align-items: center;
+                            gap: 8px;
+                            text-align: center;
+                            color: var(--text);
+                        }
+                        
+                        .action-tile:hover {
+                            transform: translateY(-2px);
+                            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+                            background: var(--hover);
+                        }
+                        
+                        .action-tile i {
+                            font-size: 24px;
+                            color: var(--primary);
+                        }
+                        
+                        .action-tile span {
+                            font-size: 12px;
+                            font-weight: 500;
+                        }
+                        
+                        .activity-list {
+                            display: grid;
+                            gap: 12px;
+                        }
+                        
+                        .activity-item {
+                            display: flex;
+                            align-items: center;
+                            gap: 12px;
+                            padding: 12px;
+                            background: var(--surface-light);
+                            border-radius: 8px;
+                            transition: all 0.3s ease;
+                        }
+                        
+                        .activity-item:hover {
+                            background: var(--hover);
+                        }
+                        
+                        .activity-icon {
+                            width: 36px;
+                            height: 36px;
+                            border-radius: 8px;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            font-size: 16px;
+                        }
+                        
+                        .activity-icon.new-deal {
+                            background: linear-gradient(135deg, var(--primary), var(--primary-light));
+                            color: white;
+                        }
+                        
+                        .activity-icon.new-contact {
+                            background: linear-gradient(135deg, var(--secondary), #38bdf8);
+                            color: white;
+                        }
+                        
+                        .activity-icon.email {
+                            background: linear-gradient(135deg, var(--accent), #34d399);
+                            color: white;
+                        }
+                        
+                        .activity-icon.analysis {
+                            background: linear-gradient(135deg, #f59e0b, #fbbf24);
+                            color: white;
+                        }
+                        
+                        .activity-content {
+                            flex: 1;
+                        }
+                        
+                        .activity-title {
+                            font-size: 14px;
+                            font-weight: 600;
+                            color: var(--text);
+                            line-height: 1.3;
+                        }
+                        
+                        .activity-subtitle {
+                            font-size: 12px;
+                            color: var(--text-muted);
+                            line-height: 1.3;
+                        }
+                        
+                        .activity-time {
+                            font-size: 11px;
+                            color: var(--text-muted);
+                            margin-top: 4px;
+                        }
+                        
+                        .refresh-btn {
+                            background: none;
+                            border: none;
+                            color: var(--text-muted);
+                            cursor: pointer;
+                            padding: 4px;
+                            border-radius: 4px;
+                            transition: all 0.3s ease;
+                        }
+                        
+                        .refresh-btn:hover {
+                            color: var(--text);
+                            background: var(--hover);
+                            transform: rotate(180deg);
+                        }
+                        
+                        @media (max-width: 1200px) {
+                            .dashboard-grid {
+                                grid-template-columns: 1fr;
+                                grid-template-rows: auto;
+                            }
+                            
+                            .chart-card, .calendar-card, .actions-card, .activity-card {
+                                grid-column: 1;
+                                grid-row: auto;
+                            }
+                        }
+                    </style>
+                    
+                    <script>
+                        // Initialize dashboard components
+                        setTimeout(() => {
+                            initializeCharts();
+                            initializeCalendar();
+                        }, 500);
+                        
+                        function initializeCharts() {
+                            // Revenue Chart
+                            const revenueCtx = document.getElementById('mainRevenueChart');
+                            if (revenueCtx) {
+                                drawLineChart(revenueCtx, [1.2, 1.8, 2.1, 1.9, 2.4, 2.7, 2.4], '#10b981');
+                            }
+                            
+                            // Pipeline Chart
+                            const pipelineCtx = document.getElementById('pipelineChart');
+                            if (pipelineCtx) {
+                                drawPipelineChart(pipelineCtx);
+                            }
+                            
+                            // KPI Charts
+                            drawMiniChart('revenueChart', [10, 15, 12, 18, 24], '#10b981');
+                            drawMiniChart('dealsChart', [35, 40, 38, 45, 47], '#7c5cff');
+                            drawMiniChart('contactsChart', [1100, 1150, 1200, 1220, 1247], '#24d1ff');
+                            drawMiniChart('conversionChart', [60, 62, 65, 66, 68], '#f59e0b');
+                        }
+                        
+                        function drawLineChart(canvas, data, color) {
+                            const ctx = canvas.getContext('2d');
+                            const width = canvas.width;
+                            const height = canvas.height;
+                            const padding = 20;
+                            
+                            ctx.clearRect(0, 0, width, height);
+                            ctx.strokeStyle = color;
+                            ctx.lineWidth = 3;
+                            ctx.lineCap = 'round';
+                            ctx.lineJoin = 'round';
+                            
+                            const stepX = (width - padding * 2) / (data.length - 1);
+                            const maxVal = Math.max(...data);
+                            const minVal = Math.min(...data);
+                            const range = maxVal - minVal;
+                            
+                            ctx.beginPath();
+                            data.forEach((val, i) => {
+                                const x = padding + i * stepX;
+                                const y = height - padding - ((val - minVal) / range) * (height - padding * 2);
+                                if (i === 0) ctx.moveTo(x, y);
+                                else ctx.lineTo(x, y);
+                            });
+                            ctx.stroke();
+                            
+                            // Add gradient fill
+                            const gradient = ctx.createLinearGradient(0, 0, 0, height);
+                            gradient.addColorStop(0, color + '20');
+                            gradient.addColorStop(1, color + '00');
+                            ctx.fillStyle = gradient;
+                            
+                            ctx.beginPath();
+                            data.forEach((val, i) => {
+                                const x = padding + i * stepX;
+                                const y = height - padding - ((val - minVal) / range) * (height - padding * 2);
+                                if (i === 0) ctx.moveTo(x, y);
+                                else ctx.lineTo(x, y);
+                            });
+                            ctx.lineTo(width - padding, height - padding);
+                            ctx.lineTo(padding, height - padding);
+                            ctx.closePath();
+                            ctx.fill();
+                        }
+                        
+                        function drawMiniChart(canvasId, data, color) {
+                            const canvas = document.getElementById(canvasId);
+                            if (!canvas) return;
+                            
+                            const ctx = canvas.getContext('2d');
+                            const width = canvas.width;
+                            const height = canvas.height;
+                            
+                            ctx.clearRect(0, 0, width, height);
+                            ctx.strokeStyle = color;
+                            ctx.lineWidth = 2;
+                            
+                            const stepX = width / (data.length - 1);
+                            const maxVal = Math.max(...data);
+                            const minVal = Math.min(...data);
+                            const range = maxVal - minVal || 1;
+                            
+                            ctx.beginPath();
+                            data.forEach((val, i) => {
+                                const x = i * stepX;
+                                const y = height - ((val - minVal) / range) * height;
+                                if (i === 0) ctx.moveTo(x, y);
+                                else ctx.lineTo(x, y);
+                            });
+                            ctx.stroke();
+                        }
+                        
+                        function drawPipelineChart(canvas) {
+                            const ctx = canvas.getContext('2d');
+                            const centerX = canvas.width / 2;
+                            const centerY = canvas.height / 2;
+                            const radius = Math.min(centerX, centerY) - 20;
+                            
+                            const data = [
+                                {label: 'Leads', value: 23, color: '#ef4444'},
+                                {label: 'Qualified', value: 15, color: '#f59e0b'},
+                                {label: 'Proposal', value: 9, color: '#24d1ff'},
+                                {label: 'Closing', value: 5, color: '#10b981'}
+                            ];
+                            
+                            const total = data.reduce((sum, item) => sum + item.value, 0);
+                            let currentAngle = -Math.PI / 2;
+                            
+                            data.forEach(item => {
+                                const sliceAngle = (item.value / total) * 2 * Math.PI;
+                                
+                                ctx.beginPath();
+                                ctx.arc(centerX, centerY, radius, currentAngle, currentAngle + sliceAngle);
+                                ctx.lineTo(centerX, centerY);
+                                ctx.fillStyle = item.color;
+                                ctx.fill();
+                                
+                                currentAngle += sliceAngle;
+                            });
+                        }
+                        
+                        function initializeCalendar() {
+                            const today = new Date();
+                            const currentMonth = today.getMonth();
+                            const currentYear = today.getFullYear();
+                            
+                            generateCalendar(currentYear, currentMonth);
+                        }
+                        
+                        function generateCalendar(year, month) {
+                            const monthNames = [
+                                'January', 'February', 'March', 'April', 'May', 'June',
+                                'July', 'August', 'September', 'October', 'November', 'December'
+                            ];
+                            
+                            const monthHeader = document.getElementById('calendarMonth');
+                            if (monthHeader) {
+                                monthHeader.textContent = monthNames[month] + ' ' + year;
+                            }
+                            
+                            const grid = document.getElementById('calendarGrid');
+                            if (!grid) return;
+                            
+                            const firstDay = new Date(year, month, 1).getDay();
+                            const daysInMonth = new Date(year, month + 1, 0).getDate();
+                            const today = new Date();
+                            
+                            let html = '';
+                            
+                            // Add day headers
+                            ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].forEach(day => {
+                                html += '<div style="font-weight: 600; color: var(--text-muted); font-size: 12px; padding: 8px 0; text-align: center;">' + day + '</div>';
+                            });
+                            
+                            // Add empty cells for days before month starts
+                            for (let i = 0; i < firstDay; i++) {
+                                html += '<div class="calendar-day"></div>';
+                            }
+                            
+                            // Add days of month
+                            for (let day = 1; day <= daysInMonth; day++) {
+                                const isToday = today.getDate() === day && today.getMonth() === month && today.getFullYear() === year;
+                                const hasEvent = [6, 15, 22].includes(day); // Sample events
+                                
+                                let classes = 'calendar-day';
+                                if (isToday) classes += ' today';
+                                if (hasEvent) classes += ' has-event';
+                                
+                                html += '<div class="' + classes + '">' + day + '</div>';
+                            }
+                            
+                            grid.innerHTML = html;
+                        }
+                        
+                        function updateRevenueChart(period) {
+                            showToast('Updating chart for ' + period, 'info');
+                            // Here you would update the chart with new data
+                        }
+                        
+                        function previousMonth() {
+                            showToast('Previous month', 'info');
+                            // Calendar navigation logic here
+                        }
+                        
+                        function nextMonth() {
+                            showToast('Next month', 'info');
+                            // Calendar navigation logic here
+                        }
+                        
+                        function refreshActivity() {
+                            showToast('Activity refreshed', 'success');
+                            // Refresh activity feed
+                        }
+                        
+                        function generateReport() {
+                            handleCTA('generateReport');
+                        }
+                    </script>
+                `;
+            }
                             </div>
                             <div class="quick-actions">
                                 <button class="cta-button" onclick="handleCTA('addContact')">
@@ -3873,8 +4650,8 @@ def inject_custom_webapp():
     </html>
     """
     
-    # Inject the custom web application
-    components.html(webapp_html, height=800, scrolling=True)
+    # Inject the custom web application with full viewport height
+    components.html(webapp_html, height=1000, scrolling=False)
 
 def main():
     """Main application entry point"""
