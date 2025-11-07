@@ -1198,6 +1198,16 @@ def inject_custom_webapp():
             let currentPage = 'dashboard';
             let sidebarCollapsed = false;
             
+            // DEBUG: Add global error logging
+            window.addEventListener('error', function(e) {
+                console.error('🚨 Global JavaScript error:', e.error);
+                console.error('🚨 Error message:', e.message);
+                console.error('🚨 Error stack:', e.error?.stack);
+            });
+            
+            // DEBUG: Test if handleCTA is available
+            console.log('🔍 Script loaded - testing functions...');
+            
             // Navigation Functions
             function navigateTo(page) {
                 // Remove active class from all nav items
@@ -1596,7 +1606,7 @@ def inject_custom_webapp():
             }
 
             // CTA Button Handlers
-            function handleCTA(action) {
+            window.handleCTA = function(action) {
                 console.log('🎯 CTA Action triggered:', action);
                 console.log('🔐 Authentication status:', isAuthenticated);
                 
@@ -1614,10 +1624,9 @@ def inject_custom_webapp():
                 // Direct execution without backend dependency for immediate response
                 console.log('✨ Executing action directly:', action);
                 handleActionSuccess(action);
-            }
-            }
+            };
             
-            function handleActionSuccess(action) {
+            window.handleActionSuccess = function(action) {
                 console.log('📝 Processing action:', action);
                 
                 // All actions now show proper functionality with immediate response
@@ -1888,7 +1897,7 @@ def inject_custom_webapp():
                 }
             }
             
-            function showModal(title, content) {
+            window.showModal = function(title, content) {
                 // Create and show modal dialog
                 const modal = document.createElement('div');
                 modal.className = 'modal-overlay';
@@ -3935,6 +3944,24 @@ def inject_custom_webapp():
                         function generateReport() {
                             handleCTA('generateReport');
                         }
+                        
+                        // DEBUG: Test function availability after script loads
+                        console.log('✅ Script fully loaded');
+                        console.log('🔍 Testing handleCTA availability:', typeof window.handleCTA);
+                        console.log('🔍 Testing showModal availability:', typeof window.showModal);
+                        console.log('🔍 Testing showToast availability:', typeof showToast);
+                        
+                        // Add a test button click handler
+                        document.addEventListener('DOMContentLoaded', function() {
+                            console.log('📋 DOM loaded - checking for CTA buttons...');
+                            const ctaButtons = document.querySelectorAll('[onclick*="handleCTA"]');
+                            console.log('🔍 Found CTA buttons:', ctaButtons.length);
+                            
+                            // Add click listeners as backup
+                            ctaButtons.forEach((button, index) => {
+                                console.log(`🔗 Button ${index}:`, button.onclick);
+                            });
+                        });
                     </script>
                 `;
             }
