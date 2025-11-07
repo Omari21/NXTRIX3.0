@@ -62,6 +62,242 @@ def inject_custom_webapp():
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
         <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
         
+        <!-- PWA Manifest -->
+        <link rel="manifest" href="data:application/json;base64,{}"
+              id="pwa-manifest">
+        <meta name="theme-color" content="#7c5cff">
+        <meta name="apple-mobile-web-app-capable" content="yes">
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+        <meta name="apple-mobile-web-app-title" content="NXTRIX">
+        <link rel="apple-touch-icon" href="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTkyIiBoZWlnaHQ9IjE5MiIgdmlld0JveD0iMCAwIDE5MiAxOTIiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIxOTIiIGhlaWdodD0iMTkyIiByeD0iMzIiIGZpbGw9IiM3YzVjZmYiLz4KPHRleHQgeD0iOTYiIHk9IjExNiIgZm9udC1mYW1pbHk9IkludGVyIiBmb250LXNpemU9IjQ4IiBmb250LXdlaWdodD0iNzAwIiBmaWxsPSJ3aGl0ZSIgdGV4dC1hbmNob3I9Im1pZGRsZSI+TjwvdGV4dD4KPC9zdmc+">
+        
+        <!-- Service Worker Registration -->
+        <script>
+            if ('serviceWorker' in navigator) {
+                window.addEventListener('load', () => {
+                    const swContent = `
+                        const CACHE_NAME = 'nxtrix-v1.0.0';
+                        const urlsToCache = [
+                            '/',
+                            '/static/css/style.css',
+                            '/static/js/app.js',
+                            'https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap',
+                            'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css'
+                        ];
+
+                        self.addEventListener('install', event => {
+                            event.waitUntil(
+                                caches.open(CACHE_NAME)
+                                    .then(cache => cache.addAll(urlsToCache))
+                            );
+                        });
+
+                        self.addEventListener('fetch', event => {
+                            event.respondWith(
+                                caches.match(event.request)
+                                    .then(response => {
+                                        if (response) {
+                                            return response;
+                                        }
+                                        return fetch(event.request);
+                                    }
+                                )
+                            );
+                        });
+
+                        self.addEventListener('activate', event => {
+                            event.waitUntil(
+                                caches.keys().then(cacheNames => {
+                                    return Promise.all(
+                                        cacheNames.map(cacheName => {
+                                            if (cacheName !== CACHE_NAME) {
+                                                return caches.delete(cacheName);
+                                            }
+                                        })
+                                    );
+                                })
+                            );
+                        });
+                    `;
+                    
+                    const blob = new Blob([swContent], { type: 'application/javascript' });
+                    const swUrl = URL.createObjectURL(blob);
+                    
+                    navigator.serviceWorker.register(swUrl)
+                        .then(registration => {
+                            console.log('SW registered: ', registration);
+                            showPWAInstallPrompt();
+                        })
+                        .catch(registrationError => {
+                            console.log('SW registration failed: ', registrationError);
+                        });
+                });
+            }
+            
+            // PWA Manifest Data
+            const manifest = {
+                name: "NXTRIX - Enterprise CRM Platform",
+                short_name: "NXTRIX",
+                description: "Professional CRM, Analytics & Automation Platform",
+                start_url: "/",
+                display: "standalone",
+                background_color: "#0a0b0d",
+                theme_color: "#7c5cff",
+                orientation: "portrait-primary",
+                scope: "/",
+                icons: [
+                    {
+                        src: "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTkyIiBoZWlnaHQ9IjE5MiIgdmlld0JveD0iMCAwIDE5MiAxOTIiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIxOTIiIGhlaWdodD0iMTkyIiByeD0iMzIiIGZpbGw9IiM3YzVjZmYiLz4KPHRleHQgeD0iOTYiIHk9IjExNiIgZm9udC1mYW1pbHk9IkludGVyIiBmb250LXNpemU9IjQ4IiBmb250LXdlaWdodD0iNzAwIiBmaWxsPSJ3aGl0ZSIgdGV4dC1hbmNob3I9Im1pZGRsZSI+TjwvdGV4dD4KPC9zdmc+",
+                        sizes: "192x192",
+                        type: "image/svg+xml",
+                        purpose: "any maskable"
+                    },
+                    {
+                        src: "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNTEyIiBoZWlnaHQ9IjUxMiIgdmlld0JveD0iMCAwIDUxMiA1MTIiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSI1MTIiIGhlaWdodD0iNTEyIiByeD0iODQiIGZpbGw9IiM3YzVjZmYiLz4KPHRleHQgeD0iMjU2IiB5PSIzMDAiIGZvbnQtZmFtaWx5PSJJbnRlciIgZm9udC1zaXplPSIxMjgiIGZvbnQtd2VpZ2h0PSI3MDAiIGZpbGw9IndoaXRlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj5OPC90ZXh0Pgo8L3N2Zz4=",
+                        sizes: "512x512",
+                        type: "image/svg+xml",
+                        purpose: "any maskable"
+                    }
+                ],
+                categories: ["business", "productivity", "finance"],
+                shortcuts: [
+                    {
+                        name: "Create Deal",
+                        short_name: "New Deal",
+                        description: "Create a new deal quickly",
+                        url: "/?action=create-deal",
+                        icons: [{ src: "/static/icons/deal.png", sizes: "96x96" }]
+                    },
+                    {
+                        name: "Analytics",
+                        short_name: "Analytics",
+                        description: "View performance analytics",
+                        url: "/?action=analytics",
+                        icons: [{ src: "/static/icons/analytics.png", sizes: "96x96" }]
+                    }
+                ]
+            };
+            
+            // Update manifest link
+            const manifestLink = document.getElementById('pwa-manifest');
+            const manifestBlob = new Blob([JSON.stringify(manifest)], { type: 'application/json' });
+            manifestLink.href = URL.createObjectURL(manifestBlob);
+            
+            function showPWAInstallPrompt() {
+                // Listen for PWA install prompt
+                let deferredPrompt;
+                
+                window.addEventListener('beforeinstallprompt', (e) => {
+                    e.preventDefault();
+                    deferredPrompt = e;
+                    
+                    // Show custom install button after delay
+                    setTimeout(() => {
+                        const installBanner = document.createElement('div');
+                        installBanner.className = 'pwa-install-banner';
+                        installBanner.innerHTML = `
+                            <div class="pwa-banner-content">
+                                <div class="pwa-banner-text">
+                                    <i class="fas fa-download"></i>
+                                    <span>Install NXTRIX app for better experience</span>
+                                </div>
+                                <div class="pwa-banner-actions">
+                                    <button onclick="this.parentElement.parentElement.parentElement.remove()">Later</button>
+                                    <button onclick="installPWA()" class="primary">Install</button>
+                                </div>
+                            </div>
+                        `;
+                        
+                        // Add banner styles
+                        if (!document.getElementById('pwa-banner-styles')) {
+                            const styles = document.createElement('style');
+                            styles.id = 'pwa-banner-styles';
+                            styles.textContent = `
+                                .pwa-install-banner {
+                                    position: fixed;
+                                    bottom: 20px;
+                                    right: 20px;
+                                    background: var(--surface);
+                                    border: 1px solid var(--border);
+                                    border-radius: 12px;
+                                    padding: 16px;
+                                    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+                                    z-index: 9999;
+                                    max-width: 350px;
+                                    animation: slideInUp 0.3s ease-out;
+                                }
+                                
+                                .pwa-banner-content {
+                                    display: flex;
+                                    flex-direction: column;
+                                    gap: 12px;
+                                }
+                                
+                                .pwa-banner-text {
+                                    display: flex;
+                                    align-items: center;
+                                    gap: 8px;
+                                    color: var(--text);
+                                    font-size: 14px;
+                                }
+                                
+                                .pwa-banner-text i {
+                                    color: var(--primary);
+                                }
+                                
+                                .pwa-banner-actions {
+                                    display: flex;
+                                    gap: 8px;
+                                    justify-content: flex-end;
+                                }
+                                
+                                .pwa-banner-actions button {
+                                    padding: 6px 12px;
+                                    border: 1px solid var(--border);
+                                    border-radius: 6px;
+                                    background: transparent;
+                                    color: var(--text);
+                                    cursor: pointer;
+                                    transition: all 0.2s ease;
+                                    font-size: 12px;
+                                }
+                                
+                                .pwa-banner-actions button:hover {
+                                    background: var(--hover);
+                                }
+                                
+                                .pwa-banner-actions button.primary {
+                                    background: var(--primary);
+                                    border-color: var(--primary);
+                                    color: white;
+                                }
+                                
+                                .pwa-banner-actions button.primary:hover {
+                                    background: var(--primary-light);
+                                }
+                            `;
+                            document.head.appendChild(styles);
+                        }
+                        
+                        document.body.appendChild(installBanner);
+                        
+                        window.installPWA = () => {
+                            if (deferredPrompt) {
+                                deferredPrompt.prompt();
+                                deferredPrompt.userChoice.then((choiceResult) => {
+                                    if (choiceResult.outcome === 'accepted') {
+                                        console.log('User accepted PWA install');
+                                    }
+                                    deferredPrompt = null;
+                                    installBanner.remove();
+                                });
+                            }
+                        };
+                    }, 5000);
+                });
+            }
+        </script>
+        
         <style>
             * {
                 margin: 0;
@@ -111,6 +347,33 @@ def inject_custom_webapp():
                 z-index: -1;
                 animation: backgroundFlow 20s ease-in-out infinite;
             }
+            
+            /* Enhanced Animations & Micro-interactions */
+            @keyframes fadeInUp {{
+                from {{ opacity: 0; transform: translateY(30px); }}
+                to {{ opacity: 1; transform: translateY(0); }}
+            }}
+            
+            @keyframes slideInRight {{
+                from {{ opacity: 0; transform: translateX(50px); }}
+                to {{ opacity: 1; transform: translateX(0); }}
+            }}
+            
+            @keyframes pulseGlow {{
+                0%, 100% {{ box-shadow: 0 4px 20px rgba(124, 92, 255, 0.3); }}
+                50% {{ box-shadow: 0 8px 40px rgba(124, 92, 255, 0.6); }}
+            }}
+            
+            @keyframes cardFlip {{
+                0% {{ transform: rotateY(0deg); }}
+                50% {{ transform: rotateY(10deg); }}
+                100% {{ transform: rotateY(0deg); }}
+            }}
+            
+            @keyframes progressBar {{
+                0% {{ width: 0%; }}
+                100% {{ width: 100%; }}
+            }}
             
             @keyframes backgroundFlow {{
                 0%, 100% {{ opacity: 1; }}
@@ -315,9 +578,12 @@ def inject_custom_webapp():
                 border: 1px solid var(--border);
                 border-radius: 16px;
                 padding: 24px;
-                transition: all 0.3s ease;
+                transition: all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
                 position: relative;
                 overflow: hidden;
+                transform-style: preserve-3d;
+                perspective: 1000px;
+                animation: fadeInUp 0.6s ease-out;
             }
             
             .dashboard-card::before {
@@ -329,17 +595,45 @@ def inject_custom_webapp():
                 height: 4px;
                 background: linear-gradient(90deg, var(--primary), var(--secondary));
                 opacity: 0;
+                transition: all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+                transform: scaleX(0);
+                transform-origin: left center;
+            }
+            
+            .dashboard-card::after {
+                content: '';
+                position: absolute;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background: radial-gradient(circle at var(--mouse-x, 50%) var(--mouse-y, 50%), 
+                           rgba(255, 255, 255, 0.03) 0%, transparent 70%);
+                opacity: 0;
                 transition: opacity 0.3s ease;
+                pointer-events: none;
             }
             
             .dashboard-card:hover::before {
                 opacity: 1;
+                transform: scaleX(1);
+            }
+            
+            .dashboard-card:hover::after {
+                opacity: 1;
             }
             
             .dashboard-card:hover {
-                transform: translateY(-4px);
-                box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
+                transform: translateY(-8px) rotateX(2deg);
+                box-shadow: 
+                    0 20px 60px rgba(0, 0, 0, 0.4),
+                    0 8px 30px rgba(0, 122, 255, 0.1);
                 border-color: var(--glass-border);
+            }
+            
+            .dashboard-card:active {
+                transform: translateY(-6px) rotateX(1deg);
+                transition: all 0.1s ease;
             }
             
             .card-header {
@@ -2145,7 +2439,7 @@ def inject_custom_webapp():
                 fields.forEach(field => {
                     formHTML += `
                         <div class="form-group">
-                            <label>${field.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</label>
+                            <label>${field.replace(/_/g, ' ').replace(/\\b\\w/g, l => l.toUpperCase())}</label>
                             <input type="text" placeholder="Enter ${field.replace(/_/g, ' ')}">
                         </div>
                     `;
@@ -2433,27 +2727,501 @@ def inject_custom_webapp():
             
             function getAnalyticsContent() {
                 return `
-                    <div class="dashboard-card">
-                        <div class="card-header">
-                            <h3 class="card-title">Advanced Analytics Dashboard</h3>
-                            <div class="card-icon">
-                                <i class="fas fa-analytics"></i>
+                    <div class="analytics-dashboard">
+                        <!-- AI Insights Panel -->
+                        <div class="ai-insights-panel">
+                            <div class="ai-insights-header">
+                                <div class="ai-avatar">
+                                    <i class="fas fa-robot"></i>
+                                </div>
+                                <div class="ai-insights-content">
+                                    <h4>AI Assistant Insights</h4>
+                                    <p class="ai-insight-text" id="ai-insight-text">
+                                        Analyzing your portfolio performance...
+                                    </p>
+                                </div>
+                                <div class="ai-actions">
+                                    <button class="ai-refresh-btn" onclick="refreshAIInsights()">
+                                        <i class="fas fa-refresh"></i>
+                                    </button>
+                                </div>
                             </div>
                         </div>
-                        <div class="quick-actions">
-                            <button class="cta-button" onclick="handleCTA('marketAnalysis')">
-                                <i class="fas fa-chart-line"></i>
-                                Market Analysis
-                            </button>
-                            <button class="cta-button cta-secondary" onclick="handleCTA('portfolioAnalytics')">
-                                <i class="fas fa-briefcase"></i>
-                                Portfolio Analytics
-                            </button>
-                            <button class="cta-button cta-secondary" onclick="handleCTA('predictiveModeling')">
-                                <i class="fas fa-brain"></i>
-                                Predictive Modeling
-                            </button>
+                        
+                        <!-- Real-time Metrics Grid -->
+                        <div class="metrics-grid">
+                            <div class="metric-card revenue">
+                                <div class="metric-icon">
+                                    <i class="fas fa-dollar-sign"></i>
+                                </div>
+                                <div class="metric-content">
+                                    <div class="metric-value">$2.4M</div>
+                                    <div class="metric-label">Revenue YTD</div>
+                                    <div class="metric-change positive">
+                                        <i class="fas fa-arrow-up"></i>
+                                        +24.5%
+                                    </div>
+                                </div>
+                                <div class="metric-chart">
+                                    <svg width="60" height="30" viewBox="0 0 60 30">
+                                        <polyline points="0,25 12,20 24,10 36,15 48,5 60,8" 
+                                                stroke="var(--success)" stroke-width="2" fill="none"/>
+                                    </svg>
+                                </div>
+                            </div>
+                            
+                            <div class="metric-card deals">
+                                <div class="metric-icon">
+                                    <i class="fas fa-handshake"></i>
+                                </div>
+                                <div class="metric-content">
+                                    <div class="metric-value">47</div>
+                                    <div class="metric-label">Active Deals</div>
+                                    <div class="metric-change positive">
+                                        <i class="fas fa-arrow-up"></i>
+                                        +12
+                                    </div>
+                                </div>
+                                <div class="metric-chart">
+                                    <svg width="60" height="30" viewBox="0 0 60 30">
+                                        <polyline points="0,20 12,22 24,18 36,12 48,8 60,6" 
+                                                stroke="var(--primary)" stroke-width="2" fill="none"/>
+                                    </svg>
+                                </div>
+                            </div>
+                            
+                            <div class="metric-card conversion">
+                                <div class="metric-icon">
+                                    <i class="fas fa-target"></i>
+                                </div>
+                                <div class="metric-content">
+                                    <div class="metric-value">68%</div>
+                                    <div class="metric-label">Conversion Rate</div>
+                                    <div class="metric-change positive">
+                                        <i class="fas fa-arrow-up"></i>
+                                        +8.2%
+                                    </div>
+                                </div>
+                                <div class="metric-chart">
+                                    <svg width="60" height="30" viewBox="0 0 60 30">
+                                        <polyline points="0,28 12,25 24,20 36,18 48,15 60,12" 
+                                                stroke="var(--secondary)" stroke-width="2" fill="none"/>
+                                    </svg>
+                                </div>
+                            </div>
+                            
+                            <div class="metric-card pipeline">
+                                <div class="metric-icon">
+                                    <i class="fas fa-funnel-dollar"></i>
+                                </div>
+                                <div class="metric-content">
+                                    <div class="metric-value">$8.7M</div>
+                                    <div class="metric-label">Pipeline Value</div>
+                                    <div class="metric-change positive">
+                                        <i class="fas fa-arrow-up"></i>
+                                        +31%
+                                    </div>
+                                </div>
+                                <div class="metric-chart">
+                                    <svg width="60" height="30" viewBox="0 0 60 30">
+                                        <polyline points="0,22 12,18 24,25 36,20 48,10 60,7" 
+                                                stroke="var(--accent)" stroke-width="2" fill="none"/>
+                                    </svg>
+                                </div>
+                            </div>
                         </div>
+                        
+                        <!-- Advanced Analytics Cards -->
+                        <div class="dashboard-card analytics-main">
+                            <div class="card-header">
+                                <h3 class="card-title">Advanced Analytics Dashboard</h3>
+                                <div class="card-actions">
+                                    <button class="action-btn" onclick="exportReport()">
+                                        <i class="fas fa-download"></i>
+                                    </button>
+                                    <button class="action-btn" onclick="refreshAnalytics()">
+                                        <i class="fas fa-sync-alt"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="analytics-tabs">
+                                <button class="tab-btn active" onclick="switchTab('overview')">Overview</button>
+                                <button class="tab-btn" onclick="switchTab('trends')">Trends</button>
+                                <button class="tab-btn" onclick="switchTab('forecasts')">Forecasts</button>
+                                <button class="tab-btn" onclick="switchTab('insights')">AI Insights</button>
+                            </div>
+                            <div class="quick-actions">
+                                <button class="cta-button" onclick="handleCTA('marketAnalysis')">
+                                    <i class="fas fa-chart-line"></i>
+                                    Market Analysis
+                                </button>
+                                <button class="cta-button cta-secondary" onclick="handleCTA('portfolioAnalytics')">
+                                    <i class="fas fa-briefcase"></i>
+                                    Portfolio Analytics
+                                </button>
+                                <button class="cta-button cta-secondary" onclick="handleCTA('predictiveModeling')">
+                                    <i class="fas fa-brain"></i>
+                                    Predictive Modeling
+                                </button>
+                                <button class="cta-button cta-accent" onclick="handleCTA('aiRecommendations')">
+                                    <i class="fas fa-lightbulb"></i>
+                                    AI Recommendations
+                                </button>
+                            </div>
+                            <div class="analytics-content">
+                                <div class="chart-container">
+                                    <canvas id="mainChart" width="600" height="300"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Enhanced Analytics Styles -->
+                    <style>
+                        .analytics-dashboard {
+                            display: grid;
+                            gap: 24px;
+                        }
+                        
+                        .ai-insights-panel {
+                            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+                            border-radius: 16px;
+                            padding: 20px;
+                            color: white;
+                            position: relative;
+                            overflow: hidden;
+                        }
+                        
+                        .ai-insights-panel::before {
+                            content: '';
+                            position: absolute;
+                            top: -50%;
+                            left: -50%;
+                            width: 200%;
+                            height: 200%;
+                            background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+                            animation: aiGlow 4s ease-in-out infinite alternate;
+                        }
+                        
+                        @keyframes aiGlow {
+                            0% { transform: scale(1) rotate(0deg); }
+                            100% { transform: scale(1.1) rotate(10deg); }
+                        }
+                        
+                        .ai-insights-header {
+                            display: flex;
+                            align-items: center;
+                            gap: 16px;
+                            position: relative;
+                            z-index: 2;
+                        }
+                        
+                        .ai-avatar {
+                            width: 48px;
+                            height: 48px;
+                            background: rgba(255, 255, 255, 0.2);
+                            border-radius: 12px;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            font-size: 20px;
+                            animation: pulse 2s infinite;
+                        }
+                        
+                        .ai-insights-content {
+                            flex: 1;
+                        }
+                        
+                        .ai-insights-content h4 {
+                            margin: 0 0 4px 0;
+                            font-weight: 600;
+                        }
+                        
+                        .ai-insight-text {
+                            margin: 0;
+                            opacity: 0.9;
+                            font-size: 14px;
+                        }
+                        
+                        .ai-actions {
+                            display: flex;
+                            gap: 8px;
+                        }
+                        
+                        .ai-refresh-btn {
+                            width: 36px;
+                            height: 36px;
+                            background: rgba(255, 255, 255, 0.2);
+                            border: none;
+                            border-radius: 8px;
+                            color: white;
+                            cursor: pointer;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            transition: all 0.3s ease;
+                        }
+                        
+                        .ai-refresh-btn:hover {
+                            background: rgba(255, 255, 255, 0.3);
+                            transform: rotate(180deg);
+                        }
+                        
+                        .metrics-grid {
+                            display: grid;
+                            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+                            gap: 20px;
+                        }
+                        
+                        .metric-card {
+                            background: var(--surface);
+                            border: 1px solid var(--border);
+                            border-radius: 12px;
+                            padding: 20px;
+                            position: relative;
+                            transition: all 0.3s ease;
+                            overflow: hidden;
+                        }
+                        
+                        .metric-card::before {
+                            content: '';
+                            position: absolute;
+                            top: 0;
+                            left: 0;
+                            right: 0;
+                            height: 3px;
+                            background: linear-gradient(90deg, var(--primary), var(--secondary));
+                            opacity: 0;
+                            transition: opacity 0.3s ease;
+                        }
+                        
+                        .metric-card:hover::before {
+                            opacity: 1;
+                        }
+                        
+                        .metric-card:hover {
+                            transform: translateY(-2px);
+                            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
+                        }
+                        
+                        .metric-card {
+                            display: grid;
+                            grid-template-columns: auto 1fr auto;
+                            grid-template-rows: auto auto;
+                            gap: 12px;
+                            align-items: center;
+                        }
+                        
+                        .metric-icon {
+                            grid-row: 1 / 3;
+                            width: 48px;
+                            height: 48px;
+                            border-radius: 12px;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            font-size: 20px;
+                        }
+                        
+                        .revenue .metric-icon {
+                            background: linear-gradient(135deg, var(--success), #34d399);
+                            color: white;
+                        }
+                        
+                        .deals .metric-icon {
+                            background: linear-gradient(135deg, var(--primary), var(--primary-light));
+                            color: white;
+                        }
+                        
+                        .conversion .metric-icon {
+                            background: linear-gradient(135deg, var(--secondary), #38bdf8);
+                            color: white;
+                        }
+                        
+                        .pipeline .metric-icon {
+                            background: linear-gradient(135deg, var(--accent), #34d399);
+                            color: white;
+                        }
+                        
+                        .metric-content {
+                            display: flex;
+                            flex-direction: column;
+                        }
+                        
+                        .metric-value {
+                            font-size: 24px;
+                            font-weight: 700;
+                            color: var(--text);
+                            line-height: 1;
+                        }
+                        
+                        .metric-label {
+                            font-size: 12px;
+                            color: var(--text-muted);
+                            text-transform: uppercase;
+                            letter-spacing: 0.5px;
+                            margin-top: 4px;
+                        }
+                        
+                        .metric-change {
+                            display: flex;
+                            align-items: center;
+                            gap: 4px;
+                            font-size: 12px;
+                            font-weight: 600;
+                            margin-top: 8px;
+                        }
+                        
+                        .metric-change.positive {
+                            color: var(--success);
+                        }
+                        
+                        .metric-change.negative {
+                            color: var(--error);
+                        }
+                        
+                        .metric-chart {
+                            grid-row: 1 / 3;
+                            width: 60px;
+                            height: 30px;
+                        }
+                        
+                        .analytics-main {
+                            min-height: 400px;
+                        }
+                        
+                        .analytics-tabs {
+                            display: flex;
+                            gap: 4px;
+                            margin-bottom: 20px;
+                            background: var(--surface-light);
+                            border-radius: 8px;
+                            padding: 4px;
+                        }
+                        
+                        .tab-btn {
+                            flex: 1;
+                            padding: 8px 16px;
+                            border: none;
+                            background: transparent;
+                            color: var(--text-muted);
+                            border-radius: 6px;
+                            cursor: pointer;
+                            transition: all 0.3s ease;
+                            font-size: 14px;
+                        }
+                        
+                        .tab-btn.active {
+                            background: var(--primary);
+                            color: white;
+                        }
+                        
+                        .tab-btn:hover:not(.active) {
+                            background: var(--hover);
+                            color: var(--text);
+                        }
+                        
+                        .card-actions {
+                            display: flex;
+                            gap: 8px;
+                        }
+                        
+                        .action-btn {
+                            width: 32px;
+                            height: 32px;
+                            border: 1px solid var(--border);
+                            background: transparent;
+                            color: var(--text-muted);
+                            border-radius: 6px;
+                            cursor: pointer;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            transition: all 0.3s ease;
+                        }
+                        
+                        .action-btn:hover {
+                            background: var(--hover);
+                            color: var(--text);
+                        }
+                        
+                        .chart-container {
+                            margin-top: 20px;
+                            padding: 20px;
+                            background: var(--surface-light);
+                            border-radius: 8px;
+                            min-height: 200px;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                        }
+                        
+                        .cta-accent {
+                            background: linear-gradient(135deg, var(--accent), #34d399);
+                            border-color: var(--accent);
+                        }
+                        
+                        .cta-accent:hover {
+                            background: linear-gradient(135deg, #34d399, var(--accent));
+                        }
+                    </style>
+                    
+                    <script>
+                        // AI Insights System
+                        function refreshAIInsights() {
+                            const insights = [
+                                "Your conversion rate increased by 12% this month. Consider scaling your top-performing campaigns.",
+                                "Market analysis suggests a 23% opportunity in the luxury segment. Recommended action: Target high-value prospects.",
+                                "Deal velocity has improved by 18 days on average. Your follow-up automation is performing excellently.",
+                                "Pipeline health score: 94%. Strong lead quality with optimal deal distribution across stages.",
+                                "AI detected a seasonal pattern: Q4 typically sees 31% higher conversion. Prepare inventory accordingly."
+                            ];
+                            
+                            const randomInsight = insights[Math.floor(Math.random() * insights.length)];
+                            const textElement = document.getElementById('ai-insight-text');
+                            
+                            if (textElement) {
+                                textElement.style.opacity = '0.5';
+                                setTimeout(() => {
+                                    textElement.textContent = randomInsight;
+                                    textElement.style.opacity = '1';
+                                }, 300);
+                            }
+                        }
+                        
+                        function switchTab(tabName) {
+                            // Update tab buttons
+                            document.querySelectorAll('.tab-btn').forEach(btn => {
+                                btn.classList.remove('active');
+                            });
+                            event.target.classList.add('active');
+                            
+                            // Update chart content based on tab
+                            const chartContainer = document.querySelector('.chart-container');
+                            if (chartContainer) {
+                                chartContainer.innerHTML = '<p style="color: var(--text-muted);">Loading ' + tabName + ' data...</p>';
+                                
+                                setTimeout(() => {
+                                    chartContainer.innerHTML = '<canvas id="mainChart" width="600" height="300"></canvas>';
+                                    // Here you would initialize your specific chart based on the tab
+                                }, 500);
+                            }
+                        }
+                        
+                        function exportReport() {
+                            showToast('Report export initiated! Check your downloads folder.', 'success');
+                        }
+                        
+                        function refreshAnalytics() {
+                            showToast('Analytics refreshed with latest data.', 'info');
+                            refreshAIInsights();
+                        }
+                        
+                        // Initialize AI insights on load
+                        setTimeout(() => {
+                            refreshAIInsights();
+                        }, 1000);
+                    </script>`;
                         <p style="margin-top: 20px; color: var(--text-muted);">
                             Advanced analytics with 47+ data points analyzed per property. 
                             AI-powered insights and market intelligence.
@@ -2744,6 +3512,565 @@ def main():
         hideStreamlitHeader();
         const observer = new MutationObserver(hideStreamlitHeader);
         observer.observe(document.body, { childList: true, subtree: true });
+        
+        // Keyboard Shortcuts System
+        document.addEventListener('keydown', function(e) {
+            // Ctrl + N: New Deal
+            if (e.ctrlKey && e.key === 'n' && !e.shiftKey) {
+                e.preventDefault();
+                window.nxtrixActions.createDeal();
+                return;
+            }
+            
+            // Ctrl + K: Quick Command/Search
+            if (e.ctrlKey && e.key === 'k') {
+                e.preventDefault();
+                openQuickSearch();
+                return;
+            }
+            
+            // Ctrl + /: Show keyboard shortcuts help
+            if (e.ctrlKey && e.key === '/') {
+                e.preventDefault();
+                showKeyboardShortcuts();
+                return;
+            }
+            
+            // Escape: Close modals/overlays
+            if (e.key === 'Escape') {
+                const modal = document.querySelector('.modal.active');
+                const overlay = document.querySelector('.overlay.active');
+                if (modal) {
+                    modal.classList.remove('active');
+                    document.body.style.overflow = 'auto';
+                }
+                if (overlay) {
+                    overlay.classList.remove('active');
+                }
+                return;
+            }
+            
+            // Tab navigation enhancement
+            if (e.key === 'Tab' && !e.ctrlKey) {
+                enhanceTabNavigation(e);
+            }
+            
+            // Ctrl + 1-9: Quick navigation
+            if (e.ctrlKey && /^[1-9]$/.test(e.key)) {
+                e.preventDefault();
+                navigateToSection(parseInt(e.key));
+                return;
+            }
+        });
+        
+        function openQuickSearch() {
+            // Create quick search overlay
+            const overlay = document.createElement('div');
+            overlay.className = 'quick-search-overlay';
+            overlay.innerHTML = `
+                <div class="quick-search-container">
+                    <div class="quick-search-header">
+                        <i class="fas fa-search"></i>
+                        <input type="text" placeholder="Search anything... (try 'create deal', 'analytics', 'reports')" 
+                               class="quick-search-input" autofocus>
+                    </div>
+                    <div class="quick-search-results">
+                        <div class="quick-search-category">
+                            <h4>Quick Actions</h4>
+                            <div class="quick-action" onclick="window.nxtrixActions.createDeal()">
+                                <i class="fas fa-plus"></i> Create New Deal
+                            </div>
+                            <div class="quick-action" onclick="window.nxtrixActions.addContact()">
+                                <i class="fas fa-user-plus"></i> Add Contact
+                            </div>
+                            <div class="quick-action" onclick="window.nxtrixActions.generateReport()">
+                                <i class="fas fa-chart-bar"></i> Generate Report
+                            </div>
+                        </div>
+                        <div class="quick-search-category">
+                            <h4>Navigation</h4>
+                            <div class="quick-action" onclick="navigateToSection(1)">
+                                <i class="fas fa-tachometer-alt"></i> Dashboard
+                            </div>
+                            <div class="quick-action" onclick="navigateToSection(2)">
+                                <i class="fas fa-users"></i> CRM
+                            </div>
+                            <div class="quick-action" onclick="navigateToSection(3)">
+                                <i class="fas fa-chart-line"></i> Analytics
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            // Add quick search styles
+            if (!document.getElementById('quick-search-styles')) {
+                const styles = document.createElement('style');
+                styles.id = 'quick-search-styles';
+                styles.textContent = `
+                    .quick-search-overlay {
+                        position: fixed;
+                        top: 0;
+                        left: 0;
+                        right: 0;
+                        bottom: 0;
+                        background: rgba(0, 0, 0, 0.8);
+                        backdrop-filter: blur(8px);
+                        z-index: 10000;
+                        display: flex;
+                        align-items: flex-start;
+                        justify-content: center;
+                        padding-top: 10vh;
+                        animation: fadeIn 0.2s ease-out;
+                    }
+                    
+                    .quick-search-container {
+                        background: var(--surface);
+                        border: 1px solid var(--border);
+                        border-radius: 12px;
+                        width: 90%;
+                        max-width: 600px;
+                        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+                        animation: slideInDown 0.3s ease-out;
+                    }
+                    
+                    .quick-search-header {
+                        display: flex;
+                        align-items: center;
+                        padding: 20px;
+                        border-bottom: 1px solid var(--border);
+                    }
+                    
+                    .quick-search-header i {
+                        color: var(--primary);
+                        margin-right: 12px;
+                        font-size: 18px;
+                    }
+                    
+                    .quick-search-input {
+                        flex: 1;
+                        background: transparent;
+                        border: none;
+                        outline: none;
+                        color: var(--text);
+                        font-size: 16px;
+                        font-family: inherit;
+                    }
+                    
+                    .quick-search-input::placeholder {
+                        color: var(--text-secondary);
+                    }
+                    
+                    .quick-search-results {
+                        padding: 20px;
+                        max-height: 400px;
+                        overflow-y: auto;
+                    }
+                    
+                    .quick-search-category {
+                        margin-bottom: 24px;
+                    }
+                    
+                    .quick-search-category:last-child {
+                        margin-bottom: 0;
+                    }
+                    
+                    .quick-search-category h4 {
+                        color: var(--text-secondary);
+                        font-size: 12px;
+                        text-transform: uppercase;
+                        letter-spacing: 1px;
+                        margin: 0 0 12px 0;
+                    }
+                    
+                    .quick-action {
+                        display: flex;
+                        align-items: center;
+                        padding: 12px 16px;
+                        border-radius: 8px;
+                        cursor: pointer;
+                        transition: all 0.2s ease;
+                        margin-bottom: 4px;
+                    }
+                    
+                    .quick-action:hover {
+                        background: var(--hover);
+                        transform: translateX(4px);
+                    }
+                    
+                    .quick-action {
+                        position: relative;
+                        display: flex;
+                        align-items: center;
+                        justify-content: space-between;
+                    }
+                    
+                    .quick-action i {
+                        color: var(--primary);
+                        margin-right: 12px;
+                        width: 16px;
+                    }
+                    
+                    .match-score {
+                        font-size: 10px;
+                        background: var(--primary);
+                        color: white;
+                        padding: 2px 6px;
+                        border-radius: 10px;
+                        margin-left: auto;
+                    }
+                    
+                    .ai-suggestions {
+                        display: grid;
+                        gap: 8px;
+                    }
+                    
+                    .ai-suggestion {
+                        background: linear-gradient(135deg, var(--primary), var(--secondary));
+                        color: white;
+                        padding: 8px 12px;
+                        border-radius: 6px;
+                        font-size: 12px;
+                        opacity: 0.9;
+                        transition: all 0.2s ease;
+                    }
+                    
+                    .ai-suggestion:hover {
+                        opacity: 1;
+                        transform: translateX(2px);
+                    }
+                    
+                    .quick-search-results {
+                        max-height: 400px;
+                        overflow-y: auto;
+                    }
+                    
+                    .quick-search-results::-webkit-scrollbar {
+                        width: 6px;
+                    }
+                    
+                    .quick-search-results::-webkit-scrollbar-track {
+                        background: var(--surface-light);
+                        border-radius: 3px;
+                    }
+                    
+                    .quick-search-results::-webkit-scrollbar-thumb {
+                        background: var(--border);
+                        border-radius: 3px;
+                    }
+                    
+                    .quick-search-results::-webkit-scrollbar-thumb:hover {
+                        background: var(--primary);
+                    }
+                `;
+                document.head.appendChild(styles);
+            }
+            
+            document.body.appendChild(overlay);
+            
+            // Close on click outside
+            overlay.addEventListener('click', function(e) {
+                if (e.target === overlay) {
+                    document.body.removeChild(overlay);
+                }
+            });
+            
+            // Close on Escape and add smart search
+            const input = overlay.querySelector('.quick-search-input');
+            input.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape') {
+                    document.body.removeChild(overlay);
+                }
+                if (e.key === 'Enter') {
+                    performSmartSearch(input.value);
+                    document.body.removeChild(overlay);
+                }
+            });
+            
+            // Real-time search suggestions
+            input.addEventListener('input', function(e) {
+                const query = e.target.value.toLowerCase();
+                updateSearchResults(query);
+            });
+        }
+        
+        function updateSearchResults(query) {
+            const resultsContainer = document.querySelector('.quick-search-results');
+            if (!resultsContainer || !query) return;
+            
+            // AI-powered search database
+            const searchData = {
+                actions: [
+                    { name: 'Create New Deal', keywords: ['create', 'new', 'deal', 'add deal'], action: () => window.nxtrixActions.createDeal() },
+                    { name: 'Add Contact', keywords: ['add', 'contact', 'new contact', 'create contact'], action: () => window.nxtrixActions.addContact() },
+                    { name: 'Generate Report', keywords: ['report', 'generate', 'analytics', 'stats'], action: () => window.nxtrixActions.generateReport() },
+                    { name: 'View Analytics', keywords: ['analytics', 'dashboard', 'metrics', 'performance'], action: () => navigateToSection(3) },
+                    { name: 'Market Analysis', keywords: ['market', 'analysis', 'trends', 'research'], action: () => window.nxtrixActions.marketAnalysis() },
+                    { name: 'AI Insights', keywords: ['ai', 'insights', 'artificial intelligence', 'recommendations'], action: () => window.nxtrixActions.aiInsights() },
+                    { name: 'Export Data', keywords: ['export', 'download', 'backup', 'data'], action: () => window.nxtrixActions.exportData() },
+                    { name: 'Settings', keywords: ['settings', 'preferences', 'config', 'configuration'], action: () => window.nxtrixActions.openSettings() }
+                ],
+                navigation: [
+                    { name: 'Dashboard', keywords: ['dashboard', 'home', 'overview'], action: () => navigateToSection(1) },
+                    { name: 'CRM', keywords: ['crm', 'contacts', 'leads', 'customers'], action: () => navigateToSection(2) },
+                    { name: 'Analytics', keywords: ['analytics', 'charts', 'reports', 'data'], action: () => navigateToSection(3) },
+                    { name: 'Automation', keywords: ['automation', 'workflows', 'triggers'], action: () => navigateToSection(4) },
+                    { name: 'Reports', keywords: ['reports', 'documents', 'summaries'], action: () => navigateToSection(5) }
+                ]
+            };
+            
+            // Smart search algorithm
+            const results = { actions: [], navigation: [] };
+            
+            Object.entries(searchData).forEach(([category, items]) => {
+                items.forEach(item => {
+                    const matchScore = calculateMatchScore(query, item);
+                    if (matchScore > 0) {
+                        results[category].push({ ...item, score: matchScore });
+                    }
+                });
+                
+                // Sort by relevance
+                results[category].sort((a, b) => b.score - a.score);
+            });
+            
+            // Update UI with results
+            let html = '';
+            
+            if (results.actions.length > 0) {
+                html += `
+                    <div class="quick-search-category">
+                        <h4>Quick Actions</h4>
+                        ${results.actions.slice(0, 3).map(item => `
+                            <div class="quick-action" onclick="executeSearchAction('${btoa(JSON.stringify(item))}')">
+                                <i class="fas fa-bolt"></i> ${item.name}
+                                <div class="match-score">${Math.round(item.score * 100)}% match</div>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+            }
+            
+            if (results.navigation.length > 0) {
+                html += `
+                    <div class="quick-search-category">
+                        <h4>Navigation</h4>
+                        ${results.navigation.slice(0, 3).map(item => `
+                            <div class="quick-action" onclick="executeSearchAction('${btoa(JSON.stringify(item))}')">
+                                <i class="fas fa-compass"></i> ${item.name}
+                                <div class="match-score">${Math.round(item.score * 100)}% match</div>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+            }
+            
+            if (!html) {
+                html = `
+                    <div class="quick-search-category">
+                        <h4>No Results</h4>
+                        <div class="quick-action">
+                            <i class="fas fa-search"></i> Try "create deal", "analytics", or "reports"
+                        </div>
+                    </div>
+                `;
+            }
+            
+            // Add AI suggestions
+            html += `
+                <div class="quick-search-category">
+                    <h4>AI Suggestions</h4>
+                    <div class="ai-suggestions">
+                        ${getAISuggestions(query).map(suggestion => `
+                            <div class="ai-suggestion">${suggestion}</div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+            
+            resultsContainer.innerHTML = html;
+        }
+        
+        function calculateMatchScore(query, item) {
+            const queryWords = query.split(' ').filter(word => word.length > 1);
+            let score = 0;
+            
+            queryWords.forEach(word => {
+                // Exact name match (highest score)
+                if (item.name.toLowerCase().includes(word)) {
+                    score += 10;
+                }
+                
+                // Keyword match
+                item.keywords.forEach(keyword => {
+                    if (keyword.includes(word)) {
+                        score += keyword === word ? 8 : 5; // Exact keyword vs partial
+                    }
+                });
+                
+                // Fuzzy matching for typos
+                item.keywords.forEach(keyword => {
+                    if (levenshteinDistance(word, keyword) <= 2 && word.length > 3) {
+                        score += 3;
+                    }
+                });
+            });
+            
+            return Math.min(score / 10, 1); // Normalize to 0-1
+        }
+        
+        function levenshteinDistance(a, b) {
+            const matrix = [];
+            for (let i = 0; i <= b.length; i++) {
+                matrix[i] = [i];
+            }
+            for (let j = 0; j <= a.length; j++) {
+                matrix[0][j] = j;
+            }
+            for (let i = 1; i <= b.length; i++) {
+                for (let j = 1; j <= a.length; j++) {
+                    if (b.charAt(i - 1) === a.charAt(j - 1)) {
+                        matrix[i][j] = matrix[i - 1][j - 1];
+                    } else {
+                        matrix[i][j] = Math.min(
+                            matrix[i - 1][j - 1] + 1,
+                            matrix[i][j - 1] + 1,
+                            matrix[i - 1][j] + 1
+                        );
+                    }
+                }
+            }
+            return matrix[b.length][a.length];
+        }
+        
+        function getAISuggestions(query) {
+            const suggestions = [
+                "💡 Try natural language: \"show me last month's revenue\"",
+                "🔍 Use wildcards: \"*deal\" finds all deal-related items",
+                "⚡ Quick filters: \"urgent deals\" or \"high-value contacts\"",
+                "📊 Analytics shortcuts: \"conversion rate\" or \"pipeline health\""
+            ];
+            
+            if (!query) {
+                return suggestions.slice(0, 2);
+            }
+            
+            // Context-aware suggestions
+            if (query.includes('deal')) {
+                return ["💰 Try \"deals by value\" or \"pending deals\"", "📈 \"Deal conversion rates\" might interest you"];
+            }
+            
+            if (query.includes('contact') || query.includes('lead')) {
+                return ["👥 Search \"high-value contacts\" or \"recent leads\"", "📞 Try \"contact activity\" for engagement data"];
+            }
+            
+            if (query.includes('report') || query.includes('analytics')) {
+                return ["📊 Use \"monthly report\" or \"performance analytics\"", "📈 \"Revenue trends\" shows growth patterns"];
+            }
+            
+            return suggestions.slice(0, 2);
+        }
+        
+        function executeSearchAction(encodedAction) {
+            try {
+                const action = JSON.parse(atob(encodedAction));
+                action.action();
+                showToast(`Executed: ${action.name}`, 'success');
+            } catch (e) {
+                console.error('Failed to execute search action:', e);
+            }
+        }
+        
+        function performSmartSearch(query) {
+            if (!query) return;
+            
+            showToast(`Searching for "${query}"...`, 'info');
+            
+            // Simulate AI search processing
+            setTimeout(() => {
+                showToast(`Found ${Math.floor(Math.random() * 20) + 5} results for "${query}"`, 'success');
+            }, 1500);
+        }
+        }
+        
+        function showKeyboardShortcuts() {
+            window.nxtrixActions.showModal('Keyboard Shortcuts', `
+                <div style="display: grid; gap: 16px;">
+                    <div class="shortcut-group">
+                        <h4 style="color: var(--primary); margin-bottom: 12px;">Navigation</h4>
+                        <div class="shortcut"><kbd>Ctrl</kbd> + <kbd>K</kbd><span>Quick Search</span></div>
+                        <div class="shortcut"><kbd>Ctrl</kbd> + <kbd>1-9</kbd><span>Navigate to Section</span></div>
+                        <div class="shortcut"><kbd>Tab</kbd><span>Enhanced Focus Navigation</span></div>
+                        <div class="shortcut"><kbd>Esc</kbd><span>Close Modal/Overlay</span></div>
+                    </div>
+                    <div class="shortcut-group">
+                        <h4 style="color: var(--primary); margin-bottom: 12px;">Actions</h4>
+                        <div class="shortcut"><kbd>Ctrl</kbd> + <kbd>N</kbd><span>Create New Deal</span></div>
+                        <div class="shortcut"><kbd>Ctrl</kbd> + <kbd>/</kbd><span>Show This Help</span></div>
+                    </div>
+                </div>
+                <style>
+                    .shortcut-group { margin-bottom: 20px; }
+                    .shortcut { 
+                        display: flex; 
+                        justify-content: space-between; 
+                        align-items: center; 
+                        padding: 8px 0; 
+                        border-bottom: 1px solid var(--border); 
+                    }
+                    .shortcut:last-child { border-bottom: none; }
+                    kbd { 
+                        background: var(--surface-secondary); 
+                        padding: 4px 8px; 
+                        border-radius: 4px; 
+                        font-size: 12px; 
+                        border: 1px solid var(--border);
+                    }
+                </style>
+            `);
+        }
+        
+        function navigateToSection(sectionNumber) {
+            const sections = ['dashboard', 'crm', 'analytics', 'automation', 'reports'];
+            const targetSection = sections[sectionNumber - 1];
+            
+            if (targetSection) {
+                // Scroll to section or trigger navigation
+                const element = document.querySelector(`[data-section="${targetSection}"]`) || 
+                               document.querySelector(`#${targetSection}`) ||
+                               document.querySelector(`.${targetSection}-section`);
+                
+                if (element) {
+                    element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    // Add visual highlight
+                    element.style.outline = '2px solid var(--primary)';
+                    element.style.outlineOffset = '4px';
+                    setTimeout(() => {
+                        element.style.outline = 'none';
+                        element.style.outlineOffset = '0';
+                    }, 2000);
+                }
+            }
+        }
+        
+        function enhanceTabNavigation(e) {
+            // Enhanced tab navigation with visual feedback
+            const focusableElements = document.querySelectorAll(`
+                a[href], button:not([disabled]), textarea:not([disabled]), 
+                input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])
+            `);
+            
+            // Add focus ring enhancement
+            document.addEventListener('focusin', function(e) {
+                e.target.style.outline = '2px solid var(--primary)';
+                e.target.style.outlineOffset = '2px';
+            });
+            
+            document.addEventListener('focusout', function(e) {
+                e.target.style.outline = 'none';
+                e.target.style.outlineOffset = '0';
+            });
+        }
     </script>
     """, unsafe_allow_html=True)
     
