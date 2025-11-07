@@ -1,18 +1,24 @@
 #!/usr/bin/env python3
 """
-Startup script for NXTRIX Enterprise Platform
-Handles dynamic port configuration for enterprise CRM interface
+NXTRIX Platform - Production Startup Script
+High-performance web application with custom interface
 """
+
 import os
-import subprocess
 import sys
+import subprocess
 
 def main():
-    # Get port from environment variable, default to 8000
+    """Main startup function for NXTRIX web application"""
+    
+    # Get port from environment (Railway/Netlify)
     port = os.environ.get('PORT', '8000')
     
-    # Validate port is numeric
+    print(f"🚀 Starting NXTRIX High-Performance Platform on port {port}")
+    print("✨ Custom web application with enterprise-grade interface")
+    
     try:
+        # Validate port is numeric
         port_num = int(port)
         if not (1 <= port_num <= 65535):
             raise ValueError("Port out of range")
@@ -20,18 +26,16 @@ def main():
         print(f"Invalid port '{port}', using default 8000")
         port = '8000'
     
-    # Build streamlit command for enterprise app
+    # Build streamlit command for high-performance web app
     cmd = [
-        'streamlit', 'run', 'enterprise_app_native.py',
+        'streamlit', 'run', 'nxtrix_webapp.py',
         '--server.port', port,
         '--server.address', '0.0.0.0',
         '--server.headless', 'true',
         '--server.enableCORS', 'false',
-        '--server.enableXsrfProtection', 'false',
-        '--theme.base', 'light'
+        '--server.enableXsrfProtection', 'false'
     ]
     
-    print(f"Starting NXTRIX Enterprise Platform on port {port}")
     print(f"Command: {' '.join(cmd)}")
     
     # Execute streamlit
