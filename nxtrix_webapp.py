@@ -2632,11 +2632,11 @@ def inject_custom_webapp():
 def main():
     """Main application entry point"""
     
-    # Completely hide Streamlit's default interface
+    # Completely hide Streamlit's default interface including the menu bar
     st.markdown("""
     <style>
         /* Hide Streamlit branding and interface */
-        .stApp > header {visibility: hidden !important;}
+        .stApp > header {visibility: hidden !important; height: 0px !important;}
         .stApp > div:first-child {padding-top: 0px !important;}
         .main > div {padding-top: 0px !important;}
         .block-container {
@@ -2660,11 +2660,26 @@ def main():
         .css-1rs6os {display: none !important;}
         .css-17eq0hr {display: none !important;}
         
-        /* Hide main menu */
+        /* Hide main menu bar with 3 dots (rerun, settings, etc.) */
         .css-1y4p8pa {display: none !important;}
         .css-1lcbmhc {display: none !important;}
+        .css-14xtw13 {display: none !important;}
+        .css-1g8v9l0 {display: none !important;}
+        .css-1adrfps {display: none !important;}
+        .css-1kzie3u {display: none !important;}
+        .css-9s5bis {display: none !important;}
+        [data-testid="stToolbar"] {display: none !important;}
+        [data-testid="stDecoration"] {display: none !important;}
+        [data-testid="stStatusWidget"] {display: none !important;}
+        [data-testid="collapsedControl"] {display: none !important;}
         
-        /* Full screen layout */
+        /* Hide the entire header area */
+        header[data-testid="stHeader"] {display: none !important;}
+        .css-18ni7ap {display: none !important;}
+        .css-vk3wp9 {display: none !important;}
+        .css-1544g2n {display: none !important;}
+        
+        /* Force full viewport without any top margin */
         .main .block-container {
             width: 100% !important;
             max-width: 100% !important;
@@ -2672,16 +2687,64 @@ def main():
             padding: 0 !important;
         }
         
-        /* Hide all Streamlit controls */
+        /* Hide all Streamlit controls and menus */
         .stToolbar, .stDecoration, .stStatusWidget {display: none !important;}
+        div[data-testid="stToolbar"] {display: none !important;}
+        section[data-testid="stSidebar"] > div {margin-top: 0px !important;}
         
-        /* Force full viewport */
+        /* Force full viewport height */
         html, body, [data-testid="stAppViewContainer"] {
             height: 100vh !important;
             margin: 0 !important;
             padding: 0 !important;
         }
+        
+        /* Hide any remaining Streamlit UI elements */
+        .css-1j5bjqe {display: none !important;}
+        .css-1ww6uq0 {display: none !important;}
+        .css-1offfwp {display: none !important;}
+        .css-16huue1 {display: none !important;}
+        
+        /* Ensure no top spacing anywhere */
+        .element-container {margin-top: 0px !important;}
+        .stMarkdown {margin-top: 0px !important;}
     </style>
+    """, unsafe_allow_html=True)
+    
+    # Additional JavaScript to remove any dynamically added elements
+    st.markdown("""
+    <script>
+        // Remove any Streamlit header elements that might appear
+        function hideStreamlitHeader() {
+            // Hide toolbar
+            const toolbar = document.querySelector('[data-testid="stToolbar"]');
+            if (toolbar) toolbar.style.display = 'none';
+            
+            // Hide header
+            const header = document.querySelector('[data-testid="stHeader"]');
+            if (header) header.style.display = 'none';
+            
+            // Hide any menu buttons
+            const menuButtons = document.querySelectorAll('.css-1y4p8pa, .css-1lcbmhc, .css-14xtw13');
+            menuButtons.forEach(button => button.style.display = 'none');
+            
+            // Ensure no top padding
+            const main = document.querySelector('.main');
+            if (main) main.style.paddingTop = '0px';
+            
+            // Force app container to top
+            const app = document.querySelector('.stApp');
+            if (app) {
+                app.style.paddingTop = '0px';
+                app.style.marginTop = '0px';
+            }
+        }
+        
+        // Run immediately and on any DOM changes
+        hideStreamlitHeader();
+        const observer = new MutationObserver(hideStreamlitHeader);
+        observer.observe(document.body, { childList: true, subtree: true });
+    </script>
     """, unsafe_allow_html=True)
     
     # Inject the custom web application with backend integration
