@@ -22,7 +22,7 @@ def main():
     
     # Build streamlit command for enterprise app
     cmd = [
-        'streamlit', 'run', 'enterprise_app_fixed.py',
+        'streamlit', 'run', 'enterprise_app_native.py',
         '--server.port', port,
         '--server.address', '0.0.0.0',
         '--server.headless', 'true',
