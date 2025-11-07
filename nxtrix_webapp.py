@@ -537,8 +537,7 @@ def inject_custom_webapp():
                 margin-left: auto;
             }
             
-            .notification-btn, .profile-btn {
-                width: 40px;
+            .notification-btn, .search-btn, .login-btn {
                 height: 40px;
                 border-radius: 10px;
                 background: var(--glass);
@@ -549,12 +548,124 @@ def inject_custom_webapp():
                 align-items: center;
                 justify-content: center;
                 transition: all 0.3s ease;
+                position: relative;
+                padding: 0;
             }
             
-            .notification-btn:hover, .profile-btn:hover {
+            .notification-btn, .search-btn {
+                width: 40px;
+            }
+            
+            .login-btn {
+                padding: 0 16px;
+                gap: 8px;
+                font-size: 14px;
+                font-weight: 500;
+            }
+            
+            .notification-btn:hover, .search-btn:hover, .login-btn:hover {
                 background: var(--surface-light);
                 color: var(--text);
                 transform: translateY(-2px);
+            }
+            
+            .notification-badge {
+                position: absolute;
+                top: -4px;
+                right: -4px;
+                background: var(--error);
+                color: white;
+                font-size: 10px;
+                font-weight: 600;
+                padding: 2px 6px;
+                border-radius: 10px;
+                min-width: 16px;
+                text-align: center;
+            }
+            
+            .user-menu {
+                display: flex;
+                align-items: center;
+            }
+            
+            .user-info {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                padding: 8px 12px;
+                background: var(--glass);
+                border: 1px solid var(--glass-border);
+                border-radius: 10px;
+                cursor: pointer;
+                transition: all 0.3s ease;
+            }
+            
+            .user-info:hover {
+                background: var(--surface-light);
+            }
+            
+            .user-avatar {
+                width: 32px;
+                height: 32px;
+                border-radius: 8px;
+                object-fit: cover;
+            }
+            
+            .user-details {
+                display: flex;
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            
+            .user-name {
+                font-size: 14px;
+                font-weight: 600;
+                color: var(--text);
+                line-height: 1;
+            }
+            
+            .user-role {
+                font-size: 12px;
+                color: var(--text-muted);
+                line-height: 1;
+            }
+            
+            .user-actions {
+                display: none;
+                position: absolute;
+                top: 100%;
+                right: 0;
+                background: var(--surface);
+                border: 1px solid var(--border);
+                border-radius: 12px;
+                box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+                padding: 8px;
+                min-width: 180px;
+                z-index: 1000;
+            }
+            
+            .user-menu:hover .user-actions {
+                display: block;
+            }
+            
+            .user-action-btn {
+                width: 100%;
+                padding: 10px 12px;
+                background: transparent;
+                border: none;
+                color: var(--text);
+                text-align: left;
+                cursor: pointer;
+                border-radius: 6px;
+                transition: all 0.2s ease;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                font-size: 14px;
+            }
+            
+            .user-action-btn:hover {
+                background: var(--hover);
             }
             
             /* Content Area */
@@ -939,10 +1050,17 @@ def inject_custom_webapp():
                     <div class="top-bar-right">
                         <button class="notification-btn" onclick="showNotifications()">
                             <i class="fas fa-bell"></i>
+                            <span class="notification-badge">3</span>
                         </button>
-                        <button class="profile-btn" onclick="showProfile()">
-                            <i class="fas fa-user"></i>
+                        <button class="search-btn" onclick="openQuickSearch()" title="Quick Search (Ctrl+K)">
+                            <i class="fas fa-search"></i>
                         </button>
+                        <div class="user-menu" id="userMenu">
+                            <button class="login-btn" onclick="showLoginScreen()">
+                                <i class="fas fa-sign-in-alt"></i>
+                                Login
+                            </button>
+                        </div>
                     </div>
                 </div>
                 
@@ -1134,8 +1252,359 @@ def inject_custom_webapp():
                 contentArea.innerHTML = pageContent[page] || getDashboardContent();
             }
             
+            // Authentication System
+            let currentUser = null;
+            let isAuthenticated = false;
+            
+            function initializeAuth() {
+                // Check if user is already logged in (from localStorage)
+                const savedUser = localStorage.getItem('nxtrix_user');
+                if (savedUser) {
+                    currentUser = JSON.parse(savedUser);
+                    isAuthenticated = true;
+                    showDashboard();
+                    updateAuthUI();
+                } else {
+                    showLoginScreen();
+                }
+            }
+            
+            function showLoginScreen() {
+                const contentArea = document.getElementById('contentArea');
+                contentArea.innerHTML = `
+                    <div class="login-container">
+                        <div class="login-card">
+                            <div class="login-header">
+                                <div class="logo-large">
+                                    <i class="fas fa-building"></i>
+                                    <span>NXTRIX</span>
+                                </div>
+                                <h2>Welcome Back</h2>
+                                <p>Sign in to your enterprise platform</p>
+                            </div>
+                            <form class="login-form" onsubmit="handleLogin(event)">
+                                <div class="form-group">
+                                    <label>Email Address</label>
+                                    <input type="email" id="loginEmail" required placeholder="Enter your email" value="admin@nxtrix.com">
+                                </div>
+                                <div class="form-group">
+                                    <label>Password</label>
+                                    <input type="password" id="loginPassword" required placeholder="Enter your password" value="admin123">
+                                </div>
+                                <div class="form-options">
+                                    <label class="checkbox">
+                                        <input type="checkbox" id="rememberMe">
+                                        <span>Remember me</span>
+                                    </label>
+                                    <a href="#" onclick="showForgotPassword()">Forgot password?</a>
+                                </div>
+                                <button type="submit" class="login-btn">
+                                    <i class="fas fa-sign-in-alt"></i>
+                                    Sign In
+                                </button>
+                            </form>
+                            <div class="demo-credentials">
+                                <p><strong>Demo Credentials:</strong></p>
+                                <p>Email: admin@nxtrix.com</p>
+                                <p>Password: admin123</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <style>
+                        .login-container {
+                            min-height: 100vh;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+                            padding: 20px;
+                        }
+                        
+                        .login-card {
+                            background: var(--surface);
+                            border: 1px solid var(--border);
+                            border-radius: 20px;
+                            padding: 40px;
+                            max-width: 400px;
+                            width: 100%;
+                            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+                            animation: fadeInUp 0.6s ease-out;
+                        }
+                        
+                        .login-header {
+                            text-align: center;
+                            margin-bottom: 30px;
+                        }
+                        
+                        .logo-large {
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            gap: 12px;
+                            margin-bottom: 20px;
+                        }
+                        
+                        .logo-large i {
+                            font-size: 36px;
+                            color: var(--primary);
+                        }
+                        
+                        .logo-large span {
+                            font-size: 28px;
+                            font-weight: 700;
+                            color: var(--text);
+                        }
+                        
+                        .login-header h2 {
+                            margin: 0 0 8px 0;
+                            color: var(--text);
+                            font-size: 24px;
+                        }
+                        
+                        .login-header p {
+                            margin: 0;
+                            color: var(--text-muted);
+                            font-size: 14px;
+                        }
+                        
+                        .login-form {
+                            display: grid;
+                            gap: 20px;
+                        }
+                        
+                        .form-group {
+                            display: grid;
+                            gap: 8px;
+                        }
+                        
+                        .form-group label {
+                            color: var(--text);
+                            font-weight: 500;
+                            font-size: 14px;
+                        }
+                        
+                        .form-group input {
+                            padding: 12px 16px;
+                            border: 1px solid var(--border);
+                            border-radius: 8px;
+                            background: var(--surface-light);
+                            color: var(--text);
+                            font-size: 14px;
+                            transition: all 0.3s ease;
+                        }
+                        
+                        .form-group input:focus {
+                            outline: none;
+                            border-color: var(--primary);
+                            box-shadow: 0 0 0 3px rgba(124, 92, 255, 0.1);
+                        }
+                        
+                        .form-options {
+                            display: flex;
+                            justify-content: space-between;
+                            align-items: center;
+                            font-size: 14px;
+                        }
+                        
+                        .checkbox {
+                            display: flex;
+                            align-items: center;
+                            gap: 8px;
+                            cursor: pointer;
+                        }
+                        
+                        .checkbox input[type="checkbox"] {
+                            width: 16px;
+                            height: 16px;
+                        }
+                        
+                        .checkbox span {
+                            color: var(--text-muted);
+                        }
+                        
+                        .form-options a {
+                            color: var(--primary);
+                            text-decoration: none;
+                            transition: color 0.3s ease;
+                        }
+                        
+                        .form-options a:hover {
+                            color: var(--primary-light);
+                        }
+                        
+                        .login-btn {
+                            padding: 14px 24px;
+                            background: linear-gradient(135deg, var(--primary), var(--primary-light));
+                            border: none;
+                            border-radius: 8px;
+                            color: white;
+                            font-weight: 600;
+                            font-size: 14px;
+                            cursor: pointer;
+                            transition: all 0.3s ease;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            gap: 8px;
+                        }
+                        
+                        .login-btn:hover {
+                            background: linear-gradient(135deg, var(--primary-light), var(--primary));
+                            transform: translateY(-1px);
+                            box-shadow: 0 4px 20px rgba(124, 92, 255, 0.4);
+                        }
+                        
+                        .demo-credentials {
+                            margin-top: 20px;
+                            padding: 16px;
+                            background: var(--surface-light);
+                            border-radius: 8px;
+                            border-left: 4px solid var(--primary);
+                        }
+                        
+                        .demo-credentials p {
+                            margin: 4px 0;
+                            font-size: 12px;
+                            color: var(--text-muted);
+                        }
+                        
+                        .demo-credentials p:first-child {
+                            color: var(--text);
+                            font-weight: 600;
+                        }
+                    </style>
+                `;
+            }
+            
+            function handleLogin(event) {
+                event.preventDefault();
+                
+                const email = document.getElementById('loginEmail').value;
+                const password = document.getElementById('loginPassword').value;
+                const rememberMe = document.getElementById('rememberMe').checked;
+                
+                // Show loading state
+                const loginBtn = event.target.querySelector('.login-btn');
+                const originalContent = loginBtn.innerHTML;
+                loginBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Signing In...';
+                loginBtn.disabled = true;
+                
+                // Simulate authentication delay
+                setTimeout(() => {
+                    // Demo authentication - accept any email/password combination
+                    // In production, this would connect to your authentication service
+                    if (email && password) {
+                        currentUser = {
+                            id: '1',
+                            name: email.split('@')[0],
+                            email: email,
+                            role: 'Admin',
+                            avatar: 'https://ui-avatars.com/api/?name=' + encodeURIComponent(email.split('@')[0]) + '&background=7c5cff&color=fff',
+                            loginTime: new Date().toISOString()
+                        };
+                        
+                        isAuthenticated = true;
+                        
+                        // Save to localStorage if remember me is checked
+                        if (rememberMe) {
+                            localStorage.setItem('nxtrix_user', JSON.stringify(currentUser));
+                        }
+                        
+                        showToast('Login successful! Welcome to NXTRIX', 'success');
+                        showDashboard();
+                        updateAuthUI();
+                    } else {
+                        showToast('Please enter valid credentials', 'error');
+                        loginBtn.innerHTML = originalContent;
+                        loginBtn.disabled = false;
+                    }
+                }, 1500);
+            }
+            
+            function handleLogout() {
+                // Clear authentication
+                currentUser = null;
+                isAuthenticated = false;
+                
+                // Clear localStorage
+                localStorage.removeItem('nxtrix_user');
+                
+                // Show logout message
+                showToast('Successfully logged out', 'success');
+                
+                // Redirect to login
+                setTimeout(() => {
+                    showLoginScreen();
+                }, 1000);
+            }
+            
+            function updateAuthUI() {
+                // Update user menu in header
+                const userMenu = document.querySelector('.user-menu');
+                if (userMenu && currentUser) {
+                    userMenu.innerHTML = `
+                        <div class="user-info">
+                            <img src="${currentUser.avatar}" alt="Avatar" class="user-avatar">
+                            <div class="user-details">
+                                <div class="user-name">${currentUser.name}</div>
+                                <div class="user-role">${currentUser.role}</div>
+                            </div>
+                        </div>
+                        <div class="user-actions">
+                            <button onclick="showUserProfile()" class="user-action-btn">
+                                <i class="fas fa-user"></i> Profile
+                            </button>
+                            <button onclick="handleLogout()" class="user-action-btn">
+                                <i class="fas fa-sign-out-alt"></i> Logout
+                            </button>
+                        </div>
+                    `;
+                }
+            }
+            
+            function showDashboard() {
+                const contentArea = document.getElementById('contentArea');
+                loadPageContent('dashboard');
+            }
+            
+            function showUserProfile() {
+                if (currentUser) {
+                    showModal('User Profile', getUserProfileHTML());
+                }
+            }
+            
+            function showForgotPassword() {
+                showModal('Password Reset', `
+                    <div class="password-reset-form">
+                        <p>Enter your email address and we'll send you a password reset link.</p>
+                        <div class="form-group">
+                            <label>Email Address</label>
+                            <input type="email" placeholder="Enter your email" style="width: 100%; padding: 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-light); color: var(--text);">
+                        </div>
+                        <div style="margin-top: 20px; display: flex; gap: 12px; justify-content: flex-end;">
+                            <button onclick="closeModal()" class="cta-button cta-secondary">Cancel</button>
+                            <button onclick="sendPasswordReset()" class="cta-button">Send Reset Link</button>
+                        </div>
+                    </div>
+                `);
+            }
+            
+            function sendPasswordReset() {
+                showToast('Password reset link sent to your email', 'success');
+                closeModal();
+            }
+
             // CTA Button Handlers
             function handleCTA(action) {
+                // Check if user is authenticated for certain actions
+                const authRequiredActions = ['newDeal', 'addContact', 'aiAnalysis', 'sendEmail'];
+                if (authRequiredActions.includes(action) && !isAuthenticated) {
+                    showToast('Please log in to access this feature', 'error');
+                    setTimeout(showLoginScreen, 1000);
+                    return;
+                }
+                
                 // Show immediate feedback
                 showToast(`Processing ${action}...`, 'success');
                 
@@ -3387,6 +3856,16 @@ def inject_custom_webapp():
             
             // Initialize the application
             document.addEventListener('DOMContentLoaded', function() {
+                // Initialize authentication system
+                initializeAuth();
+                
+                // Initialize AI insights refresh
+                setTimeout(() => {
+                    if (isAuthenticated && typeof refreshAIInsights === 'function') {
+                        refreshAIInsights();
+                    }
+                }, 2000);
+                
                 showToast('NXTRIX Platform loaded successfully!', 'success');
             });
         </script>
@@ -4071,6 +4550,100 @@ def main():
                 e.target.style.outlineOffset = '0';
             });
         }
+        
+        // Additional missing functions
+        function showNotifications() {
+            showModal('Notifications', `
+                <div class="notifications-container">
+                    <div class="notification-item new">
+                        <i class="fas fa-bell text-primary"></i>
+                        <div class="notification-content">
+                            <div class="notification-title">New Deal Alert</div>
+                            <div class="notification-message">High-value property in Downtown area</div>
+                            <div class="notification-time">5 minutes ago</div>
+                        </div>
+                        <button class="notification-close">×</button>
+                    </div>
+                    <div class="notification-item">
+                        <i class="fas fa-user text-success"></i>
+                        <div class="notification-content">
+                            <div class="notification-title">New Contact Added</div>
+                            <div class="notification-message">John Smith - Investor</div>
+                            <div class="notification-time">1 hour ago</div>
+                        </div>
+                        <button class="notification-close">×</button>
+                    </div>
+                    <div class="notification-item">
+                        <i class="fas fa-chart-up text-info"></i>
+                        <div class="notification-content">
+                            <div class="notification-title">Monthly Report Ready</div>
+                            <div class="notification-message">Performance analytics generated</div>
+                            <div class="notification-time">2 hours ago</div>
+                        </div>
+                        <button class="notification-close">×</button>
+                    </div>
+                </div>
+                <style>
+                    .notifications-container { display: grid; gap: 12px; max-height: 400px; overflow-y: auto; }
+                    .notification-item { 
+                        display: flex; 
+                        align-items: center; 
+                        gap: 12px; 
+                        padding: 16px; 
+                        background: var(--surface-light); 
+                        border-radius: 8px; 
+                        transition: all 0.3s ease; 
+                    }
+                    .notification-item.new { border-left: 4px solid var(--primary); }
+                    .notification-item:hover { background: var(--hover); }
+                    .notification-content { flex: 1; }
+                    .notification-title { font-weight: 600; color: var(--text); margin-bottom: 4px; }
+                    .notification-message { color: var(--text-muted); font-size: 14px; margin-bottom: 4px; }
+                    .notification-time { color: var(--text-muted); font-size: 12px; }
+                    .notification-close { 
+                        background: none; 
+                        border: none; 
+                        color: var(--text-muted); 
+                        cursor: pointer; 
+                        font-size: 16px; 
+                        padding: 4px; 
+                    }
+                    .text-primary { color: var(--primary); }
+                    .text-success { color: var(--success); }
+                    .text-info { color: var(--secondary); }
+                </style>
+            `);
+        }
+        
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const mainContent = document.querySelector('.main-content');
+            
+            sidebar.classList.toggle('collapsed');
+            mainContent.classList.toggle('sidebar-collapsed');
+            
+            showToast('Sidebar toggled', 'info');
+        }
+        
+        function closeModal() {
+            const modal = document.querySelector('.modal-overlay');
+            if (modal) {
+                modal.remove();
+            }
+        }
+        
+        // Global NXTRIX Actions object for external access
+        window.nxtrixActions = {
+            createDeal: () => handleCTA('newDeal'),
+            addContact: () => handleCTA('addContact'),
+            generateReport: () => handleCTA('marketAnalysis'),
+            showModal: showModal,
+            showToast: showToast,
+            marketAnalysis: () => handleCTA('marketAnalysis'),
+            aiInsights: () => handleCTA('aiAnalysis'),
+            exportData: () => handleCTA('performanceTracking'),
+            openSettings: () => handleCTA('systemSettings')
+        };
     </script>
     """, unsafe_allow_html=True)
     
