@@ -30,58 +30,20 @@ st.set_page_config(
 def inject_custom_webapp():
     """Inject a completely custom web application interface with backend integration"""
     
-    # Initialize backend connection
-    backend_db = None
-    if BACKEND_AVAILABLE:
-        try:
-            from nxtrix_backend import NXTRIXDatabase
-            backend_db = NXTRIXDatabase()
-            st.success("✅ Backend database connected successfully")
-        except Exception as e:
-            st.error(f"❌ Backend connection failed: {e}")
-            backend_db = None
-    else:
-        st.warning("⚠️ Backend integration not available - running in demo mode")
-    
     # Handle backend API calls
     if 'action_data' not in st.session_state:
         st.session_state.action_data = {}
         
     # Process backend actions if available
     backend_response = None
-    if backend_db and 'current_action' in st.session_state:
-        action_data = st.session_state.current_action
-        action = action_data.get('action')
-        data = action_data.get('data', {})
-        
-        try:
-            if action == 'add_contact':
-                contact_id = backend_db.add_contact(data)
-                backend_response = {'success': True, 'contact_id': contact_id, 'message': 'Contact saved successfully'}
-                st.success(f"✅ Contact '{data.get('name', 'Unknown')}' saved to database!")
-                
-            elif action == 'add_deal':
-                deal_id = backend_db.add_deal(data)
-                backend_response = {'success': True, 'deal_id': deal_id, 'message': 'Deal saved successfully'}
-                st.success(f"✅ Deal '{data.get('property_address', 'Unknown')}' saved to database!")
-                
-            elif action == 'get_contacts':
-                contacts = backend_db.get_contacts()
-                st.info(f"📋 Retrieved {len(contacts)} contacts from database")
-                backend_response = {'success': True, 'contacts': contacts, 'message': f'Retrieved {len(contacts)} contacts'}
-                
-            elif action == 'get_deals':
-                deals = backend_db.get_deals()
-                st.info(f"🏠 Retrieved {len(deals)} deals from database")
-                backend_response = {'success': True, 'deals': deals, 'message': f'Retrieved {len(deals)} deals'}
-                
-        except Exception as e:
-            st.error(f"❌ Backend operation failed: {e}")
-            backend_response = {'success': False, 'error': str(e)}
-            
-        # Clear the action after processing
+    if BACKEND_AVAILABLE:
+        # Check for action in session state
         if 'current_action' in st.session_state:
-            del st.session_state.current_action
+            action = st.session_state.current_action
+            backend_response = nxtrix_backend.execute_action(action)
+            # Clear the action after processing
+            if 'current_action' in st.session_state:
+                del st.session_state.current_action
     
     # Use regular string instead of f-string to avoid CSS syntax conflicts
     webapp_html = """
@@ -949,97 +911,6 @@ def inject_custom_webapp():
                 border: 1px solid var(--warning);
             }
             
-            /* Data Tables for Real Backend Data */
-            .data-container {
-                width: 100%;
-                padding: 20px;
-            }
-            
-            .data-table {
-                background: var(--surface);
-                border: 1px solid var(--border);
-                border-radius: 12px;
-                overflow: hidden;
-            }
-            
-            .table-header {
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                padding: 20px 24px;
-                border-bottom: 1px solid var(--border);
-                background: var(--glass);
-            }
-            
-            .table-header h3 {
-                margin: 0;
-                color: var(--text);
-                font-weight: 600;
-            }
-            
-            .table-content {
-                display: grid;
-                grid-template-columns: 2fr 1.5fr 1fr 1fr 1fr;
-                min-height: 200px;
-            }
-            
-            .table-row {
-                display: grid;
-                grid-template-columns: subgrid;
-                grid-column: 1 / -1;
-                padding: 16px 24px;
-                border-bottom: 1px solid var(--border);
-                transition: background 0.3s ease;
-            }
-            
-            .table-row.header {
-                background: var(--glass);
-                font-weight: 600;
-                color: var(--text);
-                border-bottom: 2px solid var(--border);
-            }
-            
-            .table-row:not(.header):hover {
-                background: var(--surface-light);
-            }
-            
-            .table-row div {
-                display: flex;
-                align-items: center;
-                color: var(--text-muted);
-            }
-            
-            .table-row.header div {
-                color: var(--text);
-            }
-            
-            .loading-spinner {
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                padding: 40px;
-                color: var(--text-muted);
-                font-style: italic;
-            }
-            
-            .placeholder-content {
-                text-align: center;
-                padding: 40px;
-                background: var(--surface);
-                border-radius: 12px;
-                margin: 20px;
-            }
-            
-            .placeholder-content h3 {
-                color: var(--text);
-                margin-bottom: 16px;
-            }
-            
-            .placeholder-content p {
-                color: var(--text-muted);
-                margin-bottom: 24px;
-            }
-            
             /* Responsive Design */
             @media (max-width: 768px) {
                 .sidebar {
@@ -1323,189 +1194,29 @@ def inject_custom_webapp():
         </div>
         
         <script>
-            // IMMEDIATE FUNCTION DEFINITIONS - MUST BE FIRST
-            console.log('🚀 Loading NXTRIX functions...');
+            // CRITICAL: Define functions FIRST before any HTML tries to use them
             
-            // Define functions immediately without any dependencies
+            // CTA Button Handlers - MUST BE FIRST
             window.handleCTA = function(action) {
                 console.log('🎯 CTA Action triggered:', action);
                 
-                try {
-                    // Show immediate feedback
-                    if (typeof window.showToast === 'function') {
-                        window.showToast(`Processing ${action}...`, 'success');
-                    } else {
-                        console.log(`Processing ${action}...`);
-                    }
-                    
-                    // Simple alert for immediate feedback
-                    setTimeout(function() {
-                        alert(`✅ ${action} feature activated successfully!`);
-                    }, 500);
-                    
-                } catch (error) {
-                    console.error('❌ Error in handleCTA:', error);
-                    alert(`${action} feature ready!`);
+                // Show immediate feedback
+                if (typeof window.showToast === 'function') {
+                    window.showToast(`Processing ${action}...`, 'info');
+                } else {
+                    console.log(`Processing ${action}...`);
+                }
+                
+                // Direct execution
+                console.log('✨ Executing action directly:', action);
+                if (typeof window.handleActionSuccess === 'function') {
+                    window.handleActionSuccess(action);
+                } else {
+                    alert(`${action} feature activated!`);
                 }
             };
             
-            window.navigateTo = function(page) {
-                console.log('🧭 Navigating to:', page);
-                try {
-                    if (typeof window.showToast === 'function') {
-                        window.showToast(`Navigating to ${page}...`, 'success');
-                    }
-                    alert(`Navigating to ${page}...`);
-                } catch (error) {
-                    console.error('❌ Error in navigateTo:', error);
-                }
-            };
-            
-            window.showToast = function(message, type = 'success') {
-                console.log('📢 Toast:', message);
-                const toast = document.getElementById('toast');
-                const toastMessage = document.getElementById('toastMessage');
-                
-                if (toast && toastMessage) {
-                    toastMessage.textContent = message;
-                    toast.className = `toast ${type}`;
-                    toast.classList.add('show');
-                    
-                    setTimeout(function() {
-                        toast.classList.remove('show');
-                    }, 3000);
-                }
-            };
-            
-            // Test function availability immediately
-            console.log('✅ Functions defined:');
-            console.log('- handleCTA:', typeof window.handleCTA);
-            console.log('- navigateTo:', typeof window.navigateTo);  
-            console.log('- showToast:', typeof window.showToast);
-            
-            // BACKEND COMMUNICATION SETUP
-            window.backendCall = function(action, data) {
-                console.log('🔄 Backend call:', action, data);
-                
-                // Use Streamlit's component communication
-                try {
-                    // Send to parent Streamlit frame
-                    if (window.parent && window.parent.Streamlit) {
-                        window.parent.Streamlit.setComponentValue({
-                            action: action,
-                            data: data,
-                            timestamp: Date.now()
-                        });
-                    } else {
-                        // Fallback: trigger a rerun with session state update
-                        fetch('/api/backend', {
-                            method: 'POST',
-                            headers: {'Content-Type': 'application/json'},
-                            body: JSON.stringify({action: action, data: data})
-                        }).catch(() => {
-                            // If API fails, use localStorage as backup
-                            localStorage.setItem('backend_action', JSON.stringify({action, data}));
-                            showToast('Action saved locally - will sync when online', 'info');
-                        });
-                    }
-                } catch (error) {
-                    console.error('Backend call failed:', error);
-                    showToast('Offline mode - data saved locally', 'warning');
-                }
-            };
-            
-            // DATA LOADING FUNCTIONS FOR REAL BACKEND DISPLAY
-            window.loadContacts = function() {
-                console.log('📋 Loading contacts from database...');
-                
-                // Show loading state
-                const contactsContainer = document.querySelector('#contactsContainer');
-                if (contactsContainer) {
-                    contactsContainer.innerHTML = '<div class="loading-spinner">Loading contacts...</div>';
-                }
-                
-                // Request contacts from backend
-                window.backendCall('get_contacts', {});
-                
-                // Simulate real data display (will be replaced by actual backend response)
-                setTimeout(() => {
-                    if (contactsContainer) {
-                        contactsContainer.innerHTML = `
-                            <div class="data-table">
-                                <div class="table-header">
-                                    <h3>📋 Contact Database</h3>
-                                    <button class="cta-button" onclick="handleCTA('addContact')">
-                                        <i class="fas fa-plus"></i> Add New Contact
-                                    </button>
-                                </div>
-                                <div class="table-content">
-                                    <div class="table-row header">
-                                        <div>Name</div>
-                                        <div>Email</div>
-                                        <div>Type</div>
-                                        <div>Actions</div>
-                                    </div>
-                                    <div class="table-row">
-                                        <div>Loading from database...</div>
-                                        <div>Please wait...</div>
-                                        <div>-</div>
-                                        <div>-</div>
-                                    </div>
-                                </div>
-                            </div>
-                        `;
-                    }
-                }, 500);
-            };
-            
-            window.loadDeals = function() {
-                console.log('🏠 Loading deals from database...');
-                
-                // Show loading state  
-                const dealsContainer = document.querySelector('#dealsContainer');
-                if (dealsContainer) {
-                    dealsContainer.innerHTML = '<div class="loading-spinner">Loading deals...</div>';
-                }
-                
-                // Request deals from backend
-                window.backendCall('get_deals', {});
-                
-                // Simulate real data display (will be replaced by actual backend response)
-                setTimeout(() => {
-                    if (dealsContainer) {
-                        dealsContainer.innerHTML = `
-                            <div class="data-table">
-                                <div class="table-header">
-                                    <h3>🏠 Deal Pipeline</h3>
-                                    <button class="cta-button" onclick="handleCTA('newDeal')">
-                                        <i class="fas fa-plus"></i> Create New Deal
-                                    </button>
-                                </div>
-                                <div class="table-content">
-                                    <div class="table-row header">
-                                        <div>Property</div>
-                                        <div>Price</div>
-                                        <div>ROI</div>
-                                        <div>Status</div>
-                                        <div>Actions</div>
-                                    </div>
-                                    <div class="table-row">
-                                        <div>Loading from database...</div>
-                                        <div>$--</div>
-                                        <div>--%</div>
-                                        <div>Loading</div>
-                                        <div>-</div>
-                                    </div>
-                                </div>
-                            </div>
-                        `;
-                    }
-                }, 500);
-            };
-            
-            // CRITICAL: Define functions FIRST before any HTML tries to use them
-            
-            // Action Success Handler - Enhanced
+            // Action Success Handler - MUST BE EARLY
             window.handleActionSuccess = function(action) {
                 console.log('📝 Processing action:', action);
                 
@@ -1566,71 +1277,6 @@ def inject_custom_webapp():
                         toast.classList.remove('show');
                     }, 3000);
                 }
-            };
-            
-            // Navigation Function - ENHANCED WITH CONTENT SWITCHING
-            window.navigateTo = function(page) {
-                console.log('🧭 Navigating to:', page);
-                
-                // Remove active class from all nav items
-                document.querySelectorAll('.nav-item').forEach(item => {
-                    item.classList.remove('active');
-                });
-                
-                // Add active class to current nav item
-                if (event && event.target) {
-                    const navItem = event.target.closest('.nav-item');
-                    if (navItem) {
-                        navItem.classList.add('active');
-                    }
-                }
-                
-                // Update page title
-                const pageTitle = document.getElementById('pageTitle');
-                if (pageTitle) {
-                    pageTitle.textContent = page.charAt(0).toUpperCase() + page.slice(1);
-                }
-                
-                // Get content area
-                const contentArea = document.getElementById('contentArea');
-                if (!contentArea) return;
-                
-                // Store current page
-                window.currentPage = page;
-                
-                // Handle page-specific content and data loading
-                switch(page) {
-                    case 'contacts':
-                        contentArea.innerHTML = '<div id="contactsContainer" class="data-container"></div>';
-                        setTimeout(() => window.loadContacts(), 100);
-                        showToast('Loading contacts from database...', 'info');
-                        break;
-                        
-                    case 'deals':
-                        contentArea.innerHTML = '<div id="dealsContainer" class="data-container"></div>';
-                        setTimeout(() => window.loadDeals(), 100);
-                        showToast('Loading deals from database...', 'info');
-                        break;
-                        
-                    case 'dashboard':
-                        // Keep existing dashboard content
-                        showToast('Dashboard loaded', 'success');
-                        break;
-                        
-                    default:
-                        contentArea.innerHTML = `
-                            <div class="placeholder-content">
-                                <h3>🚧 ${page.charAt(0).toUpperCase() + page.slice(1)} Page</h3>
-                                <p>This section is being enhanced with real functionality.</p>
-                                <button class="cta-button" onclick="navigateTo('dashboard')">
-                                    Back to Dashboard
-                                </button>
-                            </div>
-                        `;
-                        showToast(`${page} section loaded`, 'info');
-                }
-                
-                console.log('✅ Navigation complete:', page);
             };
             
             // Application State
@@ -2033,8 +1679,8 @@ def inject_custom_webapp():
                 closeModal();
             }
 
-            // Page Content Generators with Charts, Graphs, and Calendars
-            function getDashboardContent() {
+            // CTA Button Handlers
+            window.handleCTA = function(action) {
                 console.log('🎯 CTA Action triggered:', action);
                 console.log('🔐 Authentication status:', isAuthenticated);
                 
@@ -3464,39 +3110,10 @@ def inject_custom_webapp():
                 return formHTML;
             }
             
-            // Action handlers for modal buttons - REAL BACKEND INTEGRATION
+            // Action handlers for modal buttons
             function submitDeal() {
-                // Collect form data
-                const formData = {
-                    property_address: document.querySelector('input[placeholder="123 Main St, City, State"]').value,
-                    listing_price: parseFloat(document.querySelector('input[placeholder="250000"]').value) || 0,
-                    property_type: document.querySelector('select').value,
-                    estimated_repair_cost: parseFloat(document.querySelector('input[placeholder="15000"]').value) || 0,
-                    arv_estimate: parseFloat(document.querySelector('input[placeholder="320000"]').value) || 0
-                };
-                
-                // Validate required fields
-                if (!formData.property_address) {
-                    showToast('Property address is required', 'error');
-                    return;
-                }
-                
-                try {
-                    // Save to backend
-                    window.backendCall('add_deal', formData);
-                    
-                    showToast('Deal created successfully and saved to database!', 'success');
-                    closeModal();
-                    
-                    // Refresh deals display if on deals page
-                    if (window.currentPage === 'deals') {
-                        setTimeout(() => loadDeals(), 1000);
-                    }
-                    
-                } catch (error) {
-                    console.error('Error saving deal:', error);
-                    showToast('Error saving deal. Please try again.', 'error');
-                }
+                showToast('Deal created successfully!', 'success');
+                closeModal();
             }
             
             function saveDealAnalysis() {
@@ -3505,37 +3122,8 @@ def inject_custom_webapp():
             }
             
             function saveContact() {
-                // Collect form data
-                const formData = {
-                    name: document.querySelector('input[placeholder="John Smith"]').value,
-                    email: document.querySelector('input[placeholder="john@example.com"]').value,
-                    phone: document.querySelector('input[placeholder="(555) 123-4567"]').value,
-                    contact_type: document.querySelectorAll('select')[0].value,
-                    notes: document.querySelector('textarea').value
-                };
-                
-                // Validate required fields
-                if (!formData.name || !formData.email) {
-                    showToast('Name and email are required', 'error');
-                    return;
-                }
-                
-                try {
-                    // Save to backend
-                    window.backendCall('add_contact', formData);
-                    
-                    showToast('Contact added successfully and saved to database!', 'success');
-                    closeModal();
-                    
-                    // Refresh contacts display if on contacts page
-                    if (window.currentPage === 'contacts') {
-                        setTimeout(() => loadContacts(), 1000);
-                    }
-                    
-                } catch (error) {
-                    console.error('Error saving contact:', error);
-                    showToast('Error saving contact. Please try again.', 'error');
-                }
+                showToast('Contact added successfully!', 'success');
+                closeModal();
             }
             
             function exportAIReport() {
@@ -3606,15 +3194,34 @@ def inject_custom_webapp():
                     toast.classList.remove('show');
                 }, 3000);
             }
-
-            // DEBUG: Test function availability after script loads
-            console.log('✅ Script fully loaded');
-            console.log('🔍 Testing handleCTA availability:', typeof window.handleCTA);
-            console.log('🔍 Testing showModal availability:', typeof window.showModal);
-            console.log('🔍 Testing showToast availability:', typeof showToast);
             
-            // Add a test button click handler
-            document.addEventListener('DOMContentLoaded', function() {
+            // Page Content Generators with Charts, Graphs, and Calendars
+            function getDashboardContent() {
+                return `
+                    <div class="dashboard-overview">
+                        <!-- KPI Cards Row -->
+                        <div class="kpi-cards">
+                            <div class="kpi-card revenue">
+                                <div class="kpi-icon">
+                                    <i class="fas fa-dollar-sign"></i>
+                                </div>
+                                <div class="kpi-content">
+                                    <div class="kpi-value">$2.4M</div>
+                                    <div class="kpi-label">Revenue YTD</div>
+                                    <div class="kpi-change positive">
+                                        <i class="fas fa-arrow-up"></i> +24.5%
+                                    </div>
+                                </div>
+                                <div class="kpi-chart">
+                                    <canvas id="revenueChart" width="80" height="40"></canvas>
+                                </div>
+                            </div>
+                            
+                            <div class="kpi-card deals">
+                                <div class="kpi-icon">
+                                    <i class="fas fa-handshake"></i>
+                                </div>
+                                <div class="kpi-content">
                                     <div class="kpi-value">47</div>
                                     <div class="kpi-label">Active Deals</div>
                                     <div class="kpi-change positive">
@@ -5256,26 +4863,10 @@ def main():
     # Completely hide Streamlit's default interface including the menu bar
     st.markdown("""
     <style>
-        /* Hide ALL Streamlit UI elements */
+        /* Hide Streamlit branding and interface */
         .stApp > header {visibility: hidden !important; height: 0px !important;}
         .stApp > div:first-child {padding-top: 0px !important;}
         .main > div {padding-top: 0px !important;}
-        
-        /* Hide menu button and all header elements */
-        [data-testid="stMainMenu"] {display: none !important;}
-        [data-testid="stHeader"] {display: none !important;}
-        [data-testid="stToolbar"] {display: none !important;}
-        [data-testid="stSidebar"] {display: none !important;}
-        [data-testid="stDecoration"] {display: none !important;}
-        
-        /* Hide main menu button specifically - the one you identified */
-        .stMainMenu {display: none !important;}
-        [kind="headerNoPadding"] {display: none !important;}
-        .st-emotion-cache-1d0ue9 {display: none !important;}
-        .e1e4lema15 {display: none !important;}
-        button[data-testid="stBaseButton-headerNoPadding"] {display: none !important;}
-        
-        /* Remove all margins and padding */
         .block-container {
             padding-top: 0px !important;
             padding-bottom: 0px !important;
@@ -5294,18 +4885,6 @@ def main():
         /* Hide Streamlit footer */
         .css-1d391kg, .css-1aumxhk, footer {display: none !important;}
         .css-1dp5vir {display: none !important;}
-        
-        /* Additional UI hiding for menu buttons */
-        .stApp [data-testid*="button"]:not(.custom-button) {display: none !important;}
-        .stApp [data-testid*="menu"] {display: none !important;}
-        .stApp [data-testid*="header"] {display: none !important;}
-        
-        /* Force our content on top but keep it visible */
-        .stApp [data-testid="stVerticalBlockBorderWrapper"] {
-            z-index: 1000 !important;
-            display: block !important;
-            visibility: visible !important;
-        }
         .css-1rs6os {display: none !important;}
         .css-17eq0hr {display: none !important;}
         
@@ -6046,26 +5625,6 @@ def main():
             exportData: () => handleCTA('performanceTracking'),
             openSettings: () => handleCTA('systemSettings')
         };
-    </script>
-    """, unsafe_allow_html=True)
-    
-    # Add backend communication component
-    component_value = st.empty()
-    
-    # Check for localStorage backend actions (fallback mechanism)
-    st.markdown("""
-    <script>
-        // Check for pending backend actions in localStorage
-        const pendingAction = localStorage.getItem('backend_action');
-        if (pendingAction) {
-            const actionData = JSON.parse(pendingAction);
-            localStorage.removeItem('backend_action');
-            
-            // Send to parent Streamlit
-            if (window.parent && window.parent.Streamlit) {
-                window.parent.Streamlit.setComponentValue(actionData);
-            }
-        }
     </script>
     """, unsafe_allow_html=True)
     
