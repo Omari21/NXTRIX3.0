@@ -1,0 +1,104 @@
+# NXTRIX 3.0 Code Protection .gitignore
+# Protect sensitive files and ensure proper version control
+
+# Backup directories (keep locally, don't push to public repos)
+BACKUPS/
+ARCHIVE/
+protection_log.db
+
+# Environment and secrets
+.env
+.env.local
+.env.production
+secrets.toml
+.streamlit/secrets.toml
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+nxtrix.db
+crm_data.db
+
+# Python cache and compiled files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs
+*.log
+logs/
+*.out
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# API keys and sensitive configs (examples are OK)
+stripe_*.py
+twilio_*.py
+sendgrid_*.py
+openai_key.txt
+
+# Production builds
+*.tar.gz
+*.zip
+
+# Coverage reports
+htmlcov/
+.coverage
+coverage.xml
+*.cover
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# Jupyter notebook checkpoints
+.ipynb_checkpoints/
+
+# Node modules (if any JS dependencies)
+node_modules/
+npm-debug.log*
+
+# Keep example files but not real configs
+!.env.example
+!secrets.toml.example
+!requirements.txt
