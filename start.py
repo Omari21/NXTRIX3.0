@@ -28,7 +28,7 @@ def main():
     
     # Build streamlit command for high-performance web app
     cmd = [
-        'streamlit', 'run', 'enhanced_crm.py',
+        'streamlit', 'run', 'nxtrix_saas_app.py',
         '--server.port', port,
         '--server.address', '0.0.0.0',
         '--server.headless', 'true',
