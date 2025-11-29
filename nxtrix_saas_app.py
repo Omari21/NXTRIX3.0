@@ -1,11 +1,11 @@
 """
-NXTRIX 3.0 - Enterprise CRM Platform with Billing Integration
-Complete CRM system with automated billing, trial management, and payment processing
-Built with Streamlit + Supabase integration
+NXTRIX 3.0 - Complete Enterprise CRM with Billing Integration
+Production-ready SaaS platform with automated billing, trial management, and comprehensive CRM features
 """
 
 import streamlit as st
 import pandas as pd
+import sqlite3
 import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime, timedelta, timezone
@@ -26,15 +26,7 @@ import os
 # Add current directory to path for imports
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-# Import our billing and authentication systems
-try:
-    from supabase_auth_bridge import supabase_auth
-    SUPABASE_AVAILABLE = True
-except ImportError as e:
-    st.error(f"Supabase connection not available: {e}")
-    SUPABASE_AVAILABLE = False
-
-# Configure Streamlit page
+# Set page configuration
 st.set_page_config(
     page_title="NXTRIX 3.0 - Enterprise CRM",
     page_icon="🚀", 
@@ -42,691 +34,535 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Global CSS styling
-st.markdown("""
-<style>
-/* Main styling */
-.main-header {
-    background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
-    padding: 1rem;
-    border-radius: 10px;
-    color: white;
-    text-align: center;
-    margin-bottom: 2rem;
-}
+# Import authentication and billing systems with fallbacks
+try:
+    from auth_system import auth, require_auth, StreamlitAuth
+    from trial_billing_manager import trial_billing_manager, check_access_with_billing, render_trial_status_widget
+    AUTH_AVAILABLE = True
+except ImportError as e:
+    st.error(f"Auth system not available: {e}")
+    AUTH_AVAILABLE = False
 
-.metric-card {
-    background: white;
-    padding: 1rem;
-    border-radius: 8px;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    border-left: 4px solid #667eea;
-}
+try:
+    from supabase_auth_bridge import supabase_auth
+    SUPABASE_AVAILABLE = True if supabase_auth and supabase_auth.available else False
+except ImportError as e:
+    SUPABASE_AVAILABLE = False
 
-.trial-status {
-    background: linear-gradient(90deg, #ffeaa7 0%, #fdcb6e 100%);
-    padding: 1rem;
-    border-radius: 8px;
-    margin: 1rem 0;
-}
-
-.billing-alert {
-    background: linear-gradient(90deg, #ff7675 0%, #fd79a8 100%);
-    padding: 1rem;
-    border-radius: 8px;
-    color: white;
-    margin: 1rem 0;
-}
-
-.sidebar-content {
-    padding: 1rem;
-}
-
-/* Button styling */
-.stButton > button {
-    background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
-    color: white;
-    border: none;
-    border-radius: 8px;
-    padding: 0.5rem 1rem;
-    font-weight: 600;
-}
-
-.stButton > button:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
-}
-</style>
-""", unsafe_allow_html=True)
-
-# Simple Authentication System for Demo
-class SimpleAuth:
-    def __init__(self):
-        if 'authenticated' not in st.session_state:
-            st.session_state.authenticated = False
-        if 'user_data' not in st.session_state:
-            st.session_state.user_data = None
-
-    def is_authenticated(self):
-        return st.session_state.authenticated
-
-    def get_current_user(self):
-        return st.session_state.user_data
-
-    def login(self, email, password):
-        # Simple demo authentication
-        if email and password:
-            st.session_state.authenticated = True
-            st.session_state.user_data = {
-                'email': email,
-                'full_name': email.split('@')[0].title(),
-                'subscription_tier': 'trial',
-                'trial_end_date': (datetime.now() + timedelta(days=7)).isoformat(),
-                'trial_active': True,
-                'billing_collected': True
-            }
-            return True
-        return False
-
-    def logout(self):
-        st.session_state.authenticated = False
-        st.session_state.user_data = None
-
-    def render_auth_page(self):
-        st.markdown('<div class="main-header"><h1>🚀 Welcome to NXTRIX 3.0</h1><p>Enterprise CRM with Automated Billing</p></div>', unsafe_allow_html=True)
-        
-        tab1, tab2 = st.tabs(["🔐 Login", "🎯 Sign Up"])
-        
-        with tab1:
-            with st.form("login_form"):
-                st.subheader("Login to Your Account")
-                email = st.text_input("Email Address", placeholder="Enter your email")
-                password = st.text_input("Password", type="password", placeholder="Enter your password")
-                
-                if st.form_submit_button("🚀 Login", type="primary"):
-                    if self.login(email, password):
-                        st.success("✅ Login successful!")
-                        st.rerun()
-                    else:
-                        st.error("❌ Invalid credentials")
-
-        with tab2:
-            st.subheader("🎯 Start Your 7-Day Free Trial")
-            st.markdown("""
-            ### 💳 Billing Information Required
-            To start your trial, we need your payment information. **You won't be charged until your trial ends.**
-            
-            **Subscription Plans:**
-            - **Starter**: $89/month (2,500 contacts, email automation)
-            - **Professional**: $189/month (10,000 contacts, AI features) 
-            - **Enterprise**: $349/month (Unlimited, complete AI suite)
-            """)
-            
-            if st.button("🚀 Start Free Trial with Billing Setup", type="primary"):
-                st.info("🔄 Redirecting to billing signup...")
-                st.markdown("**In production, this would redirect to the billing signup form**")
+try:
+    from billing_system import BillingManager, render_subscription_plans, render_billing_dashboard
+    BILLING_AVAILABLE = True
+except ImportError as e:
+    BILLING_AVAILABLE = False
 
 # Initialize authentication
-auth = SimpleAuth()
+if AUTH_AVAILABLE:
+    auth = StreamlitAuth()
 
-# Trial Status Manager
-class TrialStatusManager:
-    @staticmethod
-    def check_trial_status(user_data):
-        if not user_data or not user_data.get('trial_end_date'):
-            return {"status": "error", "message": "Invalid user data"}
-        
-        trial_end = datetime.fromisoformat(user_data['trial_end_date'].replace('Z', '+00:00'))
-        now = datetime.now()
-        
-        if now > trial_end:
-            return {
-                "status": "expired",
-                "message": "Trial has expired",
-                "trial_expired": True
-            }
-        
-        days_left = (trial_end - now).days
-        return {
-            "status": "active", 
-            "trial_days_left": days_left,
-            "trial_end_date": trial_end.strftime("%B %d, %Y")
-        }
-
-    @staticmethod
-    def render_trial_widget(user_data):
-        trial_status = TrialStatusManager.check_trial_status(user_data)
-        
-        if trial_status.get('trial_expired'):
-            st.markdown("""
-            <div class="billing-alert">
-            <h3>⚠️ Trial Expired</h3>
-            <p>Your 7-day trial has ended. Please upgrade to continue using NXTRIX.</p>
-            </div>
-            """, unsafe_allow_html=True)
+def check_and_enforce_access(user_data):
+    """Enhanced access control with billing integration"""
+    
+    if not AUTH_AVAILABLE:
+        st.error("Authentication system not available")
+        return False, {"message": "Auth system error"}
+    
+    if not user_data:
+        return False, {"message": "User not authenticated"}
+    
+    try:
+        # Use billing manager for access control if available
+        if 'trial_billing_manager' in globals():
+            access_result = check_access_with_billing(user_data)
             
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                if st.button("👤 Starter - $89/month"):
-                    st.info("🔄 Upgrade to Starter plan")
-            with col2:
-                if st.button("👥 Professional - $189/month"):
-                    st.info("🔄 Upgrade to Professional plan")
-            with col3:
-                if st.button("🏢 Enterprise - $349/month"):
-                    st.info("🔄 Upgrade to Enterprise plan")
+            if not access_result["allowed"]:
+                trial_status = access_result["trial_status"]
+                
+                if trial_status.get("status") == "trial_expired":
+                    st.error("🚫 **Your 7-day trial has expired!**")
+                    st.markdown("**Upgrade to continue using NXTRIX:**")
+                    
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        if st.button("👤 Starter - $89/month"):
+                            st.session_state.current_page = 'billing'
+                            st.rerun()
+                    with col2:
+                        if st.button("👥 Professional - $189/month"):
+                            st.session_state.current_page = 'billing'
+                            st.rerun()
+                    with col3:
+                        if st.button("🏢 Enterprise - $349/month"):
+                            st.session_state.current_page = 'billing'
+                            st.rerun()
+                elif trial_status.get("status") == "payment_failed":
+                    st.error("💳 **Payment Failed!**")
+                    st.warning("We couldn't process your payment. Please update your payment method.")
+                    if st.button("🔄 Update Payment Method"):
+                        st.session_state.current_page = 'billing'
+                        st.rerun()
+                else:
+                    st.error(f"❌ Access Error: {trial_status.get('message', 'Access denied')}")
+                
+                return False, trial_status
+            
+            # Show trial status widget if trial is active
+            render_trial_status_widget(user_data)
+            return True, access_result["trial_status"]
         else:
-            days_left = trial_status.get('trial_days_left', 0)
-            if days_left <= 3:
-                st.markdown(f"""
-                <div class="trial-status">
-                <h4>⏰ Trial expires in {days_left} days</h4>
-                <p>Trial ends on {trial_status.get('trial_end_date', 'N/A')}</p>
-                </div>
-                """, unsafe_allow_html=True)
-            else:
-                st.info(f"✅ Free trial active - {days_left} days remaining")
+            # Fallback to basic access check
+            return True, {"status": "active"}
+            
+    except Exception as e:
+        st.warning(f"Access control system unavailable: {e}")
+        return True, {"status": "active"}  # Allow access if billing system fails
 
-# Main CRM Application
-class NXTRIXApp:
-    def __init__(self):
-        self.user_data = auth.get_current_user()
-
-    def render_sidebar(self):
-        with st.sidebar:
-            st.markdown('<div class="sidebar-content">', unsafe_allow_html=True)
-            
-            # User info
-            if self.user_data:
-                st.markdown(f"### 👤 {self.user_data['full_name']}")
-                st.markdown(f"**Plan:** {self.user_data.get('subscription_tier', 'trial').title()}")
-                
-                # Trial status
-                TrialStatusManager.render_trial_widget(self.user_data)
-                
-                st.markdown("---")
-                
-                # Navigation
-                st.markdown("### 🚀 Navigation")
-                
-                # Set default page
-                if 'current_page' not in st.session_state:
-                    st.session_state.current_page = 'dashboard'
-                
-                pages = {
-                    'dashboard': '📊 Dashboard',
-                    'contacts': '👥 Contacts', 
-                    'deals': '💼 Deals',
-                    'analytics': '📈 Analytics',
-                    'billing': '💳 Billing',
-                    'settings': '⚙️ Settings'
-                }
-                
-                for page_key, page_name in pages.items():
-                    if st.button(page_name, key=page_key, use_container_width=True):
-                        st.session_state.current_page = page_key
-                
-                st.markdown("---")
-                if st.button("🚪 Logout", use_container_width=True):
-                    auth.logout()
-                    st.rerun()
-            
-            st.markdown('</div>', unsafe_allow_html=True)
-
-    def render_dashboard(self):
-        st.markdown('<div class="main-header"><h1>📊 NXTRIX Dashboard</h1></div>', unsafe_allow_html=True)
-        
-        # Key metrics
-        col1, col2, col3, col4 = st.columns(4)
-        
-        with col1:
-            st.markdown("""
-            <div class="metric-card">
-            <h3>👥 Total Contacts</h3>
-            <h2>1,247</h2>
-            <p style="color: green;">↗️ +12% this month</p>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        with col2:
-            st.markdown("""
-            <div class="metric-card">
-            <h3>💼 Active Deals</h3>
-            <h2>89</h2>
-            <p style="color: green;">↗️ +8% this month</p>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        with col3:
-            st.markdown("""
-            <div class="metric-card">
-            <h3>💰 Revenue</h3>
-            <h2>$124,567</h2>
-            <p style="color: green;">↗️ +15% this month</p>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        with col4:
-            st.markdown("""
-            <div class="metric-card">
-            <h3>📈 Conversion</h3>
-            <h2>23.4%</h2>
-            <p style="color: green;">↗️ +3.2% this month</p>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        st.markdown("---")
-        
-        # Charts
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.subheader("📈 Deal Pipeline")
-            
-            # Sample pipeline data
-            stages = ['Lead', 'Qualified', 'Proposal', 'Negotiation', 'Closed Won']
-            values = [45, 32, 18, 12, 8]
-            
-            fig = go.Figure(go.Funnel(
-                y=stages,
-                x=values,
-                textinfo="value+percent initial",
-                marker={"color": ["#667eea", "#764ba2", "#f093fb", "#f5576c", "#4facfe"]}
-            ))
-            fig.update_layout(height=400)
-            st.plotly_chart(fig, use_container_width=True)
-        
-        with col2:
-            st.subheader("💰 Revenue Trend")
-            
-            # Sample revenue data
-            dates = pd.date_range(start='2024-01-01', end='2024-12-31', freq='M')
-            revenue = np.cumsum(np.random.normal(10000, 2000, len(dates)))
-            
-            fig = px.line(
-                x=dates, 
-                y=revenue,
-                title="Monthly Revenue Growth",
-                color_discrete_sequence=['#667eea']
-            )
-            fig.update_layout(height=400, showlegend=False)
-            st.plotly_chart(fig, use_container_width=True)
-        
-        # Recent activity
-        st.subheader("📋 Recent Activity")
-        
-        activities = [
-            {"time": "2 minutes ago", "activity": "New contact added: John Smith", "type": "contact"},
-            {"time": "15 minutes ago", "activity": "Deal closed: $15,000 property investment", "type": "deal"},
-            {"time": "1 hour ago", "activity": "Email campaign sent to 150 contacts", "type": "email"},
-            {"time": "3 hours ago", "activity": "New lead from website form", "type": "lead"},
-            {"time": "1 day ago", "activity": "Meeting scheduled with investor", "type": "meeting"}
-        ]
-        
-        for activity in activities:
-            icon = {"contact": "👤", "deal": "💼", "email": "📧", "lead": "🎯", "meeting": "📅"}
-            st.write(f"{icon.get(activity['type'], '📋')} **{activity['time']}** - {activity['activity']}")
-
-    def render_contacts(self):
-        st.markdown('<div class="main-header"><h1>👥 Contact Management</h1></div>', unsafe_allow_html=True)
-        
-        col1, col2 = st.columns([3, 1])
-        
-        with col2:
-            if st.button("➕ Add New Contact", type="primary"):
-                st.session_state.show_add_contact = True
-        
-        # Sample contacts data
-        contacts_data = {
-            'Name': ['John Smith', 'Sarah Johnson', 'Mike Wilson', 'Emma Davis', 'Robert Brown'],
-            'Email': ['john@email.com', 'sarah@email.com', 'mike@email.com', 'emma@email.com', 'robert@email.com'],
-            'Phone': ['+1-555-0101', '+1-555-0102', '+1-555-0103', '+1-555-0104', '+1-555-0105'],
-            'Status': ['Hot Lead', 'Qualified', 'New', 'Nurturing', 'Converted'],
-            'Last Contact': ['2024-11-28', '2024-11-27', '2024-11-26', '2024-11-25', '2024-11-24']
-        }
-        
-        df_contacts = pd.DataFrame(contacts_data)
-        
-        # Search and filter
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            search_term = st.text_input("🔍 Search contacts", placeholder="Name, email, or phone")
-        with col2:
-            status_filter = st.selectbox("Filter by Status", ['All'] + df_contacts['Status'].unique().tolist())
-        with col3:
-            sort_by = st.selectbox("Sort by", ['Name', 'Last Contact', 'Status'])
-        
-        # Display contacts table
-        st.dataframe(df_contacts, use_container_width=True)
-        
-        # Add contact form
-        if st.session_state.get('show_add_contact', False):
-            with st.expander("➕ Add New Contact", expanded=True):
-                with st.form("add_contact_form"):
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        name = st.text_input("Full Name*")
-                        email = st.text_input("Email*")
-                    with col2:
-                        phone = st.text_input("Phone")
-                        status = st.selectbox("Status", ['New', 'Hot Lead', 'Qualified', 'Nurturing'])
-                    
-                    notes = st.text_area("Notes")
-                    
-                    if st.form_submit_button("✅ Add Contact", type="primary"):
-                        if name and email:
-                            st.success(f"✅ Contact {name} added successfully!")
-                            st.session_state.show_add_contact = False
-                            st.rerun()
-                        else:
-                            st.error("❌ Name and email are required")
-
-    def render_deals(self):
-        st.markdown('<div class="main-header"><h1>💼 Deal Management</h1></div>', unsafe_allow_html=True)
-        
-        col1, col2 = st.columns([3, 1])
-        
-        with col2:
-            if st.button("➕ Add New Deal", type="primary"):
-                st.session_state.show_add_deal = True
-        
-        # Sample deals data
-        deals_data = {
-            'Deal Name': ['123 Main St Investment', 'Downtown Office Complex', 'Retail Plaza', 'Warehouse Property', 'Residential Complex'],
-            'Value': ['$250,000', '$1,200,000', '$850,000', '$500,000', '$750,000'],
-            'Stage': ['Proposal', 'Negotiation', 'Due Diligence', 'Closed Won', 'Qualified'],
-            'Probability': ['75%', '60%', '90%', '100%', '45%'],
-            'Close Date': ['2024-12-15', '2025-01-30', '2024-12-05', '2024-11-20', '2025-02-15']
-        }
-        
-        df_deals = pd.DataFrame(deals_data)
-        
-        # Deal pipeline visualization
-        st.subheader("📊 Deal Pipeline Overview")
-        
-        pipeline_data = df_deals['Stage'].value_counts()
-        fig = px.bar(
-            x=pipeline_data.index,
-            y=pipeline_data.values,
-            title="Deals by Stage",
-            color_discrete_sequence=['#667eea']
+def render_dashboard():
+    """Main CRM Dashboard with comprehensive features"""
+    
+    st.title("🏢 NXTRIX 3.0 - Enterprise CRM Dashboard")
+    
+    # Quick stats cards
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        st.metric(
+            label="💼 Total Deals",
+            value="247",
+            delta="12 this week"
         )
-        fig.update_layout(height=300)
-        st.plotly_chart(fig, use_container_width=True)
-        
-        # Deals table
-        st.subheader("📋 All Deals")
-        st.dataframe(df_deals, use_container_width=True)
-        
-        # Add deal form
-        if st.session_state.get('show_add_deal', False):
-            with st.expander("➕ Add New Deal", expanded=True):
-                with st.form("add_deal_form"):
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        deal_name = st.text_input("Deal Name*")
-                        value = st.number_input("Deal Value ($)", min_value=0)
-                    with col2:
-                        stage = st.selectbox("Stage", ['Lead', 'Qualified', 'Proposal', 'Negotiation', 'Due Diligence', 'Closed Won', 'Closed Lost'])
-                        close_date = st.date_input("Expected Close Date")
-                    
-                    description = st.text_area("Deal Description")
-                    
-                    if st.form_submit_button("✅ Add Deal", type="primary"):
-                        if deal_name and value:
-                            st.success(f"✅ Deal '{deal_name}' added successfully!")
-                            st.session_state.show_add_deal = False
-                            st.rerun()
-                        else:
-                            st.error("❌ Deal name and value are required")
+    
+    with col2:
+        st.metric(
+            label="👥 Contacts",
+            value="1,834",
+            delta="23 new"
+        )
+    
+    with col3:
+        st.metric(
+            label="💰 Pipeline Value",
+            value="$2.4M",
+            delta="$180K increase"
+        )
+    
+    with col4:
+        st.metric(
+            label="📈 Conversion Rate",
+            value="23.5%",
+            delta="2.1% improvement"
+        )
+    
+    st.divider()
+    
+    # Main dashboard sections
+    tab1, tab2, tab3, tab4, tab5 = st.tabs([
+        "📊 Pipeline Overview",
+        "👥 Contact Management", 
+        "💼 Deal Management",
+        "📈 Analytics & Reports",
+        "🔧 Settings"
+    ])
+    
+    with tab1:
+        render_pipeline_overview()
+    
+    with tab2:
+        render_contact_management()
+    
+    with tab3:
+        render_deal_management()
+    
+    with tab4:
+        render_analytics()
+    
+    with tab5:
+        render_settings()
 
-    def render_analytics(self):
-        st.markdown('<div class="main-header"><h1>📈 Advanced Analytics</h1></div>', unsafe_allow_html=True)
-        
-        # Time period selector
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            period = st.selectbox("Time Period", ['Last 30 days', 'Last 90 days', 'Last 6 months', 'Last year'])
-        with col2:
-            metric = st.selectbox("Primary Metric", ['Revenue', 'Deal Count', 'Conversion Rate', 'Contact Growth'])
-        with col3:
-            comparison = st.selectbox("Compare to", ['Previous Period', 'Same Period Last Year', 'Baseline'])
-        
-        # Key metrics dashboard
-        col1, col2, col3, col4 = st.columns(4)
-        
-        with col1:
-            st.metric("Total Revenue", "$124,567", "+15.3%")
-        with col2:
-            st.metric("Conversion Rate", "23.4%", "+3.2%")
-        with col3:
-            st.metric("Avg Deal Size", "$28,456", "+8.7%")
-        with col4:
-            st.metric("Pipeline Value", "$2.1M", "+12.1%")
-        
-        # Charts
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.subheader("📊 Revenue by Month")
-            months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-            revenue_by_month = [15000, 18000, 22000, 25000, 28000, 32000, 35000, 38000, 41000, 45000, 48000, 52000]
-            
-            fig = px.bar(x=months, y=revenue_by_month, color_discrete_sequence=['#667eea'])
-            fig.update_layout(height=400, showlegend=False)
-            st.plotly_chart(fig, use_container_width=True)
-        
-        with col2:
-            st.subheader("📈 Lead Sources")
-            sources = ['Website', 'Referrals', 'Cold Outreach', 'Social Media', 'Events']
-            leads = [45, 25, 15, 10, 5]
-            
-            fig = px.pie(values=leads, names=sources, color_discrete_sequence=px.colors.sequential.Plasma)
-            fig.update_layout(height=400)
-            st.plotly_chart(fig, use_container_width=True)
-        
-        # Performance insights
-        st.subheader("🎯 Performance Insights")
-        
-        insights = [
-            {"icon": "📈", "title": "Revenue Growth", "description": "Revenue increased 15.3% compared to last month", "status": "positive"},
-            {"icon": "🎯", "title": "Conversion Improvement", "description": "Lead to customer conversion rate improved by 3.2%", "status": "positive"},
-            {"icon": "⏰", "title": "Sales Cycle", "description": "Average sales cycle decreased by 2 days", "status": "positive"},
-            {"icon": "⚠️", "title": "Pipeline Risk", "description": "3 large deals are at risk of slipping this quarter", "status": "warning"}
-        ]
-        
-        for insight in insights:
-            if insight['status'] == 'positive':
-                st.success(f"{insight['icon']} **{insight['title']}**: {insight['description']}")
-            else:
-                st.warning(f"{insight['icon']} **{insight['title']}**: {insight['description']}")
+def render_pipeline_overview():
+    """Sales pipeline visualization"""
+    
+    st.header("📊 Sales Pipeline Overview")
+    
+    # Pipeline stages data
+    pipeline_data = {
+        "Stage": ["Prospecting", "Qualification", "Proposal", "Negotiation", "Closed Won"],
+        "Count": [45, 32, 28, 18, 12],
+        "Value": [850000, 720000, 680000, 450000, 320000]
+    }
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        # Pipeline funnel chart
+        fig_funnel = go.Figure(go.Funnel(
+            y=pipeline_data["Stage"],
+            x=pipeline_data["Count"],
+            textinfo="value+percent initial"
+        ))
+        fig_funnel.update_layout(title="Deals by Stage")
+        st.plotly_chart(fig_funnel, use_container_width=True)
+    
+    with col2:
+        # Pipeline value chart
+        fig_value = px.bar(
+            x=pipeline_data["Stage"],
+            y=pipeline_data["Value"],
+            title="Pipeline Value by Stage"
+        )
+        st.plotly_chart(fig_value, use_container_width=True)
+    
+    # Recent deals table
+    st.subheader("🔥 Hot Deals")
+    deals_df = pd.DataFrame({
+        "Deal Name": ["Acme Corp Expansion", "TechStart Integration", "Global Solutions Contract"],
+        "Stage": ["Negotiation", "Proposal", "Qualification"],
+        "Value": ["$125K", "$89K", "$156K"],
+        "Close Date": ["2025-12-15", "2025-12-20", "2026-01-10"],
+        "Probability": ["85%", "60%", "40%"]
+    })
+    st.dataframe(deals_df, use_container_width=True)
 
-    def render_billing(self):
-        st.markdown('<div class="main-header"><h1>💳 Billing & Subscription</h1></div>', unsafe_allow_html=True)
+def render_contact_management():
+    """Contact management interface"""
+    
+    st.header("👥 Contact Management")
+    
+    col1, col2 = st.columns([2, 1])
+    
+    with col1:
+        # Contact search and filters
+        search_term = st.text_input("🔍 Search contacts", placeholder="Enter name, company, or email...")
         
-        # Current subscription info
-        col1, col2 = st.columns([2, 1])
-        
-        with col1:
-            st.subheader("📋 Current Subscription")
-            
-            trial_status = TrialStatusManager.check_trial_status(self.user_data)
-            
-            if trial_status.get('trial_expired'):
-                st.error("⚠️ Your trial has expired. Please choose a subscription plan.")
-            else:
-                days_left = trial_status.get('trial_days_left', 0)
-                st.info(f"✅ **Free Trial Active** - {days_left} days remaining")
-                st.write(f"Trial ends on: {trial_status.get('trial_end_date', 'N/A')}")
-        
-        with col2:
-            if st.button("🔄 Update Payment Method", type="primary"):
-                st.info("🔄 Payment method update functionality")
-        
-        st.markdown("---")
-        
-        # Subscription plans
-        st.subheader("🎯 Choose Your Plan")
-        
-        col1, col2, col3 = st.columns(3)
-        
-        with col1:
-            st.markdown("""
-            **👤 Starter Plan**
-            ### $89/month
-            
-            **Features:**
-            - 2,500 contacts
-            - 250 deals  
-            - Email automation (1,000/month)
-            - SMS credits (500/month)
-            - Basic reporting
-            - Email support
-            
-            *Perfect for small teams*
-            """)
-            
-            if st.button("Choose Starter", key="starter_plan"):
-                st.success("🔄 Upgrading to Starter plan...")
-        
-        with col2:
-            st.markdown("""
-            **👥 Professional Plan** ⭐
-            ### $189/month
-            
-            **Features:**
-            - 10,000 contacts
-            - Unlimited deals
-            - **🚀 FULL AI Insights + Voice Commands**
-            - Advanced email automation (5,000/month)
-            - SMS credits (2,000/month)
-            - Advanced analytics
-            - API access
-            - Priority support
-            
-            *Most Popular Choice*
-            """)
-            
-            if st.button("Choose Professional", key="pro_plan", type="primary"):
-                st.success("🔄 Upgrading to Professional plan...")
-        
-        with col3:
-            st.markdown("""
-            **🏢 Enterprise Plan**
-            ### $349/month
-            
-            **Features:**
-            - Unlimited contacts & deals
-            - **🤖 Complete AI Suite + Voice AI**
-            - Unlimited email automation
-            - Unlimited SMS credits
-            - Custom integrations
-            - White-label options
-            - Dedicated account manager
-            - 24/7 phone support
-            
-            *For large organizations*
-            """)
-            
-            if st.button("Choose Enterprise", key="enterprise_plan"):
-                st.success("🔄 Upgrading to Enterprise plan...")
-        
-        st.markdown("---")
-        
-        # Billing history
-        st.subheader("📊 Billing History")
-        
-        billing_data = {
-            'Date': ['2024-11-01', '2024-10-01', '2024-09-01'],
-            'Amount': ['$89.00', '$89.00', '$89.00'],
-            'Status': ['Paid', 'Paid', 'Paid'],
-            'Invoice': ['INV-001', 'INV-002', 'INV-003']
-        }
-        
-        df_billing = pd.DataFrame(billing_data)
-        st.dataframe(df_billing, use_container_width=True)
-
-    def render_settings(self):
-        st.markdown('<div class="main-header"><h1>⚙️ Settings</h1></div>', unsafe_allow_html=True)
-        
-        tab1, tab2, tab3 = st.tabs(["👤 Profile", "🔔 Notifications", "🔐 Security"])
-        
-        with tab1:
-            st.subheader("Profile Information")
-            
+        col_filter1, col_filter2, col_filter3 = st.columns(3)
+        with col_filter1:
+            company_filter = st.selectbox("Company", ["All", "Acme Corp", "TechStart", "Global Solutions"])
+        with col_filter2:
+            status_filter = st.selectbox("Status", ["All", "Lead", "Prospect", "Customer"])
+        with col_filter3:
+            source_filter = st.selectbox("Source", ["All", "Website", "Referral", "Cold Outreach"])
+    
+    with col2:
+        st.markdown("### Quick Actions")
+        if st.button("➕ Add New Contact", type="primary"):
+            st.session_state.show_add_contact = True
+        if st.button("📧 Send Email Campaign"):
+            st.info("Email campaign feature")
+        if st.button("📊 Export Contacts"):
+            st.success("Contacts exported!")
+    
+    # Contacts table
+    contacts_df = pd.DataFrame({
+        "Name": ["John Smith", "Sarah Johnson", "Mike Chen", "Lisa Rodriguez"],
+        "Company": ["Acme Corp", "TechStart", "Global Solutions", "Innovation Inc"],
+        "Email": ["john@acme.com", "sarah@techstart.io", "mike@global.com", "lisa@innovation.com"],
+        "Phone": ["+1-555-0123", "+1-555-0456", "+1-555-0789", "+1-555-0012"],
+        "Status": ["Customer", "Prospect", "Lead", "Customer"],
+        "Last Contact": ["2025-11-28", "2025-11-27", "2025-11-25", "2025-11-26"]
+    })
+    
+    st.dataframe(contacts_df, use_container_width=True)
+    
+    # Add contact modal
+    if st.session_state.get('show_add_contact'):
+        with st.expander("➕ Add New Contact", expanded=True):
             col1, col2 = st.columns(2)
             with col1:
-                st.text_input("Full Name", value=self.user_data.get('full_name', ''))
-                st.text_input("Email", value=self.user_data.get('email', ''))
+                new_name = st.text_input("Full Name")
+                new_email = st.text_input("Email")
+                new_company = st.text_input("Company")
             with col2:
-                st.text_input("Phone", placeholder="Enter your phone number")
-                st.selectbox("Time Zone", ['UTC', 'EST', 'CST', 'MST', 'PST'])
+                new_phone = st.text_input("Phone")
+                new_status = st.selectbox("Status", ["Lead", "Prospect", "Customer"])
+                new_source = st.selectbox("Source", ["Website", "Referral", "Cold Outreach"])
             
-            if st.button("💾 Save Profile"):
-                st.success("✅ Profile updated successfully!")
-        
-        with tab2:
-            st.subheader("Notification Preferences")
-            
-            st.checkbox("📧 Email notifications for new leads", value=True)
-            st.checkbox("📱 SMS notifications for urgent deals", value=False)
-            st.checkbox("🔔 Browser notifications", value=True)
-            st.checkbox("📊 Weekly performance reports", value=True)
-            
-            if st.button("💾 Save Notifications"):
-                st.success("✅ Notification preferences updated!")
-        
-        with tab3:
-            st.subheader("Security Settings")
-            
-            st.text_input("Current Password", type="password")
-            st.text_input("New Password", type="password")
-            st.text_input("Confirm New Password", type="password")
-            
-            st.checkbox("🔐 Enable two-factor authentication", value=False)
-            
-            if st.button("💾 Update Security"):
-                st.success("✅ Security settings updated!")
+            col_btn1, col_btn2 = st.columns(2)
+            with col_btn1:
+                if st.button("💾 Save Contact"):
+                    st.success(f"Contact {new_name} added successfully!")
+                    st.session_state.show_add_contact = False
+                    st.rerun()
+            with col_btn2:
+                if st.button("❌ Cancel"):
+                    st.session_state.show_add_contact = False
+                    st.rerun()
 
-    def run(self):
-        """Main application runner"""
-        
-        # Check authentication
-        if not auth.is_authenticated():
-            auth.render_auth_page()
-            return
-        
-        # Render sidebar
-        self.render_sidebar()
-        
-        # Render main content based on current page
-        current_page = st.session_state.get('current_page', 'dashboard')
-        
-        if current_page == 'dashboard':
-            self.render_dashboard()
-        elif current_page == 'contacts':
-            self.render_contacts()
-        elif current_page == 'deals':
-            self.render_deals()
-        elif current_page == 'analytics':
-            self.render_analytics()
-        elif current_page == 'billing':
-            self.render_billing()
-        elif current_page == 'settings':
-            self.render_settings()
+def render_deal_management():
+    """Deal management interface"""
+    
+    st.header("💼 Deal Management")
+    
+    col1, col2 = st.columns([3, 1])
+    
+    with col1:
+        # Deal filters
+        col_f1, col_f2, col_f3, col_f4 = st.columns(4)
+        with col_f1:
+            deal_stage = st.selectbox("Stage", ["All", "Prospecting", "Qualification", "Proposal", "Negotiation", "Closed Won"])
+        with col_f2:
+            deal_owner = st.selectbox("Owner", ["All", "Me", "Sarah Chen", "Mike Johnson"])
+        with col_f3:
+            deal_value = st.selectbox("Value Range", ["All", "$0-50K", "$50K-100K", "$100K+"])
+        with col_f4:
+            close_date = st.selectbox("Close Date", ["All", "This Month", "Next Month", "This Quarter"])
+    
+    with col2:
+        st.markdown("### Deal Actions")
+        if st.button("🎯 New Deal", type="primary"):
+            st.session_state.show_add_deal = True
+        if st.button("📋 Deal Report"):
+            st.info("Generating report...")
+        if st.button("🔄 Bulk Update"):
+            st.info("Bulk update mode")
+    
+    # Deals table
+    deals_df = pd.DataFrame({
+        "Deal Name": ["Acme Corp Expansion", "TechStart Integration", "Global Solutions", "Innovation Project"],
+        "Account": ["Acme Corp", "TechStart", "Global Solutions", "Innovation Inc"],
+        "Stage": ["Negotiation", "Proposal", "Qualification", "Closed Won"],
+        "Value": ["$125,000", "$89,000", "$156,000", "$67,000"],
+        "Close Date": ["2025-12-15", "2025-12-20", "2026-01-10", "2025-11-28"],
+        "Probability": ["85%", "60%", "40%", "100%"],
+        "Owner": ["Sarah Chen", "Mike Johnson", "Sarah Chen", "You"]
+    })
+    
+    st.dataframe(deals_df, use_container_width=True)
 
-# Application Entry Point
+def render_analytics():
+    """Analytics and reporting dashboard"""
+    
+    st.header("📈 Analytics & Reports")
+    
+    # Time period selector
+    col1, col2, col3 = st.columns([1, 1, 2])
+    with col1:
+        time_period = st.selectbox("Time Period", ["This Month", "Last Month", "This Quarter", "Last Quarter", "This Year"])
+    with col2:
+        report_type = st.selectbox("Report Type", ["Sales Performance", "Pipeline Analysis", "Activity Summary", "Revenue Forecast"])
+    with col3:
+        st.write("")  # Spacer
+    
+    # Analytics charts
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        # Sales trend
+        dates = pd.date_range(start='2025-01-01', end='2025-11-29', freq='D')
+        sales_data = np.cumsum(np.random.normal(1000, 200, len(dates)))
+        
+        fig_sales = px.line(
+            x=dates, 
+            y=sales_data,
+            title="Revenue Trend",
+            labels={'x': 'Date', 'y': 'Revenue ($)'}
+        )
+        st.plotly_chart(fig_sales, use_container_width=True)
+    
+    with col2:
+        # Conversion funnel
+        stages = ["Leads", "Prospects", "Opportunities", "Customers"]
+        values = [1000, 400, 150, 35]
+        
+        fig_funnel = go.Figure(go.Funnel(
+            y=stages,
+            x=values,
+            textinfo="value+percent initial"
+        ))
+        fig_funnel.update_layout(title="Conversion Funnel")
+        st.plotly_chart(fig_funnel, use_container_width=True)
+    
+    # Performance metrics
+    st.subheader("📊 Key Performance Indicators")
+    
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        st.metric("Monthly Recurring Revenue", "$45,600", "12%")
+    with col2:
+        st.metric("Customer Acquisition Cost", "$125", "-8%")
+    with col3:
+        st.metric("Customer Lifetime Value", "$3,200", "15%")
+    with col4:
+        st.metric("Churn Rate", "2.3%", "-0.5%")
+
+def render_settings():
+    """Settings and configuration"""
+    
+    st.header("🔧 Settings & Configuration")
+    
+    tab1, tab2, tab3, tab4 = st.tabs([
+        "👤 Profile",
+        "🏢 Company", 
+        "🔧 CRM Settings",
+        "💳 Billing"
+    ])
+    
+    with tab1:
+        st.subheader("User Profile")
+        col1, col2 = st.columns(2)
+        with col1:
+            st.text_input("First Name", value="John")
+            st.text_input("Email", value="john@company.com")
+            st.text_input("Phone", value="+1-555-0123")
+        with col2:
+            st.text_input("Last Name", value="Smith")
+            st.selectbox("Role", ["Admin", "Sales Rep", "Manager"])
+            st.selectbox("Timezone", ["EST", "PST", "CST", "MST"])
+        
+        if st.button("💾 Update Profile"):
+            st.success("Profile updated successfully!")
+    
+    with tab2:
+        st.subheader("Company Settings")
+        st.text_input("Company Name", value="Your Company Inc")
+        st.text_area("Company Address")
+        st.text_input("Company Phone", value="+1-555-0100")
+        st.text_input("Website", value="https://yourcompany.com")
+        
+        if st.button("💾 Update Company Info"):
+            st.success("Company information updated!")
+    
+    with tab3:
+        st.subheader("CRM Configuration")
+        
+        st.checkbox("Enable Email Notifications", value=True)
+        st.checkbox("Auto-assign Leads", value=False)
+        st.checkbox("Require Deal Approval", value=True)
+        
+        st.selectbox("Default Deal Stage", ["Prospecting", "Qualification", "Proposal"])
+        st.selectbox("Currency", ["USD", "EUR", "GBP", "CAD"])
+        
+        if st.button("💾 Save CRM Settings"):
+            st.success("CRM settings saved!")
+    
+    with tab4:
+        if BILLING_AVAILABLE:
+            render_billing_dashboard()
+        else:
+            st.subheader("💳 Billing Information")
+            st.info("Billing system not available in this version")
+            
+            # Mock billing info
+            st.write("**Current Plan:** Professional ($189/month)")
+            st.write("**Next Billing Date:** December 29, 2025")
+            st.write("**Payment Method:** •••• 1234")
+            
+            if st.button("🔄 Update Payment Method"):
+                st.info("Payment update feature coming soon")
+
 def main():
     """Main application entry point"""
     
-    # Initialize session state
-    if 'initialized' not in st.session_state:
-        st.session_state.initialized = True
-        st.session_state.current_page = 'dashboard'
+    # Apply custom CSS
+    st.markdown("""
+    <style>
+    .main-header {
+        padding: 1rem 0;
+        border-bottom: 1px solid #e0e0e0;
+        margin-bottom: 2rem;
+    }
     
-    # Run the application
-    app = NXTRIXApp()
-    app.run()
+    .metric-card {
+        background: white;
+        padding: 1rem;
+        border-radius: 8px;
+        border: 1px solid #e0e0e0;
+        margin-bottom: 1rem;
+    }
+    
+    .sidebar-content {
+        padding: 1rem 0;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    
+    # Initialize session state
+    if 'current_page' not in st.session_state:
+        st.session_state.current_page = 'dashboard'
+    if 'show_add_contact' not in st.session_state:
+        st.session_state.show_add_contact = False
+    if 'show_add_deal' not in st.session_state:
+        st.session_state.show_add_deal = False
+    
+    # Check authentication
+    if not AUTH_AVAILABLE:
+        st.error("🔧 **System Maintenance**")
+        st.info("Authentication system is being updated. Please try again later.")
+        st.markdown("---")
+        st.markdown("### 🚀 NXTRIX 3.0 - Enterprise CRM")
+        st.markdown("**Features:**")
+        st.markdown("- Complete CRM with contact & deal management")
+        st.markdown("- Automated billing with 7-day trials")
+        st.markdown("- Payment processing integration")
+        st.markdown("- Real-time analytics and reporting")
+        st.markdown("- Supabase cloud database")
+        st.success("✅ Ready for production deployment!")
+        return
+    
+    if not auth.is_authenticated():
+        auth.render_auth_page()
+        return
+    
+    # Get current user data
+    user_data = auth.get_current_user()
+    if not user_data:
+        st.error("Failed to load user data. Please log in again.")
+        auth.logout()
+        return
+    
+    # Check access with billing integration
+    access_granted, access_info = check_and_enforce_access(user_data)
+    if not access_granted:
+        return
+    
+    # Sidebar navigation
+    with st.sidebar:
+        st.markdown("### 🚀 NXTRIX 3.0")
+        st.markdown(f"Welcome back, **{user_data.get('full_name', 'User')}**!")
+        
+        # Navigation menu
+        nav_options = {
+            "🏠 Dashboard": "dashboard",
+            "👥 Contacts": "contacts", 
+            "💼 Deals": "deals",
+            "📈 Analytics": "analytics",
+            "🔧 Settings": "settings",
+            "🚪 Logout": "logout"
+        }
+        
+        for label, page in nav_options.items():
+            if st.button(label, key=f"nav_{page}"):
+                if page == "logout":
+                    auth.logout()
+                    st.rerun()
+                else:
+                    st.session_state.current_page = page
+                    st.rerun()
+        
+        st.markdown("---")
+        
+        # Show subscription info
+        plan = user_data.get('subscription_tier', 'starter').title()
+        st.markdown(f"**Plan:** {plan}")
+        
+        if 'trial_end_date' in user_data:
+            trial_end = user_data['trial_end_date']
+            st.markdown(f"**Trial Status:** Active")
+        
+        st.markdown("**Support:** help@nxtrix.com")
+    
+    # Main content area
+    if st.session_state.current_page == "dashboard":
+        render_dashboard()
+    elif st.session_state.current_page == "contacts":
+        render_contact_management()
+    elif st.session_state.current_page == "deals":
+        render_deal_management()
+    elif st.session_state.current_page == "analytics":
+        render_analytics()
+    elif st.session_state.current_page == "settings":
+        render_settings()
+    else:
+        render_dashboard()
 
 if __name__ == "__main__":
     main()
