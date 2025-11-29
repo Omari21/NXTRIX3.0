@@ -260,6 +260,14 @@ class StreamlitAuth:
         except:
             return ""
     
+    def is_authenticated(self) -> bool:
+        """Check if user is authenticated"""
+        return st.session_state.get('authenticated', False)
+    
+    def check_authentication(self) -> bool:
+        """Check if user is authenticated - alias method"""
+        return self.is_authenticated()
+    
     def render_auth_interface(self):
         """Render authentication interface"""
         if 'authenticated' in st.session_state and st.session_state.authenticated:

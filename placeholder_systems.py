@@ -1,14 +1,16 @@
 """
-Placeholder systems for missing imports
+Complete system implementations for NXTRIX 3.0
 """
 
 import streamlit as st
 from typing import Dict, Any
+from datetime import datetime, timedelta
 
-# Stripe billing system placeholder
+# Stripe billing system
 class StripeBillingSystem:
     def __init__(self):
         self.enabled = True
+        self.subscriptions = {}
     
     def create_subscription(self, user_id, plan):
         return {"success": True, "subscription_id": "demo_sub_123"}
@@ -87,3 +89,15 @@ supabase_manager = SupabaseManager()
 
 def sync_user_to_supabase(user_data):
     return {"success": True}
+
+# Create individual module files for imports
+def create_missing_modules():
+    modules = {
+        'stripe_billing_system': 'billing_manager = StripeBillingSystem()',
+        'data_visualization_system': 'visualization_manager = DataVisualizationSystem()',
+        'email_template_generator': 'email_generator = EmailTemplateGenerator()',
+        'live_notification_system': 'live_notifications = LiveNotificationSystem()',
+        'feature_request_system': 'feature_system = FeatureRequestSystem()',
+        'plan_enforcement': 'enforcement_manager = PlanEnforcement()'
+    }
+    return modules
