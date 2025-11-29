@@ -1,0 +1,22 @@
+{
+  "name": "nxtrix-netlify-functions",
+  "version": "1.0.0",
+  "description": "Netlify Functions for NXTRIX CRM Stripe integration",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "stripe": "^14.5.0",
+    "@supabase/supabase-js": "^2.38.0"
+  },
+  "keywords": [
+    "netlify",
+    "functions", 
+    "stripe",
+    "supabase",
+    "nxtrix"
+  ],
+  "author": "NXTRIX",
+  "license": "MIT"
+}

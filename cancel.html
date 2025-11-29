@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Payment Cancelled - NXTRIX</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏢</text></svg>">
+  
+  <style>
+    :root {
+      --bg: #0b0d12;
+      --surface: #1a1b23;
+      --border: #2d2e3f;
+      --text: #e5e7eb;
+      --muted: #9ca3af;
+      --brand: #7c5cff;
+      --brand-2: #24d1ff;
+      --accent: #10b981;
+      --warning: #f59e0b;
+      --error: #ef4444;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .container {
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 40px 20px;
+      text-align: center;
+    }
+
+    .cancel-icon {
+      width: 120px;
+      height: 120px;
+      background: linear-gradient(135deg, var(--warning), #d97706);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 32px;
+      font-size: 48px;
+    }
+
+    h1 {
+      font-size: 2.5rem;
+      margin-bottom: 16px;
+      color: var(--warning);
+    }
+
+    .subtitle {
+      font-size: 1.2rem;
+      color: var(--muted);
+      margin-bottom: 40px;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 32px;
+      margin-bottom: 32px;
+      text-align: left;
+    }
+
+    .card h3 {
+      color: var(--warning);
+      margin-bottom: 16px;
+      font-size: 1.3rem;
+    }
+
+    .info-box {
+      background: rgba(245, 158, 11, 0.1);
+      border: 1px solid rgba(245, 158, 11, 0.3);
+      border-radius: 12px;
+      padding: 20px;
+      margin: 24px 0;
+    }
+
+    .info-box h4 {
+      color: var(--warning);
+      margin-bottom: 8px;
+    }
+
+    .btn {
+      display: inline-block;
+      padding: 16px 32px;
+      background: linear-gradient(135deg, var(--brand), var(--brand-2));
+      color: white;
+      text-decoration: none;
+      border-radius: 12px;
+      font-weight: 600;
+      font-size: 1.1rem;
+      transition: transform 0.2s;
+      margin: 8px;
+    }
+
+    .btn:hover {
+      transform: translateY(-2px);
+    }
+
+    .btn.secondary {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+    }
+
+    .btn.warning {
+      background: linear-gradient(135deg, var(--warning), #d97706);
+    }
+
+    .benefits {
+      list-style: none;
+      margin: 16px 0;
+    }
+
+    .benefits li {
+      display: flex;
+      align-items: center;
+      margin-bottom: 8px;
+      padding: 8px;
+      border-radius: 6px;
+      background: rgba(124, 92, 255, 0.05);
+    }
+
+    .benefits li::before {
+      content: '🔥';
+      margin-right: 12px;
+      font-size: 16px;
+    }
+
+    .contact-info {
+      background: rgba(124, 92, 255, 0.05);
+      border: 1px solid rgba(124, 92, 255, 0.2);
+      border-radius: 12px;
+      padding: 20px;
+      margin-top: 32px;
+    }
+
+    @media (max-width: 768px) {
+      h1 { font-size: 2rem; }
+      .cancel-icon { width: 80px; height: 80px; font-size: 32px; }
+      .card { padding: 24px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="cancel-icon">⏰</div>
+    
+    <h1>Payment Cancelled</h1>
+    <p class="subtitle">No worries! Your information is saved and you can complete payment anytime.</p>
+
+    <div class="card">
+      <h3>⚠️ What This Means</h3>
+      
+      <div class="info-box">
+        <h4>🎯 Your Spot is Still Reserved</h4>
+        <p>Your founders pricing reservation remains active. You can complete payment anytime before our public launch.</p>
+      </div>
+
+      <p><strong>No charges:</strong> Your card was not charged and no payment was processed.</p>
+      <p><strong>Data saved:</strong> Your plan selection and information are securely stored.</p>
+      <p><strong>Still eligible:</strong> You can still get founders pricing by completing payment later.</p>
+    </div>
+
+    <div class="card">
+      <h3>🔥 Don't Miss Out - Founders Benefits</h3>
+      <ul class="benefits">
+        <li>Lock in founders pricing forever (up to 32% off)</li>
+        <li>Early access 30 days before public launch</li>
+        <li>Priority support and feature requests</li>
+        <li>Complete access to all 9 platform modules</li>
+        <li>Lifetime pricing protection</li>
+      </ul>
+    </div>
+
+    <div style="text-align: center;">
+      <a href="https://nxtrix.com#pricing" class="btn warning">Complete Payment Now</a>
+      <a href="https://nxtrix.com" class="btn secondary">Return to Homepage</a>
+    </div>
+
+    <div class="contact-info">
+      <h4>💬 Need Help?</h4>
+      <p><strong>Questions about payment?</strong> Email us at <a href="mailto:support@nxtrix.com" style="color: var(--brand);">support@nxtrix.com</a></p>
+      <p><strong>Technical issues?</strong> We're here to help you secure your founders spot.</p>
+      <p><strong>Want to talk?</strong> Schedule a call to discuss your investment business needs.</p>
+    </div>
+  </div>
+
+  <script>
+    // Get URL parameters for context
+    const urlParams = new URLSearchParams(window.location.search);
+    const plan = urlParams.get('plan');
+    
+    if (plan) {
+      console.log('💭 Payment cancelled for plan:', plan);
+      
+      // You could customize the message based on the plan
+      const planDisplay = plan.charAt(0).toUpperCase() + plan.slice(1);
+      document.querySelector('.info-box p').innerHTML = `
+        Your <strong>${planDisplay} founders pricing</strong> reservation remains active. 
+        You can complete payment anytime before our public launch.
+      `;
+    }
+
+    // Track cancellation event (you can integrate with analytics here)
+    console.log('⏰ NXTRIX Payment Cancelled:', {
+      plan,
+      timestamp: new Date().toISOString(),
+      url: window.location.href
+    });
+
+    // Optional: Show a reminder after some time
+    setTimeout(() => {
+      console.log('💡 Reminder: Founders pricing is limited time only!');
+    }, 30000); // 30 seconds
+  </script>
+</body>
+</html>

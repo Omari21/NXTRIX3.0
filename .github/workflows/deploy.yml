@@ -1,0 +1,17 @@
+name: Deploy to Streamlit Cloud
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Deploy to Streamlit Cloud
+      run: |
+        echo "Repository: Omari21/NXTRIX3.0"
+        echo "Branch: main" 
+        echo "Main file: streamlit_app.py"
+        echo "Ready for manual deployment to share.streamlit.io"
