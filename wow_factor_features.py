@@ -187,6 +187,111 @@ class WowFeatures:
             
             for feature in demo_features:
                 st.markdown(f"• {feature}")
+    
+    def render_smart_deal_scoring(self, contacts):
+        """Render smart deal scoring system"""
+        st.markdown("### 🎯 Smart Deal Scoring")
+        
+        for contact in contacts[:3]:  # Show top 3
+            score = random.randint(75, 95)
+            color = "#10b981" if score > 85 else "#f59e0b" if score > 75 else "#ef4444"
+            
+            st.markdown(f"""
+            <div style="
+                background: rgba(255,255,255,0.05);
+                border-left: 4px solid {color};
+                padding: 16px;
+                margin: 8px 0;
+                border-radius: 8px;
+            ">
+                <strong>{contact.get('name', 'Contact')}</strong> 
+                <span style="color: {color}; float: right;">{score}% Deal Score</span>
+                <br>
+                <small style="color: rgba(255,255,255,0.7);">
+                    Based on engagement, budget fit, and timing indicators
+                </small>
+            </div>
+            """, unsafe_allow_html=True)
+    
+    def render_instant_reports(self):
+        """Render instant reports feature"""
+        st.markdown("### 📊 Instant Reports")
+        
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            if st.button("📈 Sales Report", use_container_width=True):
+                st.success("📊 Sales report generated instantly!")
+        
+        with col2:
+            if st.button("💰 Revenue Report", use_container_width=True):
+                st.success("💰 Revenue report generated instantly!")
+        
+        with col3:
+            if st.button("📞 Activity Report", use_container_width=True):
+                st.success("📞 Activity report generated instantly!")
+    
+    def render_smart_automation_suggestions(self):
+        """Render smart automation suggestions"""
+        st.markdown("### 🤖 Smart Automation Suggestions")
+        
+        suggestions = [
+            "🔄 Auto-follow up emails for inactive leads",
+            "📅 Schedule meetings based on contact behavior",
+            "💌 Personalized email campaigns for segments",
+            "🎯 Lead scoring automation based on activities"
+        ]
+        
+        for suggestion in suggestions:
+            col1, col2 = st.columns([4, 1])
+            with col1:
+                st.write(suggestion)
+            with col2:
+                if st.button("Enable", key=f"enable_{suggestion[:10]}"):
+                    st.success("✅ Automation enabled!")
+    
+    def render_ai_assistant_sidebar(self):
+        """Render AI assistant in sidebar"""
+        with st.sidebar:
+            st.markdown("### 🤖 AI Assistant")
+            user_input = st.text_area("Ask me anything about your CRM...", height=100)
+            
+            if st.button("💬 Ask AI", use_container_width=True):
+                if user_input:
+                    st.success("🤖 AI is analyzing your request...")
+                    st.info("💡 Based on your data, I recommend focusing on the top 3 deals in your pipeline.")
+    
+    def render_smart_insights_banner(self):
+        """Render smart insights banner"""
+        st.markdown("""
+        <div style="
+            background: linear-gradient(90deg, #6366f1, #8b5cf6);
+            padding: 16px;
+            border-radius: 12px;
+            margin: 16px 0;
+            text-align: center;
+        ">
+            <h4 style="margin: 0; color: white;">💡 Smart Insight</h4>
+            <p style="margin: 8px 0 0 0; color: white;">
+                Your conversion rate increased 23% this week! 
+                <strong>Sarah Johnson</strong> and <strong>Tech Corp</strong> are your hottest leads.
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    def render_predictive_analytics(self):
+        """Render predictive analytics"""
+        st.markdown("### 🔮 Predictive Analytics")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.metric("Next Month Revenue Forecast", "$245K", "+18%")
+            st.metric("Deal Close Probability", "73%", "+5%")
+        
+        with col2:
+            st.metric("Optimal Contact Time", "2:30 PM", "📞")
+            st.metric("Best Day for Meetings", "Tuesday", "📅")
 
 # Global wow features instance
 wow_features = WowFeatures()

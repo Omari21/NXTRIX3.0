@@ -421,6 +421,41 @@ class StreamlitAuth:
             st.markdown('</div>', unsafe_allow_html=True)
         
         return None
+    
+    def render_auth_page(self):
+        """Render authentication page - main entry point"""
+        if not self.is_authenticated():
+            return self.render_auth_interface()
+        return True
+    
+    @property
+    def user_manager(self):
+        """Get user manager instance"""
+        return self
+    
+    def logout(self):
+        """Logout current user"""
+        if 'session_id' in st.session_state:
+            # Invalidate session in database
+            try:
+                conn = sqlite3.connect("nxtrix_users.db")
+                cursor = conn.cursor()
+                cursor.execute(
+                    "DELETE FROM user_sessions WHERE session_id = ?",
+                    (st.session_state.session_id,)
+                )
+                conn.commit()
+                conn.close()
+            except Exception:
+                pass
+        
+        # Clear session state
+        for key in ['authenticated', 'user_data', 'session_id']:
+            if key in st.session_state:
+                del st.session_state[key]
+        
+        st.success("🔓 Logged out successfully!")
+        st.rerun()
 
 # Global auth instance
 auth = StreamlitAuth()

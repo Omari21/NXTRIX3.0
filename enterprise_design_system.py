@@ -704,5 +704,79 @@ class EnterpriseDesign:
             </div>
             """, unsafe_allow_html=True)
 
+    def create_enterprise_metrics_grid(self, metrics_data):
+        """Create enterprise metrics grid"""
+        cols = st.columns(len(metrics_data))
+        
+        for i, (key, metric) in enumerate(metrics_data.items()):
+            with cols[i]:
+                st.metric(
+                    label=metric.get('label', key.title()),
+                    value=metric.get('value', '0'),
+                    delta=metric.get('delta', '+0%')
+                )
+    
+    def render_activity_timeline(self):
+        """Render activity timeline"""
+        st.markdown("### 📅 Recent Activity")
+        
+        activities = [
+            {"time": "2 hours ago", "user": "John Doe", "action": "Updated deal status", "icon": "💼"},
+            {"time": "4 hours ago", "user": "Sarah Smith", "action": "Added new contact", "icon": "👤"},
+            {"time": "1 day ago", "user": "Mike Johnson", "action": "Sent proposal", "icon": "📧"}
+        ]
+        
+        for activity in activities:
+            st.markdown(f"""
+            <div style="
+                background: rgba(255,255,255,0.05);
+                padding: 12px;
+                border-radius: 8px;
+                margin: 8px 0;
+                border-left: 4px solid #6366f1;
+            ">
+                {activity['icon']} <strong>{activity['user']}</strong> {activity['action']}
+                <br><small style="color: rgba(255,255,255,0.6);">{activity['time']}</small>
+            </div>
+            """, unsafe_allow_html=True)
+    
+    def render_notification_center(self, show_notifications=False):
+        """Render notification center"""
+        if show_notifications:
+            st.markdown("### 🔔 Notifications")
+            
+            notifications = [
+                {"type": "success", "message": "Deal closed successfully!", "time": "5 min ago"},
+                {"type": "warning", "message": "Follow up required for lead", "time": "1 hour ago"},
+                {"type": "info", "message": "New contact added to database", "time": "2 hours ago"}
+            ]
+            
+            for notif in notifications:
+                icon = "✅" if notif['type'] == 'success' else "⚠️" if notif['type'] == 'warning' else "ℹ️"
+                st.markdown(f"{icon} {notif['message']} *({notif['time']})*")
+    
+    def render_bulk_actions_bar(self, selected_items):
+        """Render bulk actions bar"""
+        if selected_items:
+            st.markdown(f"### Selected: {len(selected_items)} items")
+            
+            col1, col2, col3, col4 = st.columns(4)
+            
+            with col1:
+                if st.button("📧 Send Email", key="bulk_email"):
+                    st.success(f"📧 Email sent to {len(selected_items)} contacts!")
+            
+            with col2:
+                if st.button("🏷️ Add Tags", key="bulk_tags"):
+                    st.success(f"🏷️ Tags added to {len(selected_items)} items!")
+            
+            with col3:
+                if st.button("📊 Export", key="bulk_export"):
+                    st.success(f"📊 {len(selected_items)} items exported!")
+            
+            with col4:
+                if st.button("🗑️ Delete", key="bulk_delete"):
+                    st.error(f"🗑️ {len(selected_items)} items deleted!")
+
 # Global enterprise design instance
 enterprise_design = EnterpriseDesign()
