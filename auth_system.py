@@ -14,6 +14,13 @@ from typing import Dict, Optional, List, Any
 import re
 import json
 
+try:
+    import bcrypt
+    BCRYPT_AVAILABLE = True
+except ImportError:
+    BCRYPT_AVAILABLE = False
+    print("Warning: bcrypt not available, using fallback authentication")
+
 class StreamlitAuth:
     def __init__(self):
         self.db_path = "nxtrix_users.db"
@@ -24,26 +31,51 @@ class StreamlitAuth:
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         
+        # Create users table
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS users (
                 user_uuid TEXT PRIMARY KEY,
                 email TEXT UNIQUE NOT NULL,
                 password_hash TEXT NOT NULL,
-                full_name TEXT NOT NULL,
-                company TEXT,
-                phone TEXT,
+                full_name TEXT DEFAULT '',
+                company TEXT DEFAULT '',
+                phone TEXT DEFAULT '',
                 subscription_tier TEXT DEFAULT 'starter',
                 subscription_status TEXT DEFAULT 'trial',
-                trial_started TEXT,
-                trial_ends TEXT,
+                trial_started TEXT DEFAULT '',
+                trial_ends TEXT DEFAULT '',
                 created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-                last_login TEXT,
+                last_login TEXT DEFAULT '',
                 is_active BOOLEAN DEFAULT 1,
                 email_verified BOOLEAN DEFAULT 0,
                 preferences TEXT DEFAULT '{}',
                 usage_stats TEXT DEFAULT '{}'
             )
         ''')
+        
+        # Migrations: Add missing columns if they don't exist
+        migrations = [
+            ("full_name", "TEXT DEFAULT ''"),
+            ("trial_started", "TEXT DEFAULT ''"),
+            ("trial_ends", "TEXT DEFAULT ''"),
+            ("company", "TEXT DEFAULT ''"),
+            ("phone", "TEXT DEFAULT ''"),
+            ("subscription_tier", "TEXT DEFAULT 'starter'"),
+            ("subscription_status", "TEXT DEFAULT 'trial'"),
+            ("last_login", "TEXT DEFAULT ''"),
+            ("is_active", "BOOLEAN DEFAULT 1"),
+            ("email_verified", "BOOLEAN DEFAULT 0"),
+            ("preferences", "TEXT DEFAULT '{}'"),
+            ("usage_stats", "TEXT DEFAULT '{}'")
+        ]
+        
+        for column_name, column_def in migrations:
+            try:
+                cursor.execute(f"ALTER TABLE users ADD COLUMN {column_name} {column_def}")
+                print(f"Added {column_name} column to existing users table")
+            except sqlite3.OperationalError:
+                # Column already exists
+                pass
         
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS user_sessions (
@@ -63,17 +95,34 @@ class StreamlitAuth:
     
     def hash_password(self, password: str) -> str:
         """Hash password with salt"""
-        salt = secrets.token_hex(16)
-        password_hash = hashlib.pbkdf2_hmac('sha256', password.encode(), salt.encode(), 100000)
-        return f"{salt}${password_hash.hex()}"
+        if BCRYPT_AVAILABLE:
+            # Use bcrypt if available
+            salt = bcrypt.gensalt()
+            password_hash = bcrypt.hashpw(password.encode('utf-8'), salt)
+            return password_hash.decode('utf-8')
+        else:
+            # Fallback to PBKDF2
+            salt = secrets.token_hex(16)
+            password_hash = hashlib.pbkdf2_hmac('sha256', password.encode(), salt.encode(), 100000)
+            return f"{salt}${password_hash.hex()}"
     
     def verify_password(self, password: str, stored_hash: str) -> bool:
         """Verify password against stored hash"""
         try:
-            salt, hash_part = stored_hash.split('$')
-            password_hash = hashlib.pbkdf2_hmac('sha256', password.encode(), salt.encode(), 100000)
-            return password_hash.hex() == hash_part
-        except:
+            if stored_hash.startswith('$2b$') or stored_hash.startswith('$2a$'):
+                # bcrypt hash
+                if BCRYPT_AVAILABLE:
+                    return bcrypt.checkpw(password.encode('utf-8'), stored_hash.encode('utf-8'))
+                else:
+                    # Cannot verify bcrypt without bcrypt library
+                    return False
+            else:
+                # PBKDF2 hash (fallback)
+                salt, hash_part = stored_hash.split('$')
+                password_hash = hashlib.pbkdf2_hmac('sha256', password.encode(), salt.encode(), 100000)
+                return password_hash.hex() == hash_part
+        except Exception as e:
+            print(f"Password verification error: {e}")
             return False
     
     def validate_email(self, email: str) -> bool:
