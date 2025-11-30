@@ -323,11 +323,7 @@ class StreamlitAuth:
                     email = st.text_input("📧 Email", placeholder="your@email.com")
                     password = st.text_input("🔒 Password", type="password", placeholder="Enter your password")
                     
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        login_btn = st.form_submit_button("🚀 Sign In", use_container_width=True, type="primary")
-                    with col2:
-                        demo_btn = st.form_submit_button("👁️ Demo Mode", use_container_width=True)
+                    login_btn = st.form_submit_button("🚀 Sign In", use_container_width=True, type="primary")
                     
                     if login_btn and email and password:
                         result = self.authenticate_user(email, password)
@@ -340,22 +336,6 @@ class StreamlitAuth:
                             st.rerun()
                         else:
                             st.error(result["error"])
-                    
-                    if demo_btn:
-                        # Create demo user session
-                        demo_user = {
-                            "success": True,
-                            "user_uuid": "demo-" + str(uuid.uuid4())[:8],
-                            "full_name": "Demo User",
-                            "email": "demo@nxtrix.com",
-                            "subscription_tier": "professional",
-                            "subscription_status": "active",
-                            "trial_ends": (datetime.now() + timedelta(days=30)).isoformat()
-                        }
-                        st.session_state.authenticated = True
-                        st.session_state.user_data = demo_user
-                        st.success("Demo mode activated! Exploring NXTRIX Professional features.")
-                        st.rerun()
             
             with tab2:
                 with st.form("signup_form", clear_on_submit=True):
@@ -456,6 +436,12 @@ class StreamlitAuth:
         
         st.success("🔓 Logged out successfully!")
         st.rerun()
+    
+    def get_current_user(self):
+        """Get current authenticated user data"""
+        if 'authenticated' in st.session_state and st.session_state.authenticated:
+            return st.session_state.get('user_data', {})
+        return {}
 
 # Global auth instance
 auth = StreamlitAuth()
